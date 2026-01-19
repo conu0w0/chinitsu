@@ -1,9 +1,10 @@
-import { Deck } from "./core/deck";
+import { Deck } from "./core/deck.js";
 
 export class Game {
-  private deck!: Deck;
-
-  constructor(private canvas: HTMLCanvasElement) {}
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.deck = null;
+  }
 
   start() {
     console.log("Chinitsu game started");
