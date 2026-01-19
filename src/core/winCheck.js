@@ -1,195 +1,134 @@
-export function winCheck(hand) {
-  if (!Array.isArray(hand) || hand.length !== 14) {
-    return { win: false, forms: [] };
-  }
+export function calculateResult(handTiles, winTile, ctx = {}) {
+  const tiles = [...handTiles, winTile].sort((a,b)=>a-b);
+  const counts = countTiles(tiles);
+  const ankanTiles = ctx.ankanTiles || [];
 
-  // 排序（非常重要）
-  const tiles = [...hand].sort((a, b) => a - b);
+  // A. 全牌型役滿（先算，不 return）
+  const baseYakuman = checkYakumanByTiles(tiles, counts);
 
-  const forms = [];
-
-  // 七對子
-  if (isChitoitsu(tiles)) {
-    forms.push("chitoitsu");
-  }
-
-  // 特殊役滿結構（先判，避免被一般型吞掉）
-  if (isJunseiChuuren(tiles)) {
-    forms.push("junsei_chuurenpoutou");
-  } else if (isChuuren(tiles)) {
-    forms.push("chuurenpoutou");
-  }
-
-  if (isDaichikurin(tiles)) {
-    forms.push("daichikurin");
-  }
-
-  if (isGoldenGateBridge(tiles)) {
-    forms.push("golden_gate_bridge");
-  }
-
-  // 一般型（4 面子 + 1 對）
-  if (isMentsuHand(tiles)) {
-    forms.push("mentsu");
-
-    // 4️⃣ 二盃口（必須建立在一般型上）
-    if (isRyanpeikou(tiles)) {
-      forms.push("ryanpeikou");
-    }
-  }
-
-  return {
-    win: forms.length > 0,
-    forms,
-  };
-}
-
-function isMentsuHand(tiles) {
-  const count = toCountMap(tiles);
-
-  // 嘗試每一種可能的雀頭
-  for (const t in count) {
-    if (count[t] >= 2) {
-      // 拿掉雀頭
-      count[t] -= 2;
-
-      if (canFormMentsu(count)) {
-        count[t] += 2;
-        return true;
-      }
-
-      // 還原
-      count[t] += 2;
-    }
-  }
-  return false;
-}
-
-function canFormMentsu(count) {
-  // 找第一個還有牌的數字
-  let tile = null;
-  for (let i = 1; i <= 9; i++) {
-    if (count[i] > 0) {
-      tile = i;
-      break;
-    }
-  }
-
-  // 全部用完了 → 成功
-  if (tile === null) return true;
-
-  // 嘗試刻子
-  if (count[tile] >= 3) {
-    count[tile] -= 3;
-    if (canFormMentsu(count)) {
-      count[tile] += 3;
-      return true;
-    }
-    count[tile] += 3;
-  }
-
-  // 嘗試順子
-  if (
-    tile <= 7 &&
-    count[tile + 1] > 0 &&
-    count[tile + 2] > 0
-  ) {
-    count[tile]--;
-    count[tile + 1]--;
-    count[tile + 2]--;
-    if (canFormMentsu(count)) {
-      count[tile]++;
-      count[tile + 1]++;
-      count[tile + 2]++;
-      return true;
-    }
-    count[tile]++;
-    count[tile + 1]++;
-    count[tile + 2]++;
-  }
-
-  return false;
-}
-
-function toCountMap(tiles) {
-  const count = {};
-  for (const t of tiles) {
-    count[t] = (count[t] || 0) + 1;
-  }
-  return count;
-}
-
-function isRyanpeikou(tiles) {
-  const count = toCountMap(tiles);
-
-  for (const t in count) {
-    if (count[t] >= 2) {
-      count[t] -= 2;
-
-      const results = [];
-      collectMentsu(count, [], results);
-
-      count[t] += 2;
-
-      for (const mentsu of results) {
-        // 只看順子
-        const shuntsu = mentsu.filter(m => m.type === "shuntsu");
-
-        if (shuntsu.length !== 4) continue;
-
-        const map = {};
-        for (const s of shuntsu) {
-          const key = s.tiles.join("-");
-          map[key] = (map[key] || 0) + 1;
-        }
-
-        const pairs = Object.values(map).filter(v => v >= 2);
-        if (pairs.length >= 2) {
-          return true;
-        }
-      }
-    }
-  }
-  return false;
-}
-
-function collectMentsu(count, current, results) {
-  let tile = null;
-  for (let i = 1; i <= 9; i++) {
-    if (count[i] > 0) {
-      tile = i;
-      break;
-    }
-  }
-
-  if (tile === null) {
-    results.push([...current]);
-    return;
-  }
-
-  // 刻子
-  if (count[tile] >= 3) {
-    count[tile] -= 3;
-    current.push({ type: "koutsu", tiles: [tile, tile, tile] });
-    collectMentsu(count, current, results);
-    current.pop();
-    count[tile] += 3;
-  }
-
-  // 順子
-  if (tile <= 7 && count[tile + 1] > 0 && count[tile + 2] > 0) {
-    count[tile]--;
-    count[tile + 1]--;
-    count[tile + 2]--;
-    current.push({
-      type: "shuntsu",
-      tiles: [tile, tile + 1, tile + 2],
+  // B. 七對子
+  if (isChiitoitsu(counts)) {
+    return finalize({
+      yakuman: baseYakuman,
+      yaku: [YAKU.CHIITOI, YAKU.CHINITSU],
     });
-    collectMentsu(count, current, results);
-    current.pop();
-    count[tile]++;
-    count[tile + 1]++;
-    count[tile + 2]++;
   }
+
+  // C. 一般型（含四槓子）
+  const patterns = getAgariPatterns(tiles, ankanTiles);
+  if (!patterns.length) return null;
+
+  let best = null;
+
+  for (const p of patterns) {
+    const r = calcFromPattern(p, tiles, winTile, ctx);
+
+    const totalYakuman =
+      baseYakuman.reduce((s,y)=>s+y.yakuman,0) +
+      r.yakuman.reduce((s,y)=>s+y.yakuman,0);
+
+    if (
+      !best ||
+      totalYakuman > best.totalYakuman ||
+      (totalYakuman === best.totalYakuman && r.han > best.han)
+    ) {
+      best = {
+        yakuman: [...baseYakuman, ...r.yakuman],
+        yaku: r.yaku,
+        han: r.han,
+        totalYakuman
+      };
+    }
+  }
+
+  return finalize(best);
 }
 
+function calcFromPattern(p, tiles, winTile, ctx) {
+  let yakuman = [];
+  let yaku = [YAKU.CHINITSU];
+
+  const runs = p.mentsu.filter(m=>m.type==='run');
+  const trips = p.mentsu.filter(m=>m.type==='triplet');
+
+  // ---------- 四暗刻 / 四暗刻單騎 ----------
+  const ankou = trips.filter(t=>t.ankan && !t.isKan).length;
+  const wait = getWaitType(p, winTile);
+
+  if (ankou === 4) {
+    if (wait === 'tanki') {
+      yakuman.push(YAKU.SUUANKOU_TANKI);
+    } else {
+      yakuman.push(YAKU.SUUANKOU);
+    }
+  }
+
+  // ---------- 四槓子 ----------
+  const kanCount = trips.filter(t=>t.isKan).length;
+  if (kanCount === 4) {
+    yakuman.push(YAKU.SUUKANTSU);
+    yakuman.push(YAKU.SUUANKOU_TANKI);
+}
+
+
+  // ---------- 金門橋 ----------
+  const starts = runs.map(r=>r.start);
+  if ([1,3,5,7].every(s=>starts.includes(s))) {
+    yakuman.push(YAKU.GOLDEN_GATE);
+  }
+
+  // ===== 以下才是一般役 =====
+  if (ctx.isRiichi) yaku.push(YAKU.RIICHI);
+  if (ctx.isTsumo) yaku.push(YAKU.TSUMO);
+  if (isTanyao(tiles)) yaku.push(YAKU.TANYAO);
+
+  // 平和
+  if (!trips.length && wait === 'ryanmen') {
+    yaku.push(YAKU.PINFU);
+  }
+
+  // 一盃口 / 二盃口
+  const peiko = countPeiko(runs);
+  if (peiko === 1) yaku.push(YAKU.IIPEIKO);
+  if (peiko === 2) yaku.push(YAKU.RYANPEIKO);
+
+  // 一氣通貫
+  if ([1,4,7].every(s=>starts.includes(s))) {
+    yaku.push(YAKU.ITTSU);
+  }
+
+  // 純全帶么九
+  if (isJunchan(p)) yaku.push(YAKU.JUNCHAN);
+
+  const han = yaku.reduce((s,y)=>s+y.han,0);
+
+  return { yakuman, yaku, han };
+}
+
+function checkYakumanByTiles(tiles, c) {
+  let res = [];
+
+  // 綠一色
+  if (tiles.every(t=>[2,3,4,6,8].includes(t))) {
+    res.push(YAKU.RYUUIISOU);
+  }
+
+  // 大竹林
+  if ([2,3,4,5,6,7,8].every(n=>c[n]===2)) {
+    res.push(YAKU.DAI_CHIKURIN);
+  }
+
+  // 九蓮
+  if (
+    c[1]>=3 && c[9]>=3 &&
+    [2,3,4,5,6,7,8].every(n=>c[n]>=1)
+  ) {
+    const pure =
+      tiles.length===14 &&
+      c[1]===3 && c[9]===3 &&
+      [2,3,4,5,6,7,8].every(n=>c[n]===1);
+    res.push(pure ? YAKU.CHUUREN_PURE : YAKU.CHUUREN);
+  }
+
+  return res;
+}
