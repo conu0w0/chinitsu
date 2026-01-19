@@ -1,17 +1,16 @@
-import { Tile, TileValue } from "./tiles";
+import { Tile } from "./tiles.js";
 
 export class Deck {
-  tiles: Tile[] = [];
-
   constructor() {
+    this.tiles = [];
     this.init();
   }
 
   init() {
     this.tiles = [];
-    for (let v: TileValue = 1; v <= 9; v++) {
+    for (let v = 1; v <= 9; v++) {
       for (let i = 0; i < 4; i++) {
-        this.tiles.push(new Tile(v as TileValue));
+        this.tiles.push(new Tile(v));
       }
     }
   }
