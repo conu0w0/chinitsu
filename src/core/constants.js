@@ -1,3 +1,17 @@
+export const GAME_CONFIG = {
+    TOTAL_TILES: 36,      // 總張數 (1~9索 各4張)
+    WALL_DEAD_SIZE: 0,    // 無王牌/嶺上牌保留區 (嶺上牌直接從牌山摸)
+    HAND_SIZE: 13,        // 標準手牌數
+    
+    // 分數設定
+    STARTING_SCORE: 150000,
+    YAKUMAN_SCORE: 32000, // 犯規 (Chombo) 需支付役滿點 (假設為莊家役滿或統一 32000)
+    RIICHI_BET: 0,        // 立直不需要供托 (規則設定)
+    
+    // 遊戲流動
+    MIN_TILES_LEFT: 0,    // 牌山剩 0 張即流局
+};
+
 export const YAKU = {
     // === 一般役 ===
     RIICHI:         { name: '立直', han: 1 },
