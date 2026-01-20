@@ -14,13 +14,13 @@ const canvas = document.getElementById("game");
 const ui = new UI(canvas);
 
 // Game
-const game = new Game((gameState) = >{
+const game = new Game((gameState) => {
     console.log("UI Update:", gameState);
     ui.update(gameState);
 });
 
 // Click handler
-canvas.addEventListener("click", (e) = >{
+canvas.addEventListener("click", (e) => {
     if (!ui.state) return;
     if (ui.state.type === "GAME_OVER") return;
 
