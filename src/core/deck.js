@@ -1,5 +1,4 @@
-import { Tile } from "./tiles.js";
-
+// src/core/deck.js
 export class Deck {
   constructor() {
     this.tiles = [];
@@ -10,7 +9,7 @@ export class Deck {
     this.tiles = [];
     for (let v = 1; v <= 9; v++) {
       for (let i = 0; i < 4; i++) {
-        this.tiles.push(new Tile(v));
+        this.tiles.push(v); // <--- 直接存數字，不要 new Tile(v)
       }
     }
   }
