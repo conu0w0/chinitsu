@@ -13,7 +13,7 @@ from "./core/winCheck.js";
 
 export class Game {
     constructor(onStateChange) {
-        this.onStateChange = onStateChange || (() >{});
+        this.onStateChange = onStateChange || (() => {});
         this.deck = null;
         this.players = [];
         this.turnIndex = 0;
