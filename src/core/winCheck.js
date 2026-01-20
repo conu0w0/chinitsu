@@ -289,6 +289,53 @@ function checkYakumanByTiles(tiles, c, winTile, ctx) {
 // 輔助函數區 (Helpers)
 // ==========================================================
 
+/**
+ * 計算當前手牌聽哪些牌
+ * @param {Array<number>} hand - 手牌 (不含進張)
+ * @param {Array<Object>} melds - 副露/暗槓 (這裡主要影響是否單騎等，但純判斷聽牌只要看手牌拆解)
+ * @returns {Array<number>} 聽牌列表 [1, 4, 7]
+ */
+export function getWaitingTiles(hand, melds = []) {
+    const waitingTiles = [];
+    // 雖然 Deck 只有 1-9，但我們暴力檢查 1-9 即可
+    for (let t = 1; t <= 9; t++) {
+        // 檢查手牌+這張牌是否超過4張 (防呆)
+        const count = hand.filter(x => x === t).length;
+        if (count >= 4) continue; // 已經4張了不可能再聽這張(除非國士...但這裡沒有)
+
+        // 嘗試和牌判定
+        // 注意：這裡只看「有沒有 Pattern」，不看有沒有役 (因為只要能組起來就算聽牌)
+        // 我們利用 getAgariPatterns 來檢查結構
+        const patterns = getAgariPatterns([...hand, t], extractAnkanTiles(melds));
+        
+        // 七對子聽牌檢查
+        const isChiitoiWait = checkChiitoiWait([...hand, t]);
+
+        if (patterns.length > 0 || isChiitoiWait) {
+            waitingTiles.push(t);
+        }
+    }
+    return waitingTiles;
+}
+
+// 輔助：從 melds 結構提取暗槓的牌 (為了傳給 getAgariPatterns)
+function extractAnkanTiles(melds) {
+    if (!melds) return [];
+    return melds
+        .filter(m => m.type === 'ankan')
+        .map(m => m.tiles);
+}
+
+// 輔助：七對子聽牌檢查 (手牌13張，加一張變成14張七對子)
+function checkChiitoiWait(tiles) {
+    const counts = {};
+    for (const t of tiles) counts[t] = (counts[t] || 0) + 1;
+    // 七對子條件：7種牌，每種2張
+    const keys = Object.keys(counts);
+    if (keys.length !== 7) return false;
+    return keys.every(k => counts[k] === 2);
+}
+
 function finalize(result) {
     if (!result) return null;
     
