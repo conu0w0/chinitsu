@@ -1,19 +1,19 @@
 import { Game } from "./game.js";
 import { UI } from "./ui.js";
 
-// 1) 取得 Canvas（用 HTML 原本的 width/height，避免點擊座標對不起來）
+// Canvas
 const canvas = document.getElementById("game");
 
-// 2) 初始化 UI
+// UI
 const ui = new UI(canvas);
 
-// 3) 初始化 Game（狀態改變就更新 UI）
+// Game
 const game = new Game((gameState) => {
   console.log("UI Update:", gameState);
   ui.update(gameState);
 });
 
-// ========= 事件處理：單一入口，避免重複丟牌 =========
+// Click handler
 canvas.addEventListener("click", (e) => {
   if (!ui.state) return;
   if (ui.state.type === "GAME_OVER") return;
@@ -25,17 +25,17 @@ canvas.addEventListener("click", (e) => {
   const input = ui.handleClick(x, y);
   if (!input) return;
 
-  // ---- 立直模式：只允許「點一張牌」完成立直切牌（確保只丟一次）----
+  // --- 立直待切模式：只允許點牌一次完成「立直切牌」(避免切兩次/切多張) ---
   if (ui.isRiichiMode) {
     if (input.type === "DISCARD") {
       game.playerDiscard(input, true); // true = 宣告立直切牌
       ui.isRiichiMode = false;
     }
-    // 立直模式下點按鈕/其他地方都忽略，避免亂送 action
+    // 立直模式下點按鈕或其他地方都忽略
     return;
   }
 
-  // ---- 一般切牌：只要輪到你、且是 DRAW 階段，才允許丟牌 ----
+  // --- 切牌（只在輪到玩家操作 且 DRAW 階段才允許） ---
   if (input.type === "DISCARD") {
     if (ui.state.playerIndex !== 0) return;
     if (ui.state.type !== "DRAW") return;
@@ -43,51 +43,58 @@ canvas.addEventListener("click", (e) => {
     return;
   }
 
-  // ---- 按鈕 ----
+  // --- 按鈕 ---
   if (input.type === "BUTTON") {
     handleButton(input.action);
   }
 });
 
-// ========= 按鈕行為 =========
+// Button actions
 function handleButton(action) {
-  // 你不是當前操作玩家時：只允許 RON（如果你想把 RON 永遠留給玩家 0）
-  const isMyTurnToAct = ui.state.playerIndex === 0;
+  if (!ui.state) return;
+
+  // 只讓「目前可操作的人」按按鈕
+  // 你希望：對手回合隱藏；對手舍牌後才顯示 RON/CANCEL 給玩家
+  // 所以 playerIndex 應該在那個時機被 Game 設成 0
+  if (ui.state.playerIndex !== 0) return;
 
   switch (action) {
     case "CANCEL": {
       // 取消立直選牌模式
       ui.isRiichiMode = false;
 
-      // DISCARD 階段的 CANCEL 視為 PASS（不榮和）
+      // DISCARD 階段：取消 = PASS（不榮和，遊戲繼續）
       if (ui.state.type === "DISCARD") {
         game.playerAction("PASS");
+      } else {
+        // DRAW 階段：取消 = 收起動作，讓你照常切牌
+        // 如果你 Game 有支援 CANCEL（我之前建議加的），就用它
+        // 沒有也不影響：你仍可直接點牌切牌
+        game.playerAction("CANCEL");
       }
-      // DRAW 階段的 CANCEL：什麼都不做，讓你繼續選擇要切哪張
       return;
     }
 
     case "RIICHI": {
-      if (!isMyTurnToAct) return;
+      // 依你規則：自己回合且未立直就必定可出現
+      // 實際「能不能按」你應由 actions 決定；main.js 只負責進入模式
+      if (ui.state.p0?.isRiichi) return;
       if (ui.state.type !== "DRAW") return;
-      if (ui.state.p0?.isRiichi) return; // 已立直就不能再立直
 
-      // 進入立直待切模式：下一次點牌才會真正宣告立直+切牌
       ui.isRiichiMode = true;
       alert("請點擊一張牌進行立直切牌！");
       return;
     }
 
     case "KAN": {
-      if (!isMyTurnToAct) return;
+      // 依你規則：有 4 張同牌才可出現；立直後還要檢查不破壞聽牌型
+      // 這些條件應該在 getAvailableActions 裡決定是否提供 'KAN'
       if (ui.state.type !== "DRAW") return;
 
-      // 從「目前 UI 狀態」找暗槓候選（用 p0.hand + incomingTile）
       const tileToKan = findKanCandidate(ui.state.p0?.hand || [], ui.state.incomingTile);
-
-      // 找不到就不要送出（避免 null 槓 -> 畫面出現 null）
       if (tileToKan == null) {
-        alert("目前沒有可暗槓的牌（或不允許槓）。");
+        // 如果 actions 有 'KAN' 但找不到候選，代表資料不同步；避免送出 null
+        console.warn("KAN pressed but no candidate found.");
         return;
       }
 
@@ -96,16 +103,15 @@ function handleButton(action) {
     }
 
     case "TSUMO": {
-      if (!isMyTurnToAct) return;
+      // 依你規則：自己回合一定會出現（不管是否聽牌）
       if (ui.state.type !== "DRAW") return;
-
-      // 依你規則：即使沒聽牌也能按（不合法你之後會做チョンボ）
       game.playerAction("TSUMO", { winTile: ui.state.incomingTile });
       return;
     }
 
     case "RON": {
-      // 依你規則：對手舍牌後必定出現，玩家可按（不合法你之後會做チョンボ）
+      // 依你規則：對手舍牌後必定出現（不管是否聽牌）
+      if (ui.state.type !== "DISCARD") return;
       game.playerAction("RON", { playerIndex: 0 });
       return;
     }
@@ -115,8 +121,7 @@ function handleButton(action) {
   }
 }
 
-// ========= 輔助：找暗槓候選 =========
-// 回傳可槓的 tile 值（1~9），沒有則回傳 null
+// Find ankan candidate (1~9) or null
 function findKanCandidate(hand, incoming) {
   const all = incoming != null ? [...hand, incoming] : [...hand];
   const counts = {};
@@ -125,5 +130,5 @@ function findKanCandidate(hand, incoming) {
   return null;
 }
 
-// 5) 啟動遊戲
+// Start
 game.start();
