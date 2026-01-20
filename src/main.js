@@ -86,7 +86,7 @@ function handleButton(action) {
         {
             // 依你規則：自己回合且未立直就必定可出現
             // 實際「能不能按」你應由 actions 決定；main.js 只負責進入模式
-            if (ui.state.p0 ? .isRiichi) return;
+            if (ui.state.p0?.isRiichi) return;
             if (ui.state.type !== "DRAW") return;
 
             ui.isRiichiMode = true;
