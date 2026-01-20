@@ -30,7 +30,7 @@ canvas.addEventListener('click', (e) => {
         if (input.type === 'DISCARD') {
             console.log("Player discards:", input.tile);
             // 呼叫 Game 切牌
-            game.playerDiscard(input.tile);
+            game.playerDiscard(input);
         } 
         else if (input.type === 'BUTTON') {
             console.log("Player action:", input.action);
@@ -69,7 +69,7 @@ canvas.addEventListener('click', (e) => {
     // 特殊處理：立直模式下的切牌
     if (ui.isRiichiMode && input && input.type === 'DISCARD') {
         game.playerDiscard(input.tile, true); // true = 宣告立直
-        ui.isRiichiMode = false;
+        game.playerDiscard(input, true);
     }
 });
 
