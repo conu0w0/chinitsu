@@ -271,8 +271,23 @@ export class Game {
       return;
     }
 
-    this.winner = winnerIndex;
-    this.endGame(result, isTsumo ? "Tsumo" : "Ron");
+    const result = calculateResult(handTiles, winTile, ctx);
+
+if (!result) {
+  this.applyChombo(winnerIndex);
+  return;
+}
+
+// 結算分數（親/子 + 役滿倍數）
+const loserIndex = isTsumo ? ((winnerIndex + 1) % 2) : (this.lastDiscard?.from);
+this.applyWinPayment(winnerIndex, loserIndex, result);
+
+// 飛び檢查：對手被打到負分就結束
+const reason = (loserIndex != null && this.players[loserIndex].score < 0) ? "飛び" : (isTsumo ? "Tsumo" : "Ron");
+
+this.winner = winnerIndex;
+this.endGame(result, reason);
+
   }
 
   // === チョンボ ===
@@ -301,6 +316,39 @@ export class Game {
 
     this.endGame(result, reason);
   }
+
+  applyWinPayment(winnerIndex, loserIndex, result) {
+  if (loserIndex == null) return;
+
+  const winner = this.players[winnerIndex];
+  const loser = this.players[loserIndex];
+
+  // 只先處理你現在關心的「役滿/多倍役滿」計分
+  if (result.isYakuman) {
+    // 你的 winCheck 可能回傳 yakumanCount；沒有的話就當 1
+    const mult = result.yakumanCount || result.totalYakuman || 1;
+
+    // 你規則：親 48000、子 32000（目前莊家固定 player 0）
+    const isDealer = (winnerIndex === 0);
+    const base = isDealer ? 48000 : 32000;
+
+    const pay = base * mult;
+
+    winner.score += pay;
+    loser.score -= pay;
+
+    // 給 UI 顯示用
+    result.score = pay;
+    result.yakumanCount = mult;
+    result.scoreName = (mult === 1) ? "役滿" : `${mult}倍役滿`;
+
+    return;
+  }
+
+  // 非役滿：先給個預設，避免 UI 顯示 undefined
+  result.score = result.score ?? 0;
+}
+
 
   // === 換巡 ===
   nextTurn() {
