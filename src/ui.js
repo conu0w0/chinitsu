@@ -205,7 +205,7 @@ export class UI {
             for (let i = 0; i < p0.hand.length; i++) {
                 const tx = handStartX + i * this.tileW;
                 if (x >= tx && x <= tx + this.tileW && y >= this.handY && y <= this.handY + this.tileH) {
-                    return { type: 'DISCARD', tile: p0.hand[i] };
+                    return { type: 'DISCARD', tile: p0.hand[i], from: 'HAND', index: i };
                 }
             }
 
@@ -213,7 +213,7 @@ export class UI {
             if (this.state.incomingTile !== null) {
                 const incomingX = handStartX + (p0.hand.length * this.tileW) + 20;
                 if (x >= incomingX && x <= incomingX + this.tileW && y >= this.handY && y <= this.handY + this.tileH) {
-                    return { type: 'DISCARD', tile: this.state.incomingTile };
+                    return { type: 'DISCARD', tile: this.state.incomingTile, from: 'INCOMING' };
                 }
             }
         }
