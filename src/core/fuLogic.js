@@ -1,5 +1,3 @@
-import { TILES } from "./constants.js"; // 假設你需要常數，如果沒有可以拿掉
-
 /**
  * 計算符數 (Fu)
  * @param {Array} hand - 手牌陣列
