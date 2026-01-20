@@ -13,7 +13,7 @@ from "./core/winCheck.js";
 
 export class Game {
     constructor(onStateChange) {
-        this.onStateChange = onStateChange || (() => {});
+        this.onStateChange = onStateChange || (() = >{});
         this.deck = null;
         this.players = [];
         this.turnIndex = 0;
@@ -57,8 +57,8 @@ export class Game {
     }
 
     sortHands() {
-        this.players[0].hand.sort((a, b) => a - b);
-        this.players[1].hand.sort((a, b) => a - b);
+        this.players[0].hand.sort((a, b) = >a - b);
+        this.players[1].hand.sort((a, b) = >a - b);
     }
 
     // === 摸牌 ===
@@ -132,7 +132,7 @@ export class Game {
             if (this.incomingTile !== null) {
                 player.hand.push(this.incomingTile);
                 this.incomingTile = null;
-                player.hand.sort((a, b) => a - b);
+                player.hand.sort((a, b) = >a - b);
             }
         }
 
@@ -231,75 +231,105 @@ export class Game {
     handleWin(winnerIndex, winTile, isTsumo) {
         const winner = this.players[winnerIndex];
 
-        // *** 關鍵修正：組合完整手牌用於計算 ***
-        // calculateResult 需要 14 張牌 (或 13+1)
-        // 如果是自摸，winTile 應該是 incomingTile (如果不為空)
-        // 如果是榮和，winTile 是別人的舍牌
-        // 複製一份手牌來計算
-        const fullHand = [...winner.hand];
-        // 如果手牌裡還沒包含這張贏的牌，把它加進去
-        // 自摸時，如果是 incomingTile 贏，它現在還在 incomingTile 變數裡，不在 hand 裡
-        if (isTsumo && this.incomingTile === winTile) {
-            fullHand.push(winTile);
-        } else if (!isTsumo) {
-            // 榮和：把別人的舍牌加進來算
-            fullHand.push(winTile);
-        }
+        // handTiles 必須是不含 winTile 的手牌（13 張）
+        const handTiles = [...winner.hand];
 
-        // 如果剛好 incomingTile 存在但不是贏的牌 (例如暗槓後嶺上開花?)
-        // 這裡簡化：確保 fullHand 數量正確 (應為 14 - melds*3)
-        // 實際上 calculateResult 內部會處理 pattern，只要給它包含 winTile 的陣列即可
+        // Tenhou（天和）判定：簡化版——莊家首巡自摸，且未有人打出任何牌
+        const isTenhou = isTsumo && winnerIndex === 0 && winner.firstTurn === true && (this.players[0].discards.length === 0) && (this.players[1].discards.length === 0) && (winner.melds.length === 0);
+
         const ctx = {
             isTsumo,
+            isTenhou,
             isRiichi: winner.isRiichi,
             isDoubleRiichi: winner.isDoubleRiichi,
             isIppatsu: winner.isIppatsu,
             melds: winner.melds,
-            // 傳入副露資訊
-            dora: [] // 暫無寶牌
+            dora: [],
+            // 如果你之後要算嶺上開花等，可以在 processDraw(isRinshan) 補 ctx.isRinshan
         };
 
-        const result = calculateResult(fullHand, winTile, ctx);
+        const result = calculateResult(handTiles, winTile, ctx);
+
+        // ✅ 如果 result 為 null：代表詐和 -> チョンボ
+        if (!result) {
+            this.applyChombo(winnerIndex);
+            return;
+        }
+
         this.winner = winnerIndex;
         this.endGame(result, isTsumo ? "Tsumo": "Ron");
     }
 
-    nextTurn() {
-        // 如果有殘留的 incomingTile (例如對手榮和檢查完後 Pass)，要合併進手牌
-        // 但理論上 checkOpponentRon 時，如果是 discard 觸發，incoming 早就處理完了
-        // 只有在 nextTurn 是從自己切牌後觸發的才對。
-        this.turnIndex = (this.turnIndex + 1) % 2;
-        this.incomingTile = null; // 清空上一人的暫存
-        this.processDraw();
+    applyChombo(offenderIndex) {
+        const offender = this.players[offenderIndex];
+        const opponentIndex = (offenderIndex + 1) % 2;
+        const opponent = this.players[opponentIndex];
+
+        // 規則：親 48000、子 32000（你目前莊家固定 0）
+        const isDealer = (offenderIndex === 0);
+        const penalty = isDealer ? 48000 : 32000;
+
+        offender.score -= penalty;
+        opponent.score += penalty;
+
+        // 飛び（擊飛）就結束
+        const reason = (offender.score < 0) ? "飛び": "チョンボ";
+        this.winner = opponentIndex;
+
+        this.endGame({
+            isYakuman: true,
+            yaku: [{
+                name: "CHOMBO",
+                han: 0
+            }],
+            han: 0,
+            scoreName: reason,
+            penalty
+        },
+        reason);
     }
 
-    endGame(result, reason) {
-        this.phase = 'END';
-        this.notifyUI([], -1, {
-            result,
-            reason,
-            winnerIndex: this.winner
-        });
-    }
+    const result = calculateResult(fullHand, winTile, ctx);
+    this.winner = winnerIndex;
+    this.endGame(result, isTsumo ? "Tsumo": "Ron");
+}
 
-    // 統一通知介面
-    notifyUI(actions = [], activePlayerIdx = null, extraData = {}) {
-        const idx = activePlayerIdx !== null ? activePlayerIdx: this.turnIndex;
+nextTurn() {
+    // 如果有殘留的 incomingTile (例如對手榮和檢查完後 Pass)，要合併進手牌
+    // 但理論上 checkOpponentRon 時，如果是 discard 觸發，incoming 早就處理完了
+    // 只有在 nextTurn 是從自己切牌後觸發的才對。
+    this.turnIndex = (this.turnIndex + 1) % 2;
+    this.incomingTile = null; // 清空上一人的暫存
+    this.processDraw();
+}
 
-        const state = {
-            type: this.phase === 'END' ? 'GAME_OVER': this.phase,
-            playerIndex: idx,
-            // 誰正在操作
-            incomingTile: this.incomingTile,
-            // 全局的 incoming
-            // 傳送完整玩家資料
-            p0: this.players[0],
-            p1: this.players[1],
+endGame(result, reason) {
+    this.phase = 'END';
+    this.notifyUI([], -1, {
+        result,
+        reason,
+        winnerIndex: this.winner
+    });
+}
 
-            actions: actions,
-            ...extraData
-        };
+// 統一通知介面
+notifyUI(actions = [], activePlayerIdx = null, extraData = {}) {
+    const idx = activePlayerIdx !== null ? activePlayerIdx: this.turnIndex;
 
-        this.onStateChange(state);
-    }
+    const state = {
+        type: this.phase === 'END' ? 'GAME_OVER': this.phase,
+        playerIndex: idx,
+        // 誰正在操作
+        incomingTile: this.incomingTile,
+        // 全局的 incoming
+        // 傳送完整玩家資料
+        p0: this.players[0],
+        p1: this.players[1],
+
+        actions: actions,
+        ...extraData
+    };
+
+    this.onStateChange(state);
+}
 }
