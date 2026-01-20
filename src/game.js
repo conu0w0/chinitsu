@@ -9,8 +9,8 @@ export class Game {
     this.players = [];
     this.turnIndex = 0;
     this.phase = "INIT";
-    this.incomingTile = null; // 剛摸到的牌（不直接進 hand）
-    this.lastDiscard = null;  // { tile, from }
+    this.incomingTile = null; 
+    this.lastDiscard = null;  
     this.winner = null;
     this.lastDrawWasRinshan = false;
   }
@@ -20,9 +20,7 @@ export class Game {
     this.deck.shuffle();
     this.players = [this.createPlayer(0), this.createPlayer(1)];
     this.dealHands();
-
-    // 莊家固定 0
-    this.turnIndex = 0;
+    this.turnIndex = 0; // 莊家固定 0
     this.processDraw(false);
   }
 
@@ -49,26 +47,22 @@ export class Game {
   }
 
   sortHands() {
-    this.players[0].hand.sort((a, b) => a - b);
-    this.players[1].hand.sort((a, b) => a - b);
+    this.players.forEach(p => p.hand.sort((a, b) => a - b));
   }
 
-  // === 摸牌 ===
+  // === 核心流程：摸牌 ===
   processDraw(isRinshan = false) {
-    const player = this.players[this.turnIndex];
-    this.lastDrawWasRinshan = !!isRinshan;
-
     if (this.deck.tiles.length === 0) {
       this.endGame(null, "流局");
       return;
     }
 
+    const player = this.players[this.turnIndex];
+    this.lastDrawWasRinshan = !!isRinshan;
     this.incomingTile = this.deck.draw();
     this.phase = "DRAW";
 
-    const isPlayerTurn = this.turnIndex === 0;
-
-    // actionCheck 回傳 { buttons, kanTiles }
+    const isPlayerTurn = (this.turnIndex === 0);
     const { buttons, kanTiles } = getAvailableActions(
       player,
       isPlayerTurn,
@@ -77,59 +71,45 @@ export class Game {
     );
 
     if (isPlayerTurn) {
-      // 玩家回合：顯示 TSUMO/RIICHI/KAN/CANCEL（依 actionCheck）
       this.notifyUI(buttons, 0, { kanTiles });
     } else {
-      // 電腦回合：隱藏所有按鈕
       this.notifyUI([], 1, { kanTiles: [] });
-
-      // 電腦自動出牌（最簡單：摸切）
-      this.aiAutoDiscard();
+      // 電腦簡單邏輯：摸切
+      setTimeout(() => this.aiAutoDiscard(), 500); 
     }
   }
 
-  // === 電腦出牌：摸切 ===
   aiAutoDiscard() {
-    if (this.incomingTile == null) return;
+    if (this.incomingTile === null) return;
     this.playerDiscard({ tile: this.incomingTile, from: "INCOMING" });
   }
 
-  // === 切牌 ===
+  // === 核心流程：打牌 ===
   playerDiscard(discardInput, isRiichiDeclaration = false) {
     const player = this.players[this.turnIndex];
+    const { tile: discardTile, from, index: handIndex } = 
+      typeof discardInput === "object" ? discardInput : { tile: discardInput, from: null };
 
-    const discardTile =
-      typeof discardInput === "object" ? discardInput.tile : discardInput;
-    const from =
-      typeof discardInput === "object" ? discardInput.from : null;
-    const handIndex =
-      typeof discardInput === "object" ? discardInput.index : null;
-
+    // 立直處理
     if (isRiichiDeclaration) {
       player.isRiichi = true;
       if (player.firstTurn && player.melds.length === 0) player.isDoubleRiichi = true;
       player.isIppatsu = true;
     } else {
-      if (player.isIppatsu) player.isIppatsu = false;
+      player.isIppatsu = false;
     }
 
-    // === 依來源丟牌，避免數字相同誤判 ===
+    // 牌庫位移處理
     if (from === "INCOMING") {
-      // 丟剛摸到的
       this.incomingTile = null;
     } else {
-      // 丟手牌（優先用 index）
-      let idx = -1;
-      if (Number.isInteger(handIndex) && player.hand[handIndex] === discardTile) {
-        idx = handIndex;
-      } else {
-        idx = player.hand.indexOf(discardTile);
-      }
-      if (idx === -1) return;
+      const idx = (Number.isInteger(handIndex) && player.hand[handIndex] === discardTile)
+        ? handIndex
+        : player.hand.indexOf(discardTile);
+
+      if (idx === -1) return; // 防錯
 
       player.hand.splice(idx, 1);
-
-      // 把摸到的那張補進手牌
       if (this.incomingTile !== null) {
         player.hand.push(this.incomingTile);
         this.incomingTile = null;
@@ -140,117 +120,73 @@ export class Game {
     player.discards.push(discardTile);
     this.lastDiscard = { tile: discardTile, from: this.turnIndex };
     player.firstTurn = false;
-
-    // 消除對手一發
+    
+    // 消除對手一發狀態
     this.players[(this.turnIndex + 1) % 2].isIppatsu = false;
 
-    // 電腦丟牌後：給玩家判斷 RON/CANCEL
     this.checkOpponentRon(discardTile);
   }
 
-  // === 對手舍牌後：一定停住等玩家按 RON 或 CANCEL ===
   checkOpponentRon(tile) {
     this.phase = "DISCARD";
-
-    const claimantIdx = (this.turnIndex + 1) % 2; // 可能榮和的人（玩家）
-    const claimant = this.players[claimantIdx];
-
-    const { buttons } = getAvailableActions(claimant, false, tile, "DISCARD");
-
-    // 永遠切回玩家視角等待選擇（你規則：每張對手舍牌都給玩家判斷）
-    this.notifyUI(buttons, 0, { kanTiles: [] });
-
-    // 注意：這裡不 nextTurn()，要等玩家按 CANCEL -> PASS 才換巡
+    const claimantIdx = (this.turnIndex + 1) % 2;
+    const { buttons } = getAvailableActions(this.players[claimantIdx], false, tile, "DISCARD");
+    
+    // 等待玩家選擇 (RON 或 PASS)
+    this.notifyUI(buttons, 0); 
   }
 
-  // === 玩家按鈕行為 ===
+  // === 動作處理 ===
   playerAction(actionType, data = {}) {
     const player = this.players[this.turnIndex];
 
-    if (actionType === "PASS") {
-      this.nextTurn();
-      return;
-    }
-
-    if (actionType === "CANCEL") {
-      // DRAW 階段取消：不換巡，只是讓玩家繼續切牌（UI 端通常會收起模式）
-      // DISCARD 階段取消：main.js 應該改送 PASS
-      this.notifyUI([], 0, { kanTiles: [] });
-      return;
-    }
-
-    if (actionType === "TSUMO") {
-      this.handleWin(this.turnIndex, data.winTile, true);
-      return;
-    }
-
-    if (actionType === "RON") {
-      // data.playerIndex 是按按鈕的人（你目前固定玩家 0）
-      this.handleWin(data.playerIndex, this.lastDiscard?.tile, false);
-      return;
-    }
-
-    if (actionType === "KAN") {
-      this.handleAnkan(player, data.kanTile);
-      return;
+    switch (actionType) {
+      case "PASS":
+        this.nextTurn();
+        break;
+      case "CANCEL":
+        this.notifyUI([], 0); // 關閉按鈕，讓玩家自由點擊手牌
+        break;
+      case "TSUMO":
+        this.handleWin(this.turnIndex, data.winTile, true);
+        break;
+      case "RON":
+        this.handleWin(data.playerIndex ?? 0, this.lastDiscard?.tile, false);
+        break;
+      case "KAN":
+        this.handleAnkan(player, data.kanTile);
+        break;
     }
   }
 
-  // === 暗槓 ===
   handleAnkan(player, tileVal) {
     if (tileVal == null) return;
 
-    let removeCount = 0;
-
-    // 先看 incoming
+    let count = 0;
     if (this.incomingTile === tileVal) {
       this.incomingTile = null;
-      removeCount++;
+      count++;
     }
-
-    // 再看 hand（從後往前刪）
     for (let i = player.hand.length - 1; i >= 0; i--) {
-      if (player.hand[i] === tileVal && removeCount < 4) {
+      if (player.hand[i] === tileVal && count < 4) {
         player.hand.splice(i, 1);
-        removeCount++;
+        count++;
       }
     }
 
-    if (removeCount !== 4) {
-      // 防呆：不夠四張就不做
-      return;
+    if (count === 4) {
+      player.melds.push({ type: "ankan", tiles: [tileVal, tileVal, tileVal, tileVal] });
+      this.processDraw(true); // 嶺上摸牌
     }
-
-    player.melds.push({
-      type: "ankan",
-      tiles: [tileVal, tileVal, tileVal, tileVal],
-    });
-
-    // 槓後補牌（你規則：直接摸牌山下一張，視為嶺上）
-    this.processDraw(true);
   }
 
-  // === 和牌處理（TSUMO/RON） ===
+  // === 結算系統 ===
   handleWin(winnerIndex, winTile, isTsumo) {
-    if (winnerIndex == null || winTile == null) {
-      // 沒有有效和了牌，視為詐和
-      this.applyChombo(winnerIndex ?? 0);
-      return;
-    }
+    if (winTile == null) return this.applyChombo(winnerIndex);
 
     const winner = this.players[winnerIndex];
-
-    // handTiles 必須是不含 winTile 的手牌（13 張）
-    const handTiles = [...winner.hand];
-
-    // 天和（簡化）：莊家首巡自摸，且未有人打出任何牌，且無副露
-    const isTenhou =
-      isTsumo &&
-      winnerIndex === 0 &&
-      winner.firstTurn === true &&
-      this.players[0].discards.length === 0 &&
-      this.players[1].discards.length === 0 &&
-      winner.melds.length === 0;
+    const isTenhou = isTsumo && winnerIndex === 0 && winner.firstTurn && 
+                     this.players[0].discards.length === 0 && this.players[1].discards.length === 0;
 
     const ctx = {
       isTsumo,
@@ -259,115 +195,70 @@ export class Game {
       isDoubleRiichi: winner.isDoubleRiichi,
       isIppatsu: winner.isIppatsu,
       melds: winner.melds,
-      dora: [],
-      isRinshan: !!this.lastDrawWasRinshan,
+      dora: [], 
+      isRinshan: this.lastDrawWasRinshan,
     };
 
-    const result = calculateResult(handTiles, winTile, ctx);
+    const result = calculateResult([...winner.hand], winTile, ctx);
 
-    // result 為 null：詐和 -> チョンボ
     if (!result) {
       this.applyChombo(winnerIndex);
-      return;
+    } else {
+      const loserIndex = isTsumo ? (winnerIndex + 1) % 2 : this.lastDiscard.from;
+      this.applyWinPayment(winnerIndex, loserIndex, result, isTsumo);
+      
+      this.winner = winnerIndex;
+      const reason = this.players[loserIndex].score < 0 ? "飛び" : (isTsumo ? "自摸" : "榮和");
+      this.endGame(result, reason);
+    }
+  }
+
+  applyWinPayment(winnerIndex, loserIndex, result, isTsumo) {
+    const isDealer = (winnerIndex === 0);
+    let pay = 0;
+
+    if (result.isYakuman) {
+      const mult = result.yakumanCount || 1;
+      const base = isDealer ? 48000 : 32000;
+      pay = base * mult;
+      result.scoreName = mult > 1 ? `${mult}倍役滿` : "役滿";
+    } else {
+      pay = result.score || 0;
     }
 
-    const result = calculateResult(handTiles, winTile, ctx);
-
-if (!result) {
-  this.applyChombo(winnerIndex);
-  return;
-}
-
-// 結算分數（親/子 + 役滿倍數）
-const loserIndex = isTsumo ? ((winnerIndex + 1) % 2) : (this.lastDiscard?.from);
-this.applyWinPayment(winnerIndex, loserIndex, result);
-
-// 飛び檢查：對手被打到負分就結束
-const reason = (loserIndex != null && this.players[loserIndex].score < 0) ? "飛び" : (isTsumo ? "Tsumo" : "Ron");
-
-this.winner = winnerIndex;
-this.endGame(result, reason);
-
+    this.players[winnerIndex].score += pay;
+    this.players[loserIndex].score -= pay;
+    result.score = pay;
   }
 
-  // === チョンボ ===
   applyChombo(offenderIndex) {
-    const offender = this.players[offenderIndex];
     const opponentIndex = (offenderIndex + 1) % 2;
-    const opponent = this.players[opponentIndex];
+    const penalty = (offenderIndex === 0) ? 48000 : 32000;
 
-    // 規則：親 48000、子 32000（目前莊家固定 0）
-    const isDealer = offenderIndex === 0;
-    const penalty = isDealer ? 48000 : 32000;
-
-    offender.score -= penalty;
-    opponent.score += penalty;
-
-    const reason = offender.score < 0 ? "飛び" : "チョンボ";
+    this.players[offenderIndex].score -= penalty;
+    this.players[opponentIndex].score += penalty;
     this.winner = opponentIndex;
 
-    // UI 會顯示 han/fu/score，所以補齊欄位
-    const result = {
-      han: 0,
-      fu: 0,
-      score: -penalty,
-      yaku: [{ name: "CHOMBO", han: 0 }],
-    };
-
-    this.endGame(result, reason);
+    this.endGame({
+      han: 0, fu: 0, score: -penalty,
+      yaku: [{ name: "詐和 (CHOMBO)", han: 0 }]
+    }, "罰符");
   }
 
-  applyWinPayment(winnerIndex, loserIndex, result) {
-  if (loserIndex == null) return;
-
-  const winner = this.players[winnerIndex];
-  const loser = this.players[loserIndex];
-
-  // 只先處理你現在關心的「役滿/多倍役滿」計分
-  if (result.isYakuman) {
-    // 你的 winCheck 可能回傳 yakumanCount；沒有的話就當 1
-    const mult = result.yakumanCount || result.totalYakuman || 1;
-
-    // 你規則：親 48000、子 32000（目前莊家固定 player 0）
-    const isDealer = (winnerIndex === 0);
-    const base = isDealer ? 48000 : 32000;
-
-    const pay = base * mult;
-
-    winner.score += pay;
-    loser.score -= pay;
-
-    // 給 UI 顯示用
-    result.score = pay;
-    result.yakumanCount = mult;
-    result.scoreName = (mult === 1) ? "役滿" : `${mult}倍役滿`;
-
-    return;
-  }
-
-  // 非役滿：先給個預設，避免 UI 顯示 undefined
-  result.score = result.score ?? 0;
-}
-
-
-  // === 換巡 ===
   nextTurn() {
     this.turnIndex = (this.turnIndex + 1) % 2;
     this.incomingTile = null;
     this.processDraw(false);
   }
 
-  // === 結束 ===
   endGame(result, reason) {
     this.phase = "END";
     this.notifyUI([], -1, { result, reason, winnerIndex: this.winner });
   }
 
-  // === 統一通知 UI ===
   notifyUI(actions = [], activePlayerIdx = null, extraData = {}) {
     const idx = activePlayerIdx !== null ? activePlayerIdx : this.turnIndex;
-
-    const state = {
+    this.onStateChange({
       type: this.phase === "END" ? "GAME_OVER" : this.phase,
       playerIndex: idx,
       incomingTile: this.incomingTile,
@@ -375,8 +266,6 @@ this.endGame(result, reason);
       p1: this.players[1],
       actions,
       ...extraData,
-    };
-
-    this.onStateChange(state);
+    });
   }
 }
