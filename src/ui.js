@@ -8,100 +8,142 @@ export class UI {
         
         // 樣式設定
         this.tileW = 40;
-        this.tileH = 60;
+        this.tileH = 56;
         this.handY = this.height - 80;
-        this.buttons = []; // 儲存按鈕座標以便偵測點擊
+        this.buttons = []; 
     }
 
-    // 更新並重繪
     update(gameState) {
         this.state = gameState;
         this.render();
     }
 
     render() {
-        // 清空畫面
-        this.ctx.fillStyle = "#228B22"; // 麻將桌綠
+        // 0. 清空畫面
+        this.ctx.fillStyle = "#228B22"; // 綠色牌桌
         this.ctx.fillRect(0, 0, this.width, this.height);
 
         if (!this.state) return;
 
-        // 1. 繪製對手手牌 (蓋著的)
-        // 假設對手有 13 張
-        for (let i = 0; i < 13; i++) {
-            this.drawTileBack(50 + i * 30, 20);
+        // 解構資料 (預設空物件以免報錯)
+        const p0 = this.state.p0 || { hand: [], discards: [], melds: [] }; // 自己
+        const p1 = this.state.p1 || { hand: [], discards: [], melds: [] }; // 對手
+
+        // --- 1. 對手區域 (上方) ---
+        // 畫對手手牌 (蓋牌)
+        // 假設對手手牌數 = 13 - (副露數 * 3)
+        const p1HandCount = 13 - (p1.melds.length * 3);
+        for (let i = 0; i < p1HandCount; i++) {
+            this.drawTileBack(150 + i * 30, 30);
         }
+        // 畫對手副露 (槓/碰) - 右上角
+        this.drawMelds(p1.melds, this.width - 200, 30, true);
+        // 畫對手舍牌 (中間偏上)
+        this.drawDiscards(p1.discards, this.width / 2 - 120, 100, true);
 
-        // 2. 繪製對手舍牌 (上排)
-        // 這裡簡化，直接畫在中間上方
-        // 實際專案應從 state.players[1].discards 讀取
-        // 這裡暫時略過，專注玩家視角
 
-        // 3. 繪製自己剛摸到的牌 (Incoming Tile)
-        let incomingX = -100;
-        if (this.state.type === 'DRAW' && this.state.playerIndex === 0) {
-            // 畫在手牌右側稍微分開的位置
-            const handLen = 13; // 假設手牌固定13張
-            incomingX = 50 + handLen * this.tileW + 20;
+        // --- 2. 玩家區域 (下方) ---
+        // 畫自己舍牌 (中間偏下)
+        this.drawDiscards(p0.discards, this.width / 2 - 120, 300, false);
+        
+        // 畫自己副露 (槓) - 右下角
+        // 計算副露佔用的寬度，避免手牌重疊
+        const meldWidth = this.drawMelds(p0.melds, this.width - 50, this.handY, false);
+
+        // 畫自己手牌
+        // 注意：Game 傳來的 hand 已經是純淨的手牌陣列 (不含剛摸到的)
+        let handStartX = 50;
+        p0.hand.forEach((tileVal, idx) => {
+            this.drawTile(tileVal, handStartX + idx * this.tileW, this.handY);
+        });
+
+        // 畫剛摸到的牌 (如果有)
+        // 只有在自己的回合 (DRAW) 且有 incomingTile 時才畫
+        if (this.state.incomingTile !== null && this.state.playerIndex === 0) {
+            // 畫在手牌最右邊隔開一點
+            const incomingX = handStartX + (p0.hand.length * this.tileW) + 20;
             this.drawTile(this.state.incomingTile, incomingX, this.handY, true);
         }
 
-        // 4. 繪製自己手牌
-        // Game 裡我們沒有把 hand 傳出來，需要在 game.js 的 notifyUI 裡把 player.hand 傳出來
-        // 假設 state.hand 存在 (需修改 game.js 或在這裡獲取)
-        // *修正*：我們在 Game.notifyUI 裡應該傳入 current player info
-        const myHand = this.state.hand || []; 
-        myHand.forEach((tileVal, idx) => {
-            this.drawTile(tileVal, 50 + idx * this.tileW, this.handY);
-        });
+        // --- 3. 介面層 ---
+        // 顯示立直棒
+        if (p0.isRiichi) this.drawText("REACH", 20, this.handY - 20);
+        if (p1.isRiichi) this.drawText("REACH", 20, 80);
 
-        // 5. 繪製操作按鈕
-        this.buttons = []; // 重置按鈕區域
+        // 按鈕
+        this.buttons = []; 
         if (this.state.actions && this.state.actions.length > 0) {
             this.drawButtons(this.state.actions);
         }
 
-        // 6. 顯示訊息 (流局/和了)
+        // 遊戲結束訊息
         if (this.state.type === 'GAME_OVER') {
-            this.ctx.fillStyle = "rgba(0,0,0,0.7)";
-            this.ctx.fillRect(0, 0, this.width, this.height);
-            this.ctx.fillStyle = "white";
-            this.ctx.font = "30px Arial";
-            this.ctx.fillText(this.state.reason, this.width/2 - 50, this.height/2);
-            if(this.state.result) {
-                this.ctx.font = "20px Arial";
-                this.ctx.fillText(this.state.result.scoreName, this.width/2 - 40, this.height/2 + 40);
-            }
+            this.drawGameOver(this.state);
         }
     }
 
-    // 畫單張牌
-    drawTile(val, x, y, isHighlight = false) {
-        this.ctx.fillStyle = isHighlight ? "#FFFFE0" : "#FFFFFF";
-        this.ctx.fillRect(x, y, this.tileW - 2, this.tileH - 2);
-        
-        // 畫數字 (索子)
-        this.ctx.fillStyle = (val === 1 || val === 5 || val === 9) ? "#D00" : "#060";
-        this.ctx.font = "24px bold Arial";
-        this.ctx.fillText(val, x + 12, y + 38);
-        
-        // 畫邊框
-        this.ctx.strokeStyle = "#333";
-        this.ctx.strokeRect(x, y, this.tileW - 2, this.tileH - 2);
+    // === 輔助繪圖函式 ===
+
+    drawDiscards(discards, startX, startY, isUpsideDown) {
+        if (!discards) return;
+        const tilesPerRow = 6;
+        discards.forEach((tile, i) => {
+            const row = Math.floor(i / tilesPerRow);
+            const col = i % tilesPerRow;
+            const x = startX + col * this.tileW;
+            const y = startY + row * this.tileH;
+            this.drawTile(tile, x, y);
+        });
     }
 
-    // 畫牌背
+    drawMelds(melds, endX, y, isUpsideDown) {
+        if (!melds || melds.length === 0) return 0;
+        let currentX = endX;
+        
+        // 從右向左畫
+        melds.forEach(meld => {
+            // 畫這組的牌 (例如 4 張)
+            meld.tiles.forEach(t => {
+                currentX -= 32; // 副露畫小一點
+                this.drawTile(t, currentX, y, false, 30, 42); // 小尺寸
+            });
+            currentX -= 10; // 組與組之間留空
+        });
+        return endX - currentX; // 回傳總寬度
+    }
+
+    drawTile(val, x, y, isHighlight = false, w, h) {
+        const width = w || this.tileW;
+        const height = h || this.tileH;
+        
+        this.ctx.fillStyle = isHighlight ? "#FFFFE0" : "#F8F8F8";
+        this.ctx.fillRect(x, y, width - 2, height - 2);
+        
+        // 畫數字
+        this.ctx.fillStyle = (val === 1 || val === 5 || val === 9) ? "#D00" : "#060";
+        this.ctx.font = `bold ${Math.floor(height * 0.5)}px Arial`;
+        this.ctx.fillText(val, x + width * 0.3, y + height * 0.7);
+        
+        this.ctx.strokeStyle = "#888";
+        this.ctx.strokeRect(x, y, width - 2, height - 2);
+    }
+
     drawTileBack(x, y) {
-        this.ctx.fillStyle = "#1E90FF"; // 藍背
+        this.ctx.fillStyle = "#1E90FF";
         this.ctx.fillRect(x, y, this.tileW - 2, this.tileH - 2);
         this.ctx.strokeStyle = "#EEE";
         this.ctx.strokeRect(x, y, this.tileW - 2, this.tileH - 2);
     }
 
-    // 畫按鈕
+    drawText(txt, x, y) {
+        this.ctx.fillStyle = "yellow";
+        this.ctx.font = "20px Arial";
+        this.ctx.fillText(txt, x, y);
+    }
+
     drawButtons(actions) {
         const startX = this.width / 2 - (actions.length * 60);
-        const y = this.height - 160;
+        const y = this.height - 180;
 
         actions.forEach((action, i) => {
             const x = startX + i * 120;
@@ -114,42 +156,67 @@ export class UI {
             this.ctx.font = "20px Arial";
             this.ctx.fillText(action, x + 20, y + 28);
 
-            // 儲存按鈕區域用於點擊偵測
             this.buttons.push({ name: action, x, y, w, h });
         });
     }
 
-    // 處理點擊事件，回傳動作指令
+    drawGameOver(state) {
+        this.ctx.fillStyle = "rgba(0,0,0,0.8)";
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        this.ctx.fillStyle = "white";
+        this.ctx.font = "40px Arial";
+        this.ctx.textAlign = "center";
+        this.ctx.fillText(state.reason, this.width/2, this.height/2 - 50);
+        
+        if (state.result) {
+            this.ctx.font = "24px Arial";
+            this.ctx.fillText(`Winner: Player ${state.winnerIndex}`, this.width/2, this.height/2);
+            this.ctx.fillText(`${state.result.han} Han / ${state.result.fu} Fu`, this.width/2, this.height/2 + 40);
+            this.ctx.fillText(`Score: ${state.result.score}`, this.width/2, this.height/2 + 80);
+            
+            // 顯示役種
+            if(state.result.yaku) {
+                state.result.yaku.forEach((y, i) => {
+                    this.ctx.fillText(y.name, this.width/2, this.height/2 + 120 + (i*25));
+                });
+            }
+        }
+        this.ctx.textAlign = "left"; // 還原
+    }
+
     handleClick(x, y) {
         if (!this.state) return null;
 
-        // 1. 檢查按鈕點擊
+        // 檢查按鈕
         for (const btn of this.buttons) {
             if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
                 return { type: 'BUTTON', action: btn.name };
             }
         }
 
-        // 2. 檢查手牌點擊 (切牌)
-        // 只有在自己的回合 (DRAW) 才能切牌
-        if (this.state.type === 'DRAW' && this.state.playerIndex === 0) {
-            const myHand = this.state.hand || [];
-            
-            // 檢查手牌列
-            for (let i = 0; i < myHand.length; i++) {
-                const tx = 50 + i * this.tileW;
+        // 檢查手牌 (僅限 Player 0 且在 Draw 階段)
+        // 修正：只要是我的回合，不管是不是剛摸完，都可以切牌 (包含切剛摸到的)
+        if (this.state.playerIndex === 0 && this.state.type === 'DRAW') {
+            const p0 = this.state.p0;
+            let handStartX = 50;
+
+            // 檢查手牌陣列
+            for (let i = 0; i < p0.hand.length; i++) {
+                const tx = handStartX + i * this.tileW;
                 if (x >= tx && x <= tx + this.tileW && y >= this.handY && y <= this.handY + this.tileH) {
-                    return { type: 'DISCARD', tile: myHand[i] };
+                    return { type: 'DISCARD', tile: p0.hand[i] };
                 }
             }
 
-            // 檢查摸到的那張牌 (Incoming)
-            const incomingX = 50 + 13 * this.tileW + 20;
-            if (x >= incomingX && x <= incomingX + this.tileW && y >= this.handY && y <= this.handY + this.tileH) {
-                return { type: 'DISCARD', tile: this.state.incomingTile };
+            // 檢查剛摸到的牌 (Incoming)
+            if (this.state.incomingTile !== null) {
+                const incomingX = handStartX + (p0.hand.length * this.tileW) + 20;
+                if (x >= incomingX && x <= incomingX + this.tileW && y >= this.handY && y <= this.handY + this.tileH) {
+                    return { type: 'DISCARD', tile: this.state.incomingTile };
+                }
             }
         }
-
         return null;
     }
 }
