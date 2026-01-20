@@ -1,10 +1,10 @@
 /**
- * 取得手牌的所有可能拆解 (Patterns)
+ * 取得手牌的所有和了拆解 (Agari Patterns)
  * @param {Array<number>} hand - 手牌陣列 (例如 [1, 1, 1, 2, 3, ...])
- * @returns {Array<Object>} 包含所有可能的拆解結果
+ * @returns {Array<Object>} 包含所有可能的拆解結果。如果沒和牌，回傳空陣列。
  */
 
-export function getPatterns(hand) {
+export function getAgariPatterns(hand) {
     const patterns = [];
     const sortedHand = [...hand].sort((a, b) => a - b);
 
@@ -12,13 +12,13 @@ export function getPatterns(hand) {
     if (checkChiitoitsu(sortedHand)) {
         patterns.push({
             isChiitoitsu: true,
-            head: [], // 七對子沒有定義單一雀頭，或者視意圖而定
+            head: [], 
             mentsu: []
         });
     }
 
     // 2. 檢查標準型 (4面子 + 1雀頭)
-    // 為了效能，我們把手牌轉成計數器 (Frequency Map)
+    // 轉成計數器 (Frequency Map)
     const counts = {};
     for (let t of sortedHand) counts[t] = (counts[t] || 0) + 1;
 
@@ -30,10 +30,6 @@ export function getPatterns(hand) {
 
 /**
  * 遞迴尋找標準型組合
- * @param {Object} counts - 剩餘牌的計數器 { 1: 3, 2: 1 ... }
- * @param {Array} currentMentsu - 目前已找到的面子
- * @param {number|Array} currentHead - 目前已找到的雀頭 (null 代表還沒找)
- * @param {Array} results - 儲存結果的陣列
  */
 function findStandardPatterns(counts, currentMentsu, currentHead, results) {
     // 1. 找出一張還有剩餘的最小牌
@@ -45,18 +41,15 @@ function findStandardPatterns(counts, currentMentsu, currentHead, results) {
         }
     }
 
-    // 2. Base Case: 如果沒有剩餘牌了 (firstTile == -1)
+    // 2. Base Case: 如果沒有剩餘牌了 (全部分配完畢)
     if (firstTile === -1) {
-        // 檢查結構是否完整 (4面子 + 1雀頭)
-        // 這裡不需要檢查數量，因為我們是從 14 張牌開始減的
-        // 只要能減完，結構一定是對的。
-        // 但如果只有 雀頭 沒面子 (例如單釣將)，這邏輯也通。
-        // 標準和牌：4組 + 1頭
+        // 標準和牌檢查：必須是 4 組面子 + 1 個雀頭
+        // (如果是 13 張手牌 + 1 張和了牌 = 14 張)
         if (currentHead !== null && currentMentsu.length === 4) {
             results.push({
                 isChiitoitsu: false,
                 head: currentHead,
-                mentsu: JSON.parse(JSON.stringify(currentMentsu)) // 深拷貝以防參考問題
+                mentsu: JSON.parse(JSON.stringify(currentMentsu)) // 深拷貝
             });
         }
         return;
@@ -68,10 +61,8 @@ function findStandardPatterns(counts, currentMentsu, currentHead, results) {
     if (currentHead === null) {
         if (counts[firstTile] >= 2) {
             counts[firstTile] -= 2;
-            // 遞迴
             findStandardPatterns(counts, currentMentsu, [firstTile, firstTile], results);
-            // Backtrack (復原)
-            counts[firstTile] += 2;
+            counts[firstTile] += 2; // Backtrack
         }
     }
 
@@ -82,8 +73,7 @@ function findStandardPatterns(counts, currentMentsu, currentHead, results) {
         
         findStandardPatterns(counts, currentMentsu, currentHead, results);
         
-        // Backtrack
-        currentMentsu.pop();
+        currentMentsu.pop(); // Backtrack
         counts[firstTile] += 3;
     }
 
@@ -95,12 +85,12 @@ function findStandardPatterns(counts, currentMentsu, currentHead, results) {
             counts[firstTile + 1]--;
             counts[firstTile + 2]--;
             
+            // 記錄 start 以便後續判斷嵌張/邊張
             currentMentsu.push({ type: 'run', tiles: [firstTile, firstTile + 1, firstTile + 2], start: firstTile });
 
             findStandardPatterns(counts, currentMentsu, currentHead, results);
 
-            // Backtrack
-            currentMentsu.pop();
+            currentMentsu.pop(); // Backtrack
             counts[firstTile]++;
             counts[firstTile + 1]++;
             counts[firstTile + 2]++;
@@ -120,8 +110,7 @@ function checkChiitoitsu(hand) {
     let pairCount = 0;
     for (let k in counts) {
         if (counts[k] === 2) pairCount++;
-        else return false; // 七對子不能有 3 張或 4 張一樣的 (除非兩對? 一般規則不允許 4 張當兩對)
-        // 修正：標準七對子不允許 4 張一樣的牌當作 2 個對子。必須是 7 種不同的對子。
+        else return false; 
     }
     return pairCount === 7;
 }
