@@ -13,12 +13,6 @@ const ui = new UI(canvas);
 // 3. 初始化 Game (傳入 callback)
 // 這個 callback 會在遊戲狀態改變時 (摸牌、切牌、計算完畢) 被呼叫
 const game = new Game((gameState) => {
-    // 為了讓 UI 能畫出手牌，我們需要把當前玩家的手牌塞進 gameState
-    // *注意*：實際專案最好在 Game 內部處理好數據結構，這裡做一個簡單的補充
-    if (game.players && game.players[0]) {
-        gameState.hand = game.players[0].hand; // 永遠顯示 Player 0 (自己) 的手牌
-    }
-    
     console.log("UI Update:", gameState);
     ui.update(gameState);
 });
