@@ -3,7 +3,7 @@
  * 遊戲狀態管理器：負責牌堆管理、回合輪替、玩家行為決策與狀態追蹤。
  */
 
-import { MahjongLogic } from './MahjongLogic.js';
+import { MahjongLogic } from './mahjongLogic.js';
 
 export class Player {
     constructor(id, name, isCom = true) {
