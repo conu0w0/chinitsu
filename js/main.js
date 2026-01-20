@@ -3,9 +3,9 @@
  * 遊戲啟動點：負責資源載入、對象組裝與主循環 (Game Loop)
  */
 
-import { GameState } from './core/GameState.js';
-import { Renderer } from './ui/Renderer.js';
-import { InputHandler } from './ui/InputHandler.js';
+import { GameState } from "./core/gameState.js";
+import { Renderer } from "./ui/renderer.js";
+import { InputHandler } from "./ui/inputHandler.js";
 
 class MahjongGame {
     constructor() {
@@ -35,7 +35,7 @@ class MahjongGame {
         console.log("正在載入資源...");
         // 這裡的路徑需對應你 GitHub 專案的 assets 資料夾
         // 假設你有一張合併好的牌面圖 pai.png
-        this.assets.tiles = await loadImage('assets/images/pai.png');
+        this.assets.tiles = await loadImage('assets/images/pai.gif');
         
         this.isLoaded = true;
         console.log("資源載入完成");
