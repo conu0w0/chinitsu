@@ -62,22 +62,35 @@ export class Game {
     }
 
     // === 摸牌 ===
-    processDraw(isRinshan = false) {
-        const player = this.players[this.turnIndex];
+processDraw(isRinshan = false) {
+    const player = this.players[this.turnIndex];
 
-        if (this.deck.tiles.length === 0) {
-            this.endGame(null, "流局");
-            return;
-        }
-
-        // 摸牌存入暫存區 (不直接進 hand，方便 UI 區分)
-        this.incomingTile = this.deck.draw();
-        this.phase = 'DRAW';
-
-        const actions = getAvailableActions(player, true, this.incomingTile, 'DRAW');
-
-        this.notifyUI(actions);
+    if (this.deck.tiles.length === 0) {
+        this.endGame(null, "流局");
+        return;
     }
+
+    // 摸牌存入暫存區
+    this.incomingTile = this.deck.draw();
+    this.phase = 'DRAW';
+
+    const isPlayerTurn = (this.turnIndex === 0);
+
+    // 新 actionCheck 回傳 { buttons, kanTiles }
+    const { buttons, kanTiles } = getAvailableActions(player, isPlayerTurn, this.incomingTile, 'DRAW');
+
+    if (isPlayerTurn) {
+        // 玩家回合：照規則顯示 TSUMO/RIICHI/KAN/CANCEL
+        this.notifyUI(buttons, 0, { kanTiles });
+    } else {
+        // 電腦回合：不顯示任何按鈕（對手回合隱藏）
+        this.notifyUI([], 1, { kanTiles: [] });
+
+        // 電腦自動出牌（最簡單：摸切）
+        this.aiAutoDiscard();
+    }
+}
+
 
     // === 切牌 ===
     playerDiscard(discardInput, isRiichiDeclaration = false) {
@@ -131,23 +144,30 @@ export class Game {
     }
 
     checkOpponentRon(tile) {
-        this.phase = 'DISCARD';
-        const opponentIdx = (this.turnIndex + 1) % 2;
-        const opponent = this.players[opponentIdx];
+    this.phase = 'DISCARD';
 
-        // 取得對手動作 (例如 RON)
-        const actions = getAvailableActions(opponent, false, tile, 'DISCARD');
+    // opponentIdx = 可能榮和的人（玩家）
+    const opponentIdx = (this.turnIndex + 1) % 2;
+    const opponent = this.players[opponentIdx];
 
-        if (actions.includes('RON')) {
-            // 通知 UI 切換到對手視角 (暫時) 或詢問
-            // 這裡簡單處理：如果對手是 AI，自動判斷；如果是雙人，通知 UI
-            // 這裡假設是單人玩，對手不會和牌 (或是自動和)
-            // 為了測試，我們讓 UI 顯示對手的動作
-            this.notifyUI(actions, opponentIdx);
-        } else {
-            this.nextTurn();
-        }
-    }
+    // 新 actionCheck 回傳 { buttons, kanTiles }
+    const { buttons } = getAvailableActions(opponent, false, tile, 'DISCARD');
+
+    // 不管能不能和，你規則都要顯示 RON + CANCEL 給玩家自己決定
+    // 所以永遠切回玩家視角（playerIndex=0）等待按鈕
+    this.notifyUI(buttons, 0, { kanTiles: [] });
+
+    // 重要：這裡不要 nextTurn()，要等玩家按 CANCEL -> PASS 才換巡
+}
+
+
+    aiAutoDiscard() {
+    // 最簡單 AI：摸切（丟剛摸到的那張）
+    if (this.incomingTile == null) return;
+
+    this.playerDiscard({ tile: this.incomingTile, from: 'INCOMING' });
+}
+
 
     playerAction(actionType, data) {
         const player = this.players[this.turnIndex];
