@@ -6,6 +6,7 @@
  * @param {Object} decomposition - 手牌拆解結果 { head: [], sets: [[1,2,3], [5,5,5]...] }
  * @returns {number} 符數 (例如 30, 40, 25)
  */
+
 export function calculateFu(hand, winTile, ctx, decomposition) {
     // 1. 底符 (Base Fu)
     let fu = 20;
