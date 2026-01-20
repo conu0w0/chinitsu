@@ -13,7 +13,7 @@ from "./core/winCheck.js";
 
 export class Game {
     constructor(onStateChange) {
-        this.onStateChange = onStateChange || (() = >{});
+        this.onStateChange = onStateChange || (() >{});
         this.deck = null;
         this.players = [];
         this.turnIndex = 0;
@@ -57,8 +57,8 @@ export class Game {
     }
 
     sortHands() {
-        this.players[0].hand.sort((a, b) = >a - b);
-        this.players[1].hand.sort((a, b) = >a - b);
+        this.players[0].hand.sort((a, b) >a - b);
+        this.players[1].hand.sort((a, b) >a - b);
     }
 
     // === 摸牌 ===
@@ -113,7 +113,7 @@ export class Game {
             if (this.incomingTile !== null) {
                 player.hand.push(this.incomingTile);
                 this.incomingTile = null;
-                player.hand.sort((a, b) = >a - b);
+                player.hand.sort((a, b) >a - b);
             }
         }
 
