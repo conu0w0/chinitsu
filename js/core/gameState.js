@@ -50,10 +50,13 @@ export class GameState {
             isAfterKan: false,
             lastActionWasKan: false,
             lastActionWasRiichi: false,
+            doubleRiichi: false,
             ippatsuActive: false,
             ippatsuBroken: false,
             isKanburiCandidate: false,
-            isTsubameCandidate: false            
+            isTsubameCandidate: false,
+            haitei: false,
+            houtei: false
         };
     }
 
@@ -175,17 +178,30 @@ export class GameState {
     _handleTsumo(playerIndex) {
         const player = this.players[playerIndex];
         const isWin = this.logic.isWinningHand(player.tepai);
-
+        
         if (!isWin) {
             this._handleChombo(playerIndex, "錯自摸");
             return;
+        }
+
+         if (player.isParent && this.remainingTurns === 9 && !this.context.hasKan) {
+            this.context.tenhou = true;
+        }
+
+        if (!player.isParent && this.remainingTurns === 8 && !this.context.hasKan) {
+            this.context.chiihou = true;
+        }
+
+        if (this.yama.length === 0 && !this.context.isAfterKan) {
+            this.context.haitei = true;
         }
 
         const isIppatsu = this.context.ippatsuActive && !this.context.ippatsuBroken;
         const isRinshan = this.context.isAfterKan;
 
         this.phase = "ROUND_END";
-        const winContext = this._buildWinContext(playerIndex, "tsumo");
+        const winTile = player.tepai[player.tepai.length - 1];
+        const winContext = this._buildWinContext(playerIndex, "tsumo", winTile);
         
         console.log(isRinshan ? "嶺上開花" : "自摸和");
         this._resetContext();
@@ -221,9 +237,19 @@ export class GameState {
             return;
         }
 
+        if (
+            !player.isParent && this.remainingTurns === 9 && !this.context.hasKan) {
+            this.context.renhou = true;
+        }
+
+        if (this.yama.length === 0 && !this.context.isAfterKan) {
+            this.context.houtei = true;
+        }
+
         // === 正常榮和 ===
         this.phase = "ROUND_END";
-        const winContext = this._buildWinContext(playerIndex, "ron");
+        const winTile = this.lastDiscard.tile;
+        const winContext = this._buildWinContext(playerIndex, "ron", winTile);
         
         console.log("榮和");
         this._resetContext();
@@ -233,6 +259,15 @@ export class GameState {
         const player = this.players[playerIndex];
         player.isReach = true;
         player.riichiWaitSet = this.logic.getWaitTiles(player.tepai);
+
+        const needRemaining = player.isParent ? 9 : 8;
+
+        if (
+            this.remainingTurns === needRemaining &&
+            !this.context.lastActionWasKan
+        ) {
+            this.context.doubleRiichi = true;
+        }
 
         this.context.lastActionWasRiichi = true;
         this.context.ippatsuActive = true;
@@ -252,6 +287,7 @@ export class GameState {
         player.fulu.push({ type: "ankan", tile });
 
         // 2. 標記「槓後狀態」
+        this.context.hasKan = true;
         this.context.isAfterKan = true;
         this.context.lastActionWasKan = true;
         this.context.ippatsuActive = false;
@@ -369,25 +405,44 @@ export class GameState {
     }
     
     _resetContext() {
+        this.context.tenhou = false;
+        this.context.chiihou = false;
+        this.context.renhou = false;
+        this.context.hasKan = false;
         this.context.isAfterKan = false;
         this.context.lastActionWasKan = false;
         this.context.lastActionWasRiichi = false;
+        this.context.doubleRiichi = false;
         this.context.ippatsuActive = false;
         this.context.ippatsuBroken = false;
         this.context.isKanburiCandidate = false;
         this.context.isTsubameCandidate = false;
+        this.context.haitei = false;
+        this.context.houtei = false;  
     }
 
-    _buildWinContext(playerIndex, winType) {
+    _buildWinContext(playerIndex, winType, winTile) {
         const player = this.players[playerIndex];
 
         return {
             winType,                  // "tsumo" | "ron"
+            winTile,
+            
+             tiles: winType === "tsumo"
+                ? [...player.tepai]           // 自摸：手牌已含和了牌
+                : [...player.tepai, winTile], // 榮和：補上銃牌
+            
+            tenhou: this.context.tenhou || false,
+            chiihou: this.context.chiihou || false,
+            renhou: this.context.renhou || false,
             riichi: player.isReach,
+            doubleRiichi: this.context.doubleRiichi,
             ippatsu: this.context.ippatsuActive && !this.context.ippatsuBroken,
             rinshan: this.context.isAfterKan,
             kanburi: this.context.isKanburiCandidate,
             tsubame: this.context.isTsubameCandidate,
+            haitei: this.context.haitei,
+            houtei: this.context.houtei,
             isParent: player.isParent
         };
     }
