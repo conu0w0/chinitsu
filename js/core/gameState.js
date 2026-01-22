@@ -46,18 +46,11 @@ export class GameState {
         this.remainingTurns = 0;  // 你的「9 張摸打」計數器
         this.lastDiscard = null;  // { tile, fromPlayer }
 
-        this.context = {
-            isAfterKan: false,
-            lastActionWasKan: false,
-            lastActionWasRiichi: false,
-            doubleRiichi: false,
-            ippatsuActive: false,
-            ippatsuBroken: false,
-            isKanburiCandidate: false,
-            isTsubameCandidate: false,
-            haitei: false,
-            houtei: false
-        };
+        this.roundContext = {};
+        this.actionContext = {};
+
+        this._resetRoundContext();
+        this._resetActionContext();
     }
 
     /* ======================
@@ -97,6 +90,8 @@ export class GameState {
         this.turn = parentIndex;
         this.phase = "PLAYER_DECISION";
         this.lastDiscard = null;
+        this._resetRoundContext();
+        this._resetActionContext();
     }
 
     /* ======================
@@ -184,27 +179,27 @@ export class GameState {
             return;
         }
 
-         if (player.isParent && this.remainingTurns === 9 && !this.context.hasKan) {
-            this.context.tenhou = true;
+         if (player.isParent && this.remainingTurns === 9 && !this.roundContext.hasKan) {
+            this.roundContext.tenhou = true;
         }
 
-        if (!player.isParent && this.remainingTurns === 8 && !this.context.hasKan) {
-            this.context.chiihou = true;
+        if (!player.isParent && this.remainingTurns === 8 && !this.roundContext.hasKan) {
+            this.roundContext.chiihou = true;
         }
 
-        if (this.yama.length === 0 && !this.context.isAfterKan) {
-            this.context.haitei = true;
+        if (this.yama.length === 0 && !this.actionContext.isAfterKan) {
+            this.roundContext.haitei = true;
         }
 
-        const isIppatsu = this.context.ippatsuActive && !this.context.ippatsuBroken;
-        const isRinshan = this.context.isAfterKan;
+        const isIppatsu = this.actionContext.ippatsuActive && !this.actionContext.ippatsuBroken;
+        const isRinshan = this.actionContext.isAfterKan;
 
         this.phase = "ROUND_END";
         const winTile = player.tepai[player.tepai.length - 1];
         const winContext = this._buildWinContext(playerIndex, "tsumo", winTile);
         
         console.log(isRinshan ? "嶺上開花" : "自摸和");
-        this._resetContext();
+        this._resetActionContext();
     }
 
     _isDiscardFuriten(player) {
@@ -228,9 +223,9 @@ export class GameState {
         // === 牌型檢查 ===
         const hand = [...player.tepai, tile];
         const isWin = this.logic.isWinningHand(hand);
-        const isIppatsu = this.context.ippatsuActive && !this.context.ippatsuBroken;
-        const isTsubame = this.context.isTsubameCandidate;
-        const isKanburi = this.context.isKanburiCandidate;
+        const isIppatsu = this.actionContext.ippatsuActive && !this.actionContext.ippatsuBroken;
+        const isTsubame = this.actionContext.isTsubameCandidate;
+        const isKanburi = this.actionContext.isKanburiCandidate;
 
         if (!isWin) {
             this._handleChombo(playerIndex, "錯榮和");
@@ -238,12 +233,12 @@ export class GameState {
         }
 
         if (
-            !player.isParent && this.remainingTurns === 9 && !this.context.hasKan) {
-            this.context.renhou = true;
+            !player.isParent && this.remainingTurns === 9 && !this.roundContext.hasKan) {
+            this.roundContext.renhou = true;
         }
 
-        if (this.yama.length === 0 && !this.context.isAfterKan) {
-            this.context.houtei = true;
+        if (this.yama.length === 0 && !this.actionContext.isAfterKan) {
+            this.roundContext.houtei = true;
         }
 
         // === 正常榮和 ===
@@ -252,7 +247,7 @@ export class GameState {
         const winContext = this._buildWinContext(playerIndex, "ron", winTile);
         
         console.log("榮和");
-        this._resetContext();
+        this._resetActionContext();
     }
 
     _handleRiichi(playerIndex) {
@@ -262,16 +257,13 @@ export class GameState {
 
         const needRemaining = player.isParent ? 9 : 8;
 
-        if (
-            this.remainingTurns === needRemaining &&
-            !this.context.lastActionWasKan
-        ) {
-            this.context.doubleRiichi = true;
+        if (this.remainingTurns === needRemaining && !this.roundContext.hasKan) {
+            this.roundContext.doubleRiichi = true;
         }
 
-        this.context.lastActionWasRiichi = true;
-        this.context.ippatsuActive = true;
-        this.context.ippatsuBroken = false;
+        this.actionContext.lastActionWasRiichi = true;
+        this.actionContext.ippatsuActive = true;
+        this.actionContext.ippatsuBroken = false;
     }
 
     _handleAnkan(playerIndex, tile) {
@@ -287,11 +279,11 @@ export class GameState {
         player.fulu.push({ type: "ankan", tile });
 
         // 2. 標記「槓後狀態」
-        this.context.hasKan = true;
-        this.context.isAfterKan = true;
-        this.context.lastActionWasKan = true;
-        this.context.ippatsuActive = false;
-        this.context.ippatsuBroken = true;
+        this.roundContext.hasKan = true;
+        this.actionContext.isAfterKan = true;
+        this.actionContext.lastActionWasKan = true;
+        this.actionContext.ippatsuActive = false;
+        this.actionContext.ippatsuBroken = true;
 
         // 3. 補牌（直接摸牌山）
         this._draw(playerIndex);
@@ -318,21 +310,21 @@ export class GameState {
         player.river.push(tile);
 
         // 偵測是否為立直宣言牌
-        this.context.isTsubameCandidate = this.context.lastActionWasRiichi;
-        this.context.lastActionWasRiichi = false;
-
+        this.actionContext.isTsubameCandidate = this.actionContext.lastActionWasRiichi;
+        this.actionContext.lastActionWasRiichi = false;
+    
         this.lastDiscard = { tile, fromPlayer: playerIndex };
 
         // 如果上一動作是槓 → 這張是槓振候補
-        this.context.isKanburiCandidate = this.context.lastActionWasKan;
+        this.actionContext.isKanburiCandidate = this.actionContext.lastActionWasKan;
 
         // 槓只影響一次
-        this.context.lastActionWasKan = false;
+        this.actionContext.lastActionWasKan = false;
         
         this.phase = "OPPONENT_RESPONSE";
         
-        if (this.context.ippatsuActive) {
-            this.context.ippatsuActive = false;
+        if (this.actionContext.ippatsuActive) {
+            this.actionContext.ippatsuActive = false;
         }
     }
 
@@ -353,8 +345,7 @@ export class GameState {
         this.players[playerIndex].tepai.push(tile);
         this.players[playerIndex].tepai.sort((a, b) => a - b);
         
-        // 槓後補牌只算一次
-        this.context.isAfterKan = false;
+        this._resetActionContext();
         this.phase = "PLAYER_DECISION";
     }
 
@@ -388,13 +379,14 @@ export class GameState {
         }
 
         console.log("流局結算完成");
-        this._resetContext();
+        this._resetActionContext();
+        this._resetActionContext();
     }
 
     _handleChombo(playerIndex, reason) {
         this.phase = "ROUND_END";
         console.warn(`チョンボ：${reason}`);
-        this._resetContext();
+        this._resetActionContext();
     }
 
     _shuffle(array) {
@@ -404,45 +396,51 @@ export class GameState {
         }
     }
     
-    _resetContext() {
-        this.context.tenhou = false;
-        this.context.chiihou = false;
-        this.context.renhou = false;
-        this.context.hasKan = false;
-        this.context.isAfterKan = false;
-        this.context.lastActionWasKan = false;
-        this.context.lastActionWasRiichi = false;
-        this.context.doubleRiichi = false;
-        this.context.ippatsuActive = false;
-        this.context.ippatsuBroken = false;
-        this.context.isKanburiCandidate = false;
-        this.context.isTsubameCandidate = false;
-        this.context.haitei = false;
-        this.context.houtei = false;  
+    _resetActionContext() {
+        this.actionContext = {
+            isAfterKan: false,
+            lastActionWasKan: false,
+            lastActionWasRiichi: false,
+            ippatsuActive: false,
+            ippatsuBroken: false,
+            isKanburiCandidate: false,
+            isTsubameCandidate: false
+        };
+    }
+
+    _resetRoundContext() {
+        this.roundContext = {
+            tenhou: false,
+            chiihou: false,
+            renhou: false,
+            doubleRiichi: false,
+            hasKan: false,
+            haitei: false,
+            houtei: false
+        };
     }
 
     _buildWinContext(playerIndex, winType, winTile) {
         const player = this.players[playerIndex];
 
         return {
-            winType,                  // "tsumo" | "ron"
+            winType,
             winTile,
-            
-             tiles: winType === "tsumo"
-                ? [...player.tepai]           // 自摸：手牌已含和了牌
-                : [...player.tepai, winTile], // 榮和：補上銃牌
-            
-            tenhou: this.context.tenhou || false,
-            chiihou: this.context.chiihou || false,
-            renhou: this.context.renhou || false,
+            tiles: winType === "tsumo"
+                ? [...player.tepai]
+                : [...player.tepai, winTile],
+
+            // Round Context
+            ...this.roundContext,
+
+            // Action Context
+            ippatsu: this.actionContext.ippatsuActive && !this.actionContext.ippatsuBroken,
+            rinshan: this.actionContext.isAfterKan,
+            kanburi: this.actionContext.isKanburiCandidate,
+            tsubame: this.actionContext.isTsubameCandidate,
+
+            // Player
             riichi: player.isReach,
-            doubleRiichi: this.context.doubleRiichi,
-            ippatsu: this.context.ippatsuActive && !this.context.ippatsuBroken,
-            rinshan: this.context.isAfterKan,
-            kanburi: this.context.isKanburiCandidate,
-            tsubame: this.context.isTsubameCandidate,
-            haitei: this.context.haitei,
-            houtei: this.context.houtei,
             isParent: player.isParent
         };
     }
