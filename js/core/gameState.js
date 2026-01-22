@@ -45,6 +45,14 @@ export class GameState {
 
         this.remainingTurns = 0;  // 你的「9 張摸打」計數器
         this.lastDiscard = null;  // { tile, fromPlayer }
+
+        this.context = {
+            isAfterKan: false,
+            lastActionWasKan: false,
+            lastActionWasRiichi: false,
+            isKanburiCandidate: false,
+            isTsubameCandidate: false
+        };
     }
 
     /* ======================
@@ -171,35 +179,76 @@ export class GameState {
             return;
         }
 
+        const isRinshan = this.context.isAfterKan;
+
         this.phase = "ROUND_END";
-        console.log("自摸和");
+        console.log(isRinshan ? "嶺上開花" : "自摸和");
+        this._resetContext();
+    }
+
+    _isDiscardFuriten(player) {
+        const waits = this.logic.getWaitTiles(player.tepai);
+        return [...waits].some(tile => player.river.includes(tile));
     }
 
     _handleRon(playerIndex) {
         const player = this.players[playerIndex];
         const tile = this.lastDiscard.tile;
 
+        // === 振聽檢查（先於牌型） ===
+        const discardFuriten = this._isDiscardFuriten(player);
+        const riichiFuriten = player.riichiFuriten;
+
+        if (discardFuriten || riichiFuriten) {
+            this._handleChombo(playerIndex, "振聽榮和");
+            return;
+        }
+
+        // === 牌型檢查 ===
         const hand = [...player.tepai, tile];
         const isWin = this.logic.isWinningHand(hand);
+        const isTsubame = this.context.isTsubameCandidate;
+        const isKanburi = this.context.isKanburiCandidate;
 
         if (!isWin) {
             this._handleChombo(playerIndex, "錯榮和");
             return;
         }
 
+        // === 正常榮和 ===
         this.phase = "ROUND_END";
         console.log("榮和");
+        this._resetContext();
     }
 
     _handleRiichi(playerIndex) {
         const player = this.players[playerIndex];
         player.isReach = true;
         player.riichiWaitSet = this.logic.getWaitTiles(player.tepai);
+
+        this.context.lastActionWasRiichi = true;
     }
 
     _handleAnkan(playerIndex, tile) {
-        // 暫留：之後補「不破壞聽牌」
-        console.log("暗槓");
+        const player = this.players[playerIndex];
+
+        // 1. 移除四張槓牌
+        for (let i = player.tepai.length - 1; i >= 0; i--) {
+            if (player.tepai[i] === tile) {
+                player.tepai.splice(i, 1);
+            }
+        }
+
+        player.fulu.push({ type: "ankan", tile });
+
+        // 2. 標記「槓後狀態」
+        this.context.isAfterKan = true;
+        this.context.lastActionWasKan = true;
+
+        // 3. 補牌（直接摸牌山）
+        this._draw(playerIndex);
+
+        console.log("暗槓成立，補牌");
     }
 
     _handleCancel(playerIndex) {
@@ -220,7 +269,18 @@ export class GameState {
         const tile = player.tepai.splice(tileIndex, 1)[0];
         player.river.push(tile);
 
+        // 偵測是否為立直宣言牌
+        this.context.isTsubameCandidate = this.context.lastActionWasRiichi;
+        this.context.lastActionWasRiichi = false;
+
         this.lastDiscard = { tile, fromPlayer: playerIndex };
+
+        // 如果上一動作是槓 → 這張是槓振候補
+        this.context.isKanburiCandidate = this.context.lastActionWasKan;
+
+        // 槓只影響一次
+        this.context.lastActionWasKan = false;
+        
         this.phase = "OPPONENT_RESPONSE";
     }
 
@@ -240,18 +300,49 @@ export class GameState {
         const tile = this.yama.pop();
         this.players[playerIndex].tepai.push(tile);
         this.players[playerIndex].tepai.sort((a, b) => a - b);
+        
+        // 槓後補牌只算一次
+        this.context.isAfterKan = false;
         this.phase = "PLAYER_DECISION";
     }
 
     _handleRyuukyoku() {
-        this.phase = "ROUND_END";
-        console.log("流局");
-        // 這裡之後檢查詐立直
+    this.phase = "ROUND_END";
+    console.log("流局");
+
+    const parent = this.players[this.parentIndex];
+
+        // === 1. 檢查詐立直（只在流局時） ===
+        for (const player of this.players) {
+            if (player.isReach) {
+                const waits = this.logic.getWaitTiles(player.tepai);
+
+                // 立直但未聽牌 → 詐立直 → チョンボ
+                if (waits.size === 0) {
+                    this._handleChombo(player.id, "詐立直");
+                    return;
+                }
+            }
+        }
+
+        // === 2. 流局未聽：不罰符 ===
+
+        // === 3. 莊家流局未聽 → 流莊 ===
+        const parentWaits = this.logic.getWaitTiles(parent.tepai);
+        const parentIsTenpai = parentWaits.size > 0;
+
+        if (!parentIsTenpai) {
+            this._rotateParent();
+        }
+
+        console.log("流局結算完成");
+        this._resetContext();
     }
 
     _handleChombo(playerIndex, reason) {
         this.phase = "ROUND_END";
         console.warn(`チョンボ：${reason}`);
+        this._resetContext();
     }
 
     _shuffle(array) {
@@ -259,5 +350,13 @@ export class GameState {
             const j = Math.floor(Math.random() * (i + 1));
             [array[i], array[j]] = [array[j], array[i]];
         }
+    }
+    
+    _resetContext() {
+        this.context.isAfterKan = false;
+        this.context.lastActionWasKan = false;
+        this.context.lastActionWasRiichi = false;
+        this.context.isKanburiCandidate = false;
+        this.context.isTsubameCandidate = false;
     }
 }
