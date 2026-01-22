@@ -50,8 +50,10 @@ export class GameState {
             isAfterKan: false,
             lastActionWasKan: false,
             lastActionWasRiichi: false,
+            ippatsuActive: false,
+            ippatsuBroken: false,
             isKanburiCandidate: false,
-            isTsubameCandidate: false
+            isTsubameCandidate: false            
         };
     }
 
@@ -179,6 +181,7 @@ export class GameState {
             return;
         }
 
+        const isIppatsu = this.context.ippatsuActive && !this.context.ippatsuBroken;
         const isRinshan = this.context.isAfterKan;
 
         this.phase = "ROUND_END";
@@ -207,6 +210,7 @@ export class GameState {
         // === 牌型檢查 ===
         const hand = [...player.tepai, tile];
         const isWin = this.logic.isWinningHand(hand);
+        const isIppatsu = this.context.ippatsuActive && !this.context.ippatsuBroken;
         const isTsubame = this.context.isTsubameCandidate;
         const isKanburi = this.context.isKanburiCandidate;
 
@@ -227,6 +231,8 @@ export class GameState {
         player.riichiWaitSet = this.logic.getWaitTiles(player.tepai);
 
         this.context.lastActionWasRiichi = true;
+        this.context.ippatsuActive = true;
+        this.context.ippatsuBroken = false;
     }
 
     _handleAnkan(playerIndex, tile) {
@@ -244,6 +250,8 @@ export class GameState {
         // 2. 標記「槓後狀態」
         this.context.isAfterKan = true;
         this.context.lastActionWasKan = true;
+        this.context.ippatsuActive = false;
+        this.context.ippatsuBroken = true;
 
         // 3. 補牌（直接摸牌山）
         this._draw(playerIndex);
@@ -282,6 +290,10 @@ export class GameState {
         this.context.lastActionWasKan = false;
         
         this.phase = "OPPONENT_RESPONSE";
+        
+        if (this.context.ippatsuActive) {
+            this.context.ippatsuActive = false;
+        }
     }
 
     _advanceAfterResponse() {
@@ -356,6 +368,8 @@ export class GameState {
         this.context.isAfterKan = false;
         this.context.lastActionWasKan = false;
         this.context.lastActionWasRiichi = false;
+        this.context.ippatsuActive = false;
+        this.context.ippatsuBroken = false;
         this.context.isKanburiCandidate = false;
         this.context.isTsubameCandidate = false;
     }
