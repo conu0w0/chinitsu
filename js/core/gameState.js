@@ -185,6 +185,8 @@ export class GameState {
         const isRinshan = this.context.isAfterKan;
 
         this.phase = "ROUND_END";
+        const winContext = this._buildWinContext(playerIndex, "tsumo");
+        
         console.log(isRinshan ? "嶺上開花" : "自摸和");
         this._resetContext();
     }
@@ -221,6 +223,8 @@ export class GameState {
 
         // === 正常榮和 ===
         this.phase = "ROUND_END";
+        const winContext = this._buildWinContext(playerIndex, "ron");
+        
         console.log("榮和");
         this._resetContext();
     }
@@ -372,5 +376,19 @@ export class GameState {
         this.context.ippatsuBroken = false;
         this.context.isKanburiCandidate = false;
         this.context.isTsubameCandidate = false;
+    }
+
+    _buildWinContext(playerIndex, winType) {
+        const player = this.players[playerIndex];
+
+        return {
+            winType,                  // "tsumo" | "ron"
+            riichi: player.isReach,
+            ippatsu: this.context.ippatsuActive && !this.context.ippatsuBroken,
+            rinshan: this.context.isAfterKan,
+            kanburi: this.context.isKanburiCandidate,
+            tsubame: this.context.isTsubameCandidate,
+            isParent: player.isParent
+        };
     }
 }
