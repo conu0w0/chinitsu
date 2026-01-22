@@ -344,11 +344,16 @@ export class GameState {
         const tile = this.yama.pop();
         this.players[playerIndex].tepai.push(tile);
         this.players[playerIndex].tepai.sort((a, b) => a - b);
-        
-        if (!this.actionContext.isAfterKan) {
-            this._resetActionContext();
-        }
-        
+
+        // 先保留「是否槓後補牌」狀態
+        const afterKan = this.actionContext.isAfterKan;
+
+        // 每次摸牌都刷新 actionContext（避免殘留）
+        this._resetActionContext();
+
+        // 如果這次摸牌是槓後補牌，把 afterKan 設回來，讓本回合能判「嶺上」
+        if (afterKan) this.actionContext.isAfterKan = true;
+
         this.phase = "PLAYER_DECISION";
     }
 
