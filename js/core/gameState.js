@@ -345,7 +345,10 @@ export class GameState {
         this.players[playerIndex].tepai.push(tile);
         this.players[playerIndex].tepai.sort((a, b) => a - b);
         
-        this._resetActionContext();
+        if (!this.actionContext.isAfterKan) {
+            this._resetActionContext();
+        }
+        
         this.phase = "PLAYER_DECISION";
     }
 
@@ -380,13 +383,14 @@ export class GameState {
 
         console.log("流局結算完成");
         this._resetActionContext();
-        this._resetActionContext();
+        this._resetRoundContext();
     }
 
     _handleChombo(playerIndex, reason) {
         this.phase = "ROUND_END";
         console.warn(`チョンボ：${reason}`);
         this._resetActionContext();
+        this._resetRoundContext();
     }
 
     _shuffle(array) {
