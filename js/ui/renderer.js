@@ -1,119 +1,183 @@
 /**
  * Renderer.js
- * 繪圖引擎：負責將遊戲狀態轉化為 Canvas 影像
+ * Canvas 渲染器（索子限定版）
  */
 
 export class Renderer {
-    /**
-     * @param {HTMLCanvasElement} canvas - HTML 上的畫布元件
-     * @param {Object} assets - 預載入的圖片資源 (牌面、背景)
-     */
     constructor(canvas, assets) {
         this.canvas = canvas;
-        this.ctx = canvas.getContext('2d');
-        this.assets = assets; // 包含牌面圖案 imgsrc
-        
-        // 配置參數
-        this.config = {
-            tileW: 40,  // 單張牌寬度
-            tileH: 60,  // 單張牌高度
-            takuColor: "#206040", // 麻將桌綠色
-            font: "16px Arial"
-        };
+        this.ctx = canvas.getContext("2d");
+        this.assets = assets;
+
+        // 牌尺寸
+        this.tileWidth = 40;
+        this.tileHeight = 60;
     }
 
-    /**
-     * 主渲染函數：每一幀或狀態更新時呼叫
-     * @param {GameState} state - 當前的遊戲狀態
-     */
+    /* ======================
+       主入口
+       ====================== */
     render(state) {
-        this.drawTable();
-        this.drawPlayers(state.players, state.turn);
-        this.drawYamaCount(state.yama.length);
-        this.drawDora(state.doraIndicator);
-        this.drawCenterInfo(state);
-    }
+        this._clear();
 
-    /**
-     * 繪製麻將桌背景
-     */
-    drawTable() {
-        this.ctx.fillStyle = this.config.takuColor;
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        // 畫桌邊線 (原本 bamboo.js 中的 draw_taku 邏輯)
-        this.ctx.strokeStyle = "#ffffff";
-        this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(50, 50, this.canvas.width - 100, this.canvas.height - 100);
-    }
+        this._drawBackground();
+        this._drawHands(state);
+        this._drawFulu(state);
+        this._drawRivers(state);
+        this._drawUI(state);
 
-    /**
-     * 繪製四位玩家的手牌與牌河
-     */
-    drawPlayers(players, currentTurn) {
-        players.forEach((player, index) => {
-            // 根據玩家索引 (0:下, 1:右, 2:上, 3:左) 計算座標與旋轉角度
-            this.ctx.save();
-            this.setupPlayerTransform(index);
-            
-            // 1. 畫手牌
-            this.drawHand(player.tepai, player.id === 0); // 只有 ID 0 (玩家) 的牌是正面的
-            
-            // 2. 畫牌河 (打出的牌)
-            this.drawRiver(player.river);
-            
-            // 3. 畫頭像與點數
-            this.drawPlayerInfo(player, index === currentTurn);
-
-            this.ctx.restore();
-        });
-    }
-
-    /**
-     * 繪製單張麻將牌
-     * @param {number} tileID - 牌的編號 (0-33)
-     * @param {number} x, y - 座標
-     * @param {boolean} isFaceUp - 是否顯示正面
-     */
-    drawTile(tileID, x, y, isFaceUp = true) {
-        if (isFaceUp) {
-            // 從 Sprite Sheet 中裁切對應的牌面圖片
-            const sx = (tileID % 9) * this.config.tileW;
-            const sy = Math.floor(tileID / 9) * this.config.tileH;
-            
-            this.ctx.drawImage(this.assets.tiles, sx, sy, 
-                this.config.tileW, this.config.tileH, 
-                x, y, this.config.tileW, this.config.tileH);
-        } else {
-            // 畫牌背 (bamboo.js 裡的背面邏輯)
-            this.ctx.fillStyle = "#114488";
-            this.ctx.fillRect(x, y, this.config.tileW, this.config.tileH);
-            this.ctx.strokeRect(x, y, this.config.tileW, this.config.tileH);
+        if (state.phase === "ROUND_END") {
+            this._drawResult(state.lastResult);
         }
     }
 
-    /**
-     * 依據玩家位置旋轉畫布 (簡化座標處理)
-     */
-    setupPlayerTransform(index) {
-        const w = this.canvas.width;
-        const h = this.canvas.height;
-        if (index === 0) this.ctx.translate(w/2 - 200, h - 80);
-        if (index === 1) { this.ctx.translate(w - 80, h/2 + 150); this.ctx.rotate(-Math.PI/2); }
-        if (index === 2) { this.ctx.translate(w/2 + 200, 80); this.ctx.rotate(Math.PI); }
-        if (index === 3) { this.ctx.translate(80, h/2 - 150); this.ctx.rotate(Math.PI/2); }
+    /* ======================
+       基礎繪圖
+       ====================== */
+    _clear() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+
+    _drawBackground() {
+        this.ctx.drawImage(
+            this.assets.table,
+            0, 0,
+            this.canvas.width,
+            this.canvas.height
+        );
     }
 
     /**
-     * 繪製中間的資訊欄 (場風、剩餘牌數)
+     * 萬用畫牌（支援旋轉 / 翻面 / 牌背）
      */
-    drawCenterInfo(state) {
-        this.ctx.fillStyle = "#00000088";
-        this.ctx.fillRect(this.canvas.width/2 - 60, this.canvas.height/2 - 60, 120, 120);
-        
-        this.ctx.fillStyle = "#ffffff";
-        this.ctx.textAlign = "center";
-        this.ctx.fillText(`東 ${state.honba} 本場`, this.canvas.width/2, this.canvas.height/2);
-        this.ctx.fillText(`剩餘: ${state.yama.length}`, this.canvas.width/2, this.canvas.height/2 + 30);
+    _drawTile(tile, x, y, options = {}) {
+        const {
+            rotate = 0,
+            faceDown = false,
+            flip = false
+        } = options;
+
+        const img = faceDown
+            ? this.assets.back
+            : this.assets.tiles[tile];
+
+        this.ctx.save();
+        this.ctx.translate(
+            x + this.tileWidth / 2,
+            y + this.tileHeight / 2
+        );
+
+        if (flip) this.ctx.rotate(Math.PI);
+        if (rotate !== 0) this.ctx.rotate(rotate);
+
+        this.ctx.drawImage(
+            img,
+            -this.tileWidth / 2,
+            -this.tileHeight / 2,
+            this.tileWidth,
+            this.tileHeight
+        );
+
+        this.ctx.restore();
+    }
+
+    /* ======================
+       手牌
+       ====================== */
+    _drawHands(state) {
+        const player = state.players[0];
+        const y = this.canvas.height - 80;
+
+        player.tepai.forEach((tile, i) => {
+            const x = 50 + i * (this.tileWidth + 4);
+            this._drawTile(tile, x, y);
+        });
+    }
+
+    /* ======================
+       副露（暗槓）
+       ====================== */
+    _drawFulu(state) {
+        const player = state.players[0];
+        const y = this.canvas.height - 170;
+
+        player.fulu.forEach((f, i) => {
+            if (f.type === "ankan") {
+                for (let j = 0; j < 4; j++) {
+                    const x = 50 + i * 200 + j * (this.tileWidth + 2);
+                    this._drawTile(f.tile, x, y, {
+                        faceDown: j === 1 || j === 2
+                    });
+                }
+            }
+        });
+    }
+
+    /* ======================
+       牌河
+       ====================== */
+    _drawRivers(state) {
+        const player = state.players[0];
+        const startX = 50;
+        const startY = this.canvas.height - 260;
+
+        player.river.forEach((r, i) => {
+            const x = startX + (i % 6) * (this.tileWidth + 6);
+            const y = startY - Math.floor(i / 6) * (this.tileHeight + 6);
+
+            this._drawTile(r.tile, x, y, {
+                rotate: r.isRiichi ? Math.PI / 2 : 0,
+                flip: r.flip
+            });
+        });
+    }
+
+    /* ======================
+       UI（文字版，之後可換按鈕）
+       ====================== */
+    _drawUI(state) {
+        const actions = state.getLegalActions(0);
+
+        this.ctx.fillStyle = "white";
+        this.ctx.font = "16px sans-serif";
+
+        let y = 30;
+
+        if (actions.canTsumo) this.ctx.fillText("【自摸】", 20, y += 20);
+        if (actions.canRon) this.ctx.fillText("【榮和】", 20, y += 20);
+        if (actions.canRiichi) this.ctx.fillText("【立直】", 20, y += 20);
+        if (actions.canAnkan) this.ctx.fillText("【暗槓】", 20, y += 20);
+        if (actions.canCancel) this.ctx.fillText("【取消】", 20, y += 20);
+    }
+
+    /* ======================
+       結果顯示
+       ====================== */
+    _drawResult(result) {
+        if (!result) return;
+
+        this.ctx.fillStyle = "rgba(0,0,0,0.75)";
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        this.ctx.fillStyle = "white";
+        this.ctx.font = "24px sans-serif";
+
+        if (result.type === "chombo") {
+            this.ctx.fillText("チョンボ", 200, 200);
+        } else {
+            this.ctx.fillText("榮和！", 200, 200);
+
+            this.ctx.font = "18px sans-serif";
+            this.ctx.fillText(
+                result.score.display,
+                200, 240
+            );
+
+            let y = 280;
+            result.score.yakus.forEach(yaku => {
+                this.ctx.fillText(`・${yaku}`, 200, y);
+                y += 22;
+            });
+        }
     }
 }
