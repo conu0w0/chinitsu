@@ -4,8 +4,8 @@
  */
 
 import { MahjongLogic } from './mahjongLogic.js';
-import { decomposeHand, selectBestPattern, calculateFu } from "../yakuJudge.js";
-import { Scoring } from "../scoring.js";
+import { decomposeHand, selectBestPattern, calculateFu } from "./yakuJudge.js";
+import { Scoring } from "./scoring.js";
 
 export class Player {
     constructor(id, name, isCom = true) {
