@@ -34,7 +34,7 @@ class MahjongGame {
         // 索子 1~9
         for (let i = 0; i <= 8; i++) {
             this.assets.tiles[i] = await loadImage(
-                `assets/images/tiles/${i+1}s.png`
+                `assets/images/${i+1}s.png`
             );
         }
 
