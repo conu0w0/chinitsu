@@ -1,6 +1,6 @@
 /**
  * InputHandler.js
- * 使用滑鼠操作遊戲（點牌 / 點指令）
+ * 只負責「點牌」的輸入處理
  */
 
 export class InputHandler {
@@ -26,70 +26,37 @@ export class InputHandler {
             return;
         }
 
-        // 1️⃣ 先檢查 UI 指令
-        if (this._handleActionClick(x, y)) return;
-
-        // 2️⃣ 再檢查是否點到手牌
-        if (this._handleHandClick(x, y)) return;
+        // 只處理「點手牌」
+        this._handleHandClick(x, y);
     }
 
     /* ======================
-       點 UI 指令
-       ====================== */
-    _handleActionClick(x, y) {
-        const actions = this.state.getLegalActions(0);
-
-        // UI 區域（要跟 Renderer 對齊）
-        let currentY = 30;
-
-        const check = (cond, label, type) => {
-            if (!cond) return false;
-            currentY += 20;
-
-            if (this._hit(x, y, 20, currentY - 16, 120, 18)) {
-                this.state.applyAction(0, { type });
-                return true;
-            }
-            return false;
-        };
-
-        if (check(actions.canTsumo, "自摸", "TSUMO")) return true;
-        if (check(actions.canRon, "榮和", "RON")) return true;
-        if (check(actions.canRiichi, "立直", "RIICHI")) return true;
-        if (check(actions.canAnkan, "暗槓", "ANKAN_SELECT")) return true;
-        if (check(actions.canCancel, "取消", "CANCEL")) return true;
-
-        return false;
-    }
-
-    /* ======================
-       點手牌出牌 / 暗槓選牌
+       點手牌：出牌 / 暗槓
        ====================== */
     _handleHandClick(x, y) {
         const player = this.state.players[0];
-        const handY = this.canvas.height - 80;
+
+        // 玩家手牌區域（要和 Renderer 對齊）
+        const handZone = this.renderer.ZONES.playerHand;
+        const tileW = this.renderer.tileWidth;
+        const tileH = this.renderer.tileHeight;
+        const gap = 4;
 
         for (let i = 0; i < player.tepai.length; i++) {
-            const tileX = 50 + i * (this.renderer.tileWidth + 4);
+            const tileX = handZone.x + i * (tileW + gap);
+            const tileY = handZone.y;
 
-            if (this._hit(
-                x, y,
-                tileX, handY,
-                this.renderer.tileWidth,
-                this.renderer.tileHeight
-            )) {
+            if (this._hit(x, y, tileX, tileY, tileW, tileH)) {
                 this._onTileClicked(i, player.tepai[i]);
-                return true;
+                return;
             }
         }
-
-        return false;
     }
 
     _onTileClicked(index, tile) {
         const actions = this.state.getLegalActions(0);
 
-        // === 暗槓選牌模式 ===
+        // === 暗槓（點牌直接成立） ===
         if (actions.canAnkan) {
             const count = this.state.players[0].tepai
                 .filter(t => t === tile).length;
