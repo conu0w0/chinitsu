@@ -426,7 +426,26 @@ export class GameState {
 
     _handleChombo(playerIndex, reason) {
         this.phase = "ROUND_END";
-        console.warn(`チョンボ：${reason}`);
+
+        const offender = this.players[playerIndex];
+        const opponent = this.players[(playerIndex + 1) % this.players.length];
+
+        const base = 32000;
+        const payment = offender.isParent ? base * 1.5 : base;
+
+        offender.points -= payment;
+        opponent.points += payment;
+
+        this.lastResult = {
+            type: "chombo",
+            reason,
+            payment,
+            offender: offender.name,
+            receiver: opponent.name
+        };
+
+        console.warn(`チョンボ：${reason}`, this.lastResult);
+
         this._resetActionContext();
         this._resetRoundContext();
     }
