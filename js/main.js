@@ -26,15 +26,15 @@ class MahjongGame {
         console.log("正在載入資源...");
 
         this.assets = {
-            table: await loadImage("assets/table.png"),
-            back: await loadImage("assets/back.png"),
+            table: await loadImage("assets/images/table.png"),
+            back: await loadImage("assets/images/back.png"),
             tiles: []
         };
 
         // 索子 1~9
         for (let i = 0; i <= 8; i++) {
             this.assets.tiles[i] = await loadImage(
-                `assets/tiles/${i+1}s.png`
+                `assets/images/tiles/${i+1}s.png`
             );
         }
 
