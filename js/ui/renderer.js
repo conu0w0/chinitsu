@@ -40,7 +40,6 @@ export class Renderer {
         this._drawHands(state);
         this._drawFulu(state);
         this._drawRivers(state);
-        this._drawUI(state);
 
         if (state.phase === "ROUND_END") {
             this._drawResult(state.lastResult);
