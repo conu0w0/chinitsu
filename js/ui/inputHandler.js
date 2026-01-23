@@ -1,87 +1,123 @@
 /**
  * InputHandler.js
- * 負責監聽玩家輸入，並將畫面座標轉換為遊戲指令
+ * 使用滑鼠操作遊戲（點牌 / 點指令）
  */
 
 export class InputHandler {
-    /**
-     * @param {HTMLCanvasElement} canvas - 遊戲畫布
-     * @param {GameState} gameState - 當前的遊戲狀態
-     * @param {Renderer} renderer - 繪圖引擎 (用來獲取配置參數)
-     */
-    constructor(canvas, gameState, renderer) {
+    constructor(canvas, state, renderer) {
         this.canvas = canvas;
-        this.state = gameState;
+        this.state = state;
         this.renderer = renderer;
 
-        this.init();
+        canvas.addEventListener("click", (e) => this._onClick(e));
     }
 
-    init() {
-        // 支援滑鼠點擊
-        this.canvas.addEventListener('mousedown', (e) => this.handleClick(e));
-        // 支援觸控
-        this.canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            this.handleClick(e.touches[0]);
-        });
-    }
-
-    /**
-     * 處理點擊邏輯
-     */
-    handleClick(event) {
+    /* ======================
+       主入口
+       ====================== */
+    _onClick(event) {
         const rect = this.canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
 
-        // 只有輪到玩家 (Turn 0) 時才處理輸入
-        if (this.state.turn !== 0) return;
-
-        // 1. 檢測是否點擊了手牌
-        const tileIndex = this.checkTileClick(x, y);
-        if (tileIndex !== -1) {
-            console.log(`玩家點擊了第 ${tileIndex} 張牌`);
-            this.state.playerDiscard(0, tileIndex); // 執行打牌動作
+        // ROUND_END → 點一下重新開始
+        if (this.state.phase === "ROUND_END") {
+            this.state.initKyoku(this.state.parentIndex);
             return;
         }
 
-        // 2. 檢測是否點擊了功能按鈕 (例如: 吃、碰、槓、立直)
-        this.checkButtonClick(x, y);
+        // 1️⃣ 先檢查 UI 指令
+        if (this._handleActionClick(x, y)) return;
+
+        // 2️⃣ 再檢查是否點到手牌
+        if (this._handleHandClick(x, y)) return;
     }
 
-    /**
-     * 判定點擊座標是否在玩家的手牌範圍內
-     * @returns {number} 返回牌的索引，沒點中則返回 -1
-     */
-    checkTileClick(x, y) {
-        const config = this.renderer.config;
+    /* ======================
+       點 UI 指令
+       ====================== */
+    _handleActionClick(x, y) {
+        const actions = this.state.getLegalActions(0);
+
+        // UI 區域（要跟 Renderer 對齊）
+        let currentY = 30;
+
+        const check = (cond, label, type) => {
+            if (!cond) return false;
+            currentY += 20;
+
+            if (this._hit(x, y, 20, currentY - 16, 120, 18)) {
+                this.state.applyAction(0, { type });
+                return true;
+            }
+            return false;
+        };
+
+        if (check(actions.canTsumo, "自摸", "TSUMO")) return true;
+        if (check(actions.canRon, "榮和", "RON")) return true;
+        if (check(actions.canRiichi, "立直", "RIICHI")) return true;
+        if (check(actions.canAnkan, "暗槓", "ANKAN_SELECT")) return true;
+        if (check(actions.canCancel, "取消", "CANCEL")) return true;
+
+        return false;
+    }
+
+    /* ======================
+       點手牌出牌 / 暗槓選牌
+       ====================== */
+    _handleHandClick(x, y) {
         const player = this.state.players[0];
-        const numTiles = player.tepai.length;
+        const handY = this.canvas.height - 80;
 
-        // 這裡的座標計算要對應 Renderer.js 中的 setupPlayerTransform(0)
-        // 假設玩家手牌起始座標為 (startX, startY)
-        const startX = this.canvas.width / 2 - 200;
-        const startY = this.canvas.height - 80;
+        for (let i = 0; i < player.tepai.length; i++) {
+            const tileX = 50 + i * (this.renderer.tileWidth + 4);
 
-        for (let i = 0; i < numTiles; i++) {
-            const tx = startX + i * config.tileW;
-            const ty = startY;
-
-            if (x >= tx && x <= tx + config.tileW &&
-                y >= ty && y <= ty + config.tileH) {
-                return i;
+            if (this._hit(
+                x, y,
+                tileX, handY,
+                this.renderer.tileWidth,
+                this.renderer.tileHeight
+            )) {
+                this._onTileClicked(i, player.tepai[i]);
+                return true;
             }
         }
-        return -1;
+
+        return false;
     }
 
-    /**
-     * 檢測功能按鈕 (吃碰槓) 的點擊
-     */
-    checkButtonClick(x, y) {
-        // 這部分邏輯可以根據 UI 設計擴充
-        // 例如：當可執行動作時，Renderer 會畫出按鈕
-        // 這裡檢查座標是否落在按鈕矩形內
+    _onTileClicked(index, tile) {
+        const actions = this.state.getLegalActions(0);
+
+        // === 暗槓選牌模式 ===
+        if (actions.canAnkan) {
+            const count = this.state.players[0].tepai
+                .filter(t => t === tile).length;
+
+            if (count === 4) {
+                this.state.applyAction(0, {
+                    type: "ANKAN",
+                    tile
+                });
+                return;
+            }
+        }
+
+        // === 正常出牌 ===
+        if (this.state.phase === "PLAYER_DECISION") {
+            this.state.playerDiscard(0, index);
+        }
+    }
+
+    /* ======================
+       小工具
+       ====================== */
+    _hit(px, py, x, y, w, h) {
+        return (
+            px >= x &&
+            px <= x + w &&
+            py >= y &&
+            py <= y + h
+        );
     }
 }
