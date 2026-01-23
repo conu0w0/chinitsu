@@ -331,6 +331,16 @@ export class GameState {
     playerDiscard(playerIndex, tileIndex) {
         const player = this.players[playerIndex];
         const tile = player.tepai.splice(tileIndex, 1)[0];
+
+        this.animationQueue.push({
+            type: "discard",
+            player: playerIndex,
+            tile,
+            index: tileIndex,
+            isRiichi: isRiichiDiscard,
+            progress: 0,
+            duration: 250
+        });
         player.river.push(tile);
 
         // 偵測是否為立直宣言牌
