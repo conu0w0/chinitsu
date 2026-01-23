@@ -9,6 +9,8 @@ import { InputHandler } from "./ui/inputHandler.js";
 class MahjongGame {
     constructor() {
         this.canvas = document.getElementById("gameCanvas");
+        this.canvas.width = 1024;
+        this.canvas.height = 1024;
         this.assets = {};
         this.state = new GameState();
         this.renderer = null;
