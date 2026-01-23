@@ -464,7 +464,10 @@ export class GameState {
 
         this.lastResult = {
             type: "chombo",
-            reason,
+            score: {
+                display: `チョンボ：${reason}`,
+                yakus: []
+            },
             payment,
             offender: offender.name,
             receiver: opponent.name
