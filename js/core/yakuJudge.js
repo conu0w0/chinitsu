@@ -699,14 +699,3 @@ function isYaochu(tile) {
 function roundUpFu(fu) {
     return Math.ceil(fu / 10) * 10;
 }
-
-const fu = calculateFu(best.pattern, ctx);
-
-const scoreInput = {
-    han: best.han,
-    fu,
-    yakus: best.yakus,
-    yakumanRank: best.yakumanRank,
-    isKazoeYakuman: best.isKazoeYakuman,
-    isParent: ctx.isParent
-};
