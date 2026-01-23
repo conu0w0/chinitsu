@@ -12,14 +12,14 @@ export class Renderer {
         this.tileWidth = 40;
         this.tileHeight = 60;
 
-        // === 🀄 桌布固定尺寸 ===
+        // === 桌布固定尺寸 ===
         this.tableSize = 1024;
 
-        // === 🀄 桌布置中座標 ===
+        // === 桌布置中座標 ===
         this.originX = (this.canvas.width - this.tableSize) / 2;
         this.originY = (this.canvas.height - this.tableSize) / 2;
 
-        // === 🀄 桌內座標系（全部以桌布左上為原點）===
+        // === 桌內座標系（全部以桌布左上為原點）===
         this.ZONES = {
             playerHand: { x: 200, y: 860 },
             opponentHand: { x: 200, y: 100 },
@@ -192,23 +192,6 @@ export class Renderer {
                 flip: r.flip
             });
         });
-    }
-
-    /* ======================
-       UI
-       ====================== */
-    _drawUI(state) {
-        const actions = state.getLegalActions(0);
-
-        this.ctx.fillStyle = "white";
-        this.ctx.font = "16px sans-serif";
-
-        let y = 30;
-        if (actions.canTsumo) this.ctx.fillText("【自摸】", 20, y += 20);
-        if (actions.canRon) this.ctx.fillText("【榮和】", 20, y += 20);
-        if (actions.canRiichi) this.ctx.fillText("【立直】", 20, y += 20);
-        if (actions.canAnkan) this.ctx.fillText("【暗槓】", 20, y += 20);
-        if (actions.canCancel) this.ctx.fillText("【取消】", 20, y += 20);
     }
 
     /* ======================
