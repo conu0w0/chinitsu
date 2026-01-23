@@ -18,9 +18,11 @@ export class Renderer {
        主入口
        ====================== */
     render(state) {
+        this._updateAnimations(state);
         this._clear();
 
         this._drawBackground();
+        this._drawAnimations(state);
         this._drawHands(state);
         this._drawFulu(state);
         this._drawRivers(state);
@@ -36,6 +38,15 @@ export class Renderer {
        ====================== */
     _clear() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+
+    _updateAnimations(state) {
+        const dt = 16; // 約略一幀
+
+        state.animationQueue = state.animationQueue.filter(anim => {
+            anim.progress += dt / anim.duration;
+            return anim.progress < 1;
+        });
     }
 
     _drawBackground() {
@@ -84,6 +95,37 @@ export class Renderer {
     /* ======================
        手牌
        ====================== */
+    _drawAnimations(state) {
+        for (const anim of state.animationQueue) {
+            if (anim.type === "draw") {
+                const fromX = this.canvas.width / 2;
+                const fromY = 20;
+
+                const toX = 50 + (state.players[anim.player].tepai.length - 1) * (this.tileWidth + 4);
+                const toY = this.canvas.height - 80;
+
+                const x = fromX + (toX - fromX) * anim.progress;
+                const y = fromY + (toY - fromY) * anim.progress;
+
+                this._drawTile(anim.tile, x, y);
+            }
+            
+            if (anim.type === "discard") {
+                const fromX = 50 + anim.index * (this.tileWidth + 4);
+                const fromY = this.canvas.height - 80;
+
+                const i = state.players[anim.player].river.length;
+                const toX = 50 + (i % 6) * (this.tileWidth + 4);
+                const toY = this.canvas.height - 160 - Math.floor(i / 6) * 64;
+
+                const x = fromX + (toX - fromX) * anim.progress;
+                const y = fromY + (toY - fromY) * anim.progress;
+
+                this._drawTile(anim.tile, x, y);
+            }
+        }
+    }
+
     _drawHands(state) {
         const player = state.players[0];
         const y = this.canvas.height - 80;
@@ -156,7 +198,8 @@ export class Renderer {
     _drawResult(result) {
         if (!result) return;
 
-        this.ctx.fillStyle = "rgba(0,0,0,0.75)";
+        const alpha = 0.7 + Math.sin(Date.now() / 100) * 0.1;
+        this.ctx.fillStyle = `rgba(0,0,0,${alpha})`;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
         this.ctx.fillStyle = "white";
