@@ -4,6 +4,8 @@
  */
 
 import { MahjongLogic } from './mahjongLogic.js';
+import { decomposeHand, selectBestPattern, calculateFu } from "../yakuJudge.js";
+import { Scoring } from "../scoring.js";
 
 export class Player {
     constructor(id, name, isCom = true) {
@@ -28,6 +30,30 @@ export class Player {
 }
 
 export class GameState {
+    resolveHand(playerIndex, ctx) {
+        const player = this.players[playerIndex];
+        const tiles = player.tepai;
+        const ankanTiles = player.fulu
+            .filter(f => f.type === "ankan")
+            .map(f => f.tile);
+
+        const patterns = decomposeHand(tiles, ankanTiles);
+        const best = selectBestPattern(patterns, ctx);
+        const fu = calculateFu(best.pattern, ctx);
+
+        const scoring = new Scoring();
+        const score = scoring.scoreHand({
+            han: best.han,
+            fu,
+            yakus: best.yakus,
+            yakumanRank: best.yakumanRank,
+            isKazoeYakuman: best.isKazoeYakuman,
+            isParent: ctx.isParent
+        });
+
+        this.lastResult = { best, fu, score };
+    }
+    
     constructor() {
         this.logic = new MahjongLogic();
 
@@ -179,7 +205,8 @@ export class GameState {
             return;
         }
 
-         if (player.isParent && this.remainingTurns === 9 && !this.roundContext.hasKan) {
+        // === 特殊役判定（先寫進 roundContext） ===
+        if (player.isParent && this.remainingTurns === 9 && !this.roundContext.hasKan) {
             this.roundContext.tenhou = true;
         }
 
@@ -191,14 +218,16 @@ export class GameState {
             this.roundContext.haitei = true;
         }
 
-        const isIppatsu = this.actionContext.ippatsuActive && !this.actionContext.ippatsuBroken;
-        const isRinshan = this.actionContext.isAfterKan;
-
-        this.phase = "ROUND_END";
         const winTile = player.tepai[player.tepai.length - 1];
         const winContext = this._buildWinContext(playerIndex, "tsumo", winTile);
+        this.resolveHand(playerIndex, winContext);
         
-        console.log(isRinshan ? "嶺上開花" : "自摸和");
+        console.log(
+            winContext.rinshan ? "嶺上開花" : "自摸和",
+            this.lastResult
+        );
+        
+        this.phase = "ROUND_END";
         this._resetActionContext();
     }
 
@@ -211,11 +240,8 @@ export class GameState {
         const player = this.players[playerIndex];
         const tile = this.lastDiscard.tile;
 
-        // === 振聽檢查（先於牌型） ===
-        const discardFuriten = this._isDiscardFuriten(player);
-        const riichiFuriten = player.riichiFuriten;
-
-        if (discardFuriten || riichiFuriten) {
+        // === 振聽檢查 ===
+        if (this._isDiscardFuriten(player) || player.riichiFuriten) {
             this._handleChombo(playerIndex, "振聽榮和");
             return;
         }
@@ -223,17 +249,14 @@ export class GameState {
         // === 牌型檢查 ===
         const hand = [...player.tepai, tile];
         const isWin = this.logic.isWinningHand(hand);
-        const isIppatsu = this.actionContext.ippatsuActive && !this.actionContext.ippatsuBroken;
-        const isTsubame = this.actionContext.isTsubameCandidate;
-        const isKanburi = this.actionContext.isKanburiCandidate;
 
         if (!isWin) {
             this._handleChombo(playerIndex, "錯榮和");
             return;
         }
 
-        if (
-            !player.isParent && this.remainingTurns === 9 && !this.roundContext.hasKan) {
+        // === 特殊役 ===
+        if (!player.isParent && this.remainingTurns === 9 && !this.roundContext.hasKan) {
             this.roundContext.renhou = true;
         }
 
@@ -241,12 +264,12 @@ export class GameState {
             this.roundContext.houtei = true;
         }
 
-        // === 正常榮和 ===
+        const winContext = this._buildWinContext(playerIndex, "ron", tile);
+        this.resolveHand(playerIndex, winContext);
+
+        console.log("榮和", this.lastResult);
+
         this.phase = "ROUND_END";
-        const winTile = this.lastDiscard.tile;
-        const winContext = this._buildWinContext(playerIndex, "ron", winTile);
-        
-        console.log("榮和");
         this._resetActionContext();
     }
 
@@ -358,10 +381,10 @@ export class GameState {
     }
 
     _handleRyuukyoku() {
-    this.phase = "ROUND_END";
-    console.log("流局");
+        this.phase = "ROUND_END";
+        console.log("流局");
 
-    const parent = this.players[this.parentIndex];
+        const parent = this.players[this.parentIndex];
 
         // === 1. 檢查詐立直（只在流局時） ===
         for (const player of this.players) {
@@ -389,6 +412,16 @@ export class GameState {
         console.log("流局結算完成");
         this._resetActionContext();
         this._resetRoundContext();
+    }
+
+    _rotateParent() {
+        this.parentIndex = (this.parentIndex + 1) % this.players.length;
+
+        this.players.forEach((p, i) => {
+            p.isParent = (i === this.parentIndex);
+        });
+
+        console.log("莊家輪替，新莊家：", this.players[this.parentIndex].name);
     }
 
     _handleChombo(playerIndex, reason) {
@@ -439,10 +472,8 @@ export class GameState {
                 ? [...player.tepai]
                 : [...player.tepai, winTile],
 
-            // Round Context
             ...this.roundContext,
 
-            // Action Context
             ippatsu: this.actionContext.ippatsuActive && !this.actionContext.ippatsuBroken,
             rinshan: this.actionContext.isAfterKan,
             kanburi: this.actionContext.isKanburiCandidate,
