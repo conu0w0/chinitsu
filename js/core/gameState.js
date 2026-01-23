@@ -9,6 +9,7 @@ import { Scoring } from "../scoring.js";
 
 export class Player {
     constructor(id, name, isCom = true) {
+        this.animationQueue = [];
         this.id = id;
         this.name = name;
         this.isCom = isCom;
@@ -367,6 +368,14 @@ export class GameState {
         const tile = this.yama.pop();
         this.players[playerIndex].tepai.push(tile);
         this.players[playerIndex].tepai.sort((a, b) => a - b);
+
+        this.animationQueue.push({
+            type: "draw",
+            player: playerIndex,
+            tile,
+            progress: 0,
+            duration: 300
+        });
 
         // 先保留「是否槓後補牌」狀態
         const afterKan = this.actionContext.isAfterKan;
