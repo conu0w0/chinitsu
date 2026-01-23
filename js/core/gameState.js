@@ -9,7 +9,6 @@ import { Scoring } from "../scoring.js";
 
 export class Player {
     constructor(id, name, isCom = true) {
-        this.animationQueue = [];
         this.id = id;
         this.name = name;
         this.isCom = isCom;
@@ -57,6 +56,8 @@ export class GameState {
     
     constructor() {
         this.logic = new MahjongLogic();
+
+        this.animationQueue = [];
 
         this.players = [
             new Player(0, "玩家 (你)", false),
@@ -234,7 +235,7 @@ export class GameState {
 
     _isDiscardFuriten(player) {
         const waits = this.logic.getWaitTiles(player.tepai);
-        return [...waits].some(tile => player.river.includes(tile));
+        return [...waits].some(tile => player.river.some(r => r.tile === tile));
     }
 
     _handleRon(playerIndex) {
@@ -331,7 +332,8 @@ export class GameState {
     playerDiscard(playerIndex, tileIndex) {
         const player = this.players[playerIndex];
         const tile = player.tepai.splice(tileIndex, 1)[0];
-
+        const isRiichiDiscard = this.actionContext.lastActionWasRiichi;
+        
         this.animationQueue.push({
             type: "discard",
             player: playerIndex,
@@ -341,7 +343,12 @@ export class GameState {
             progress: 0,
             duration: 250
         });
-        player.river.push(tile);
+        
+        player.river.push({
+            tile,
+            isRiichi: isRiichiDiscard,
+            flip: Math.random() < 0.3 // 暫時設計用
+        });
 
         // 偵測是否為立直宣言牌
         this.actionContext.isTsubameCandidate = this.actionContext.lastActionWasRiichi;
