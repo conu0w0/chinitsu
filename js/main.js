@@ -63,3 +63,25 @@ class MahjongGame {
 window.onload = () => {
     new MahjongGame().start();
 };
+
+function updateUI(state) {
+    const ui = document.getElementById("ui-overlay");
+    ui.innerHTML = "";
+
+    const actions = state.getLegalActions(0);
+
+    const addBtn = (label, action) => {
+        const btn = document.createElement("button");
+        btn.className = "ui-btn";
+        btn.textContent = label;
+        btn.onclick = () => state.applyAction(0, action);
+        ui.appendChild(btn);
+    };
+
+    if (actions.canTsumo) addBtn("自摸", { type: "TSUMO" });
+    if (actions.canRon) addBtn("榮和", { type: "RON" });
+    if (actions.canRiichi) addBtn("立直", { type: "RIICHI" });
+    if (actions.canAnkan) addBtn("暗槓", { type: "ANKAN" });
+    if (actions.canCancel) addBtn("取消", { type: "CANCEL" });
+}
+
