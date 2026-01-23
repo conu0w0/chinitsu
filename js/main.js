@@ -26,7 +26,7 @@ class MahjongGame {
         console.log("正在載入資源...");
 
         this.assets = {
-            table: await loadImage("assets/images/table.png"),
+            table: await loadImage("assets/images/table.jpg"),
             back: await loadImage("assets/images/back.png"),
             tiles: []
         };
