@@ -24,6 +24,8 @@ class MahjongGame {
     }
 
     async loadAssets() {
+        console.log("正在加載資源...");
+        
         const loadImage = (src) =>
             new Promise(resolve => {
                 const img = new Image();
@@ -42,6 +44,7 @@ class MahjongGame {
                 `assets/images/${i + 1}s.png`
             );
         }
+        console.log("資源加載完畢...");
     }
 
     async start() {
