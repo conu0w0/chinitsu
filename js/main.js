@@ -82,6 +82,7 @@ class MahjongGame {
    UI Overlay
    ====================== */
 function updateUI(state) {
+    console.log("updateUI", state.phase);
     const ui = document.getElementById("ui-overlay");
     ui.innerHTML = "";
 
