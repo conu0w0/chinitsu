@@ -288,6 +288,10 @@ export class GameState {
 
         this.turn = (this.turn + 1) % 2;
         this._draw(this.turn);
+
+       if (this.turn === 1) {
+          this._handleOpponentTurn();
+       }
     }
 
     _draw(playerIndex) {
@@ -340,6 +344,19 @@ export class GameState {
         this._resetRoundContext();
     }
 
+   _handleOpponentTurn() {
+      const opp = this.players[1];
+
+      // 隨機出一張
+      const idx = Math.floor(Math.random() * opp.tepai.length);
+      const tile = opp.tepai.splice(idx, 1)[0];
+
+      opp.river.push({ tile, isRiichi: false });
+
+      this.lastDiscard = { tile, fromPlayer: 1 };
+      this.phase = "OPPONENT_RESPONSE";
+   }
+
     resolveHand(playerIndex, ctx) {
         const player = this.players[playerIndex];
         const ankanTiles = player.fulu
@@ -391,7 +408,7 @@ export class GameState {
 
         const waits: player.isReach
             ? player.riichiWaitSet
-            : this.logic.getWaitTiles(player.tepai)
+            : this.logic.getWaitTiles(player.tepai);
 
         return {
             winType,
