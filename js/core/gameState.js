@@ -389,6 +389,10 @@ export class GameState {
     _buildWinContext(playerIndex, winType, winTile) {
         const player = this.players[playerIndex];
 
+        const waits: player.isReach
+            ? player.riichiWaitSet
+            : this.logic.getWaitTiles(player.tepai)
+
         return {
             winType,
             winTile,
@@ -397,6 +401,8 @@ export class GameState {
                 : [...player.tepai, winTile],
 
             ...this.roundContext,
+
+            waits,
 
             ippatsu: this.actionContext.ippatsuActive && !this.actionContext.ippatsuBroken,
             rinshan: this.actionContext.isAfterKan,
