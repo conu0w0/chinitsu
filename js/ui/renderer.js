@@ -67,7 +67,7 @@ export class Renderer {
         this.ctx.textBaseline = "top";
         
         // 把資訊放在左上角，稍微避開對手手牌
-        this.ctx.fillText(`剩餘: ${this.gameState.yama.length}`, 20, 160);
+        this.ctx.fillText(`余: ${this.gameState.yama.length} 張`, 20, 160);
         this.ctx.fillText(`Dora:`, 20, 200);
         
         // 顯示結果字串 (如果有)
