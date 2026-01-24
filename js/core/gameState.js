@@ -406,7 +406,7 @@ export class GameState {
     _buildWinContext(playerIndex, winType, winTile) {
         const player = this.players[playerIndex];
 
-        const waits: player.isReach
+        const waits = player.isReach
             ? player.riichiWaitSet
             : this.logic.getWaitTiles(player.tepai);
 
