@@ -113,6 +113,7 @@ class MahjongGame {
        ====================== */
     gameLoop() {
             this.renderer.render(this.state);
+            updateUI(this.state); 
             requestAnimationFrame(() => this.gameLoop());
         }
     }
