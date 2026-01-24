@@ -112,7 +112,7 @@ export class GameState {
             canCancel: false
         };
 
-        if (this.turn === playerIndex && this.phase === "PLAYER_DECISION") {
+        if (this.phase === "PLAYER_DECISION" && playerIndex === 0) {
             actions.canTsumo = true;
             actions.canCancel = true;
 
@@ -354,7 +354,9 @@ export class GameState {
       opp.river.push({ tile, isRiichi: false });
 
       this.lastDiscard = { tile, fromPlayer: 1 };
+      
       this.phase = "OPPONENT_RESPONSE";
+      this.turn = 0;
    }
 
     resolveHand(playerIndex, ctx) {
