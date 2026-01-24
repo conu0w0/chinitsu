@@ -100,6 +100,8 @@ export class InputHandler {
                 x += drawGap;
             }
 
+            const y = startY;
+
             if (this._hit(px, py, x, y, tileW, tileH)) {
                 this.state.playerDiscard(0, i);
                 return;
