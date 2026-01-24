@@ -149,7 +149,14 @@ export class GameState {
                 // 暗槓：由 mahjongLogic 統一判斷
                 // - 未立直：只需存在四張相同牌
                 // - 已立直：暗槓後的聽牌集合必須與立直當下完全一致
-                actions.canAnkan = this.logic.canAnkan(player.tepai, player.isReach ? player.riichiWaitSet : null);
+                if (this.yama.length > 0) {
+                    actions.canAnkan = this.logic.canAnkan(
+                        player.tepai, 
+                        player.isReach ? player.riichiWaitSet : null
+                     );
+                } else {
+                    actions.canAnkan = false; // 牌山空了，強制不能槓
+                }
             }
         }
 
@@ -313,6 +320,7 @@ export class GameState {
 
         // 3. 補牌（直接摸牌山）
         this._draw(playerIndex);
+        this.remainingTurns--;
 
         console.log("暗槓成立，補牌");
     }
