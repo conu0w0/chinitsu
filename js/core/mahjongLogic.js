@@ -60,9 +60,6 @@ export class MahjongLogic {
 
         // 窮舉 1s~9s (0~8)
         for (let tile = 0; tile <= 8; tile++) {
-            // 剪枝：如果手上已有 4 張，不可能聽這張 (五枚目不可能)
-            if (baseCounts[tile] === 4) continue;
-
             // 模擬和牌：利用 checkWin 的通用邏輯
             if (this.checkWin(hand, tile)) {
                 waits.add(tile);
