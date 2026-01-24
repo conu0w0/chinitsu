@@ -23,11 +23,7 @@ export class InputHandler {
     _onUiClick(event) {
         // 檢查被點擊的是否為 .ui-btn
         const target = event.target.closest('.ui-btn');
-        
-        // 如果點到的不是按鈕，就忽略 (例如點到按鈕之間的縫隙)
-        if (!target.classList.contains('ui-btn')) {
-            return;
-        }
+        if (!target) return; 
 
         // 從 HTML 屬性中讀取動作 (需要在 Renderer 生成按鈕時寫入 data-type)
         const actionType = target.dataset.type; // 例如 "RON", "TSUMO", "CANCEL"
