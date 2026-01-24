@@ -1,5 +1,6 @@
 /**
  * main.js
+ * 遊戲啟動入口（Canvas-only 版本）
  */
 
 import { GameState } from "./core/gameState.js";
@@ -23,6 +24,9 @@ class MahjongGame {
         window.addEventListener("resize", () => this.resize());
     }
 
+    /* ======================
+       載入資源
+       ====================== */
     async loadAssets() {
         const loadImage = (src) =>
             new Promise(resolve => {
@@ -39,7 +43,7 @@ class MahjongGame {
             tiles: []
         };
 
-        // 索子 1~9
+        // 索子 1s ~ 9s
         for (let i = 0; i < 9; i++) {
             this.assets.tiles[i] = await loadImage(
                 `assets/images/${i + 1}s.png`
@@ -49,21 +53,26 @@ class MahjongGame {
         console.log("資源載入完成");
     }
 
+    /* ======================
+       啟動遊戲
+       ====================== */
     async start() {
         await this.loadAssets();
 
         this.renderer = new Renderer(this.canvas, this.assets);
         this.input = new InputHandler(this.canvas, this.state, this.renderer);
 
+        // 開始一局（親家 = 玩家）
         this.state.initKyoku(0);
 
-        this.resize(); // 👈 啟動時先算一次
+        this.resize();
         this.gameLoop();
     }
 
+    /* ======================
+       Resize（純視覺縮放）
+       ====================== */
     resize() {
-        const container = document.getElementById("game-container");
-
         const scale = Math.min(
             window.innerWidth / this.BASE_SIZE,
             window.innerHeight / this.BASE_SIZE
@@ -75,37 +84,19 @@ class MahjongGame {
         `;
     }
 
+    /* ======================
+       主循環
+       ====================== */
     gameLoop() {
         this.renderer.render(this.state);
-        updateUI(this.state);
         requestAnimationFrame(() => this.gameLoop());
     }
 }
 
-window.onload = () => {
-    new MahjongGame().start();
-};
-
 /* ======================
-   UI Overlay
+   啟動
    ====================== */
-function updateUI(state) {
-    const ui = document.getElementById("ui-overlay");
-    ui.innerHTML = "";
-
-    const actions = state.getLegalActions(0);
-
-    const addBtn = (label, action) => {
-        const btn = document.createElement("button");
-        btn.className = "ui-btn";
-        btn.textContent = label;
-        btn.onclick = () => state.applyAction(0, action);
-        ui.appendChild(btn);
-    };
-
-    if (actions.canTsumo) addBtn("自摸", { type: "TSUMO" });
-    if (actions.canRon) addBtn("榮和", { type: "RON" });
-    if (actions.canRiichi) addBtn("立直", { type: "RIICHI" });
-    if (actions.canAnkan) addBtn("暗槓", { type: "ANKAN" });
-    if (actions.canCancel) addBtn("取消", { type: "CANCEL" });
-}
+window.onload = () => {
+    const game = new MahjongGame();
+    game.start();
+};
