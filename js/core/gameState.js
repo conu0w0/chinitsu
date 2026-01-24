@@ -340,7 +340,7 @@ export class GameState {
             setTimeout(() => {
                 // 未來可在此加入 COM 的榮和判定 (logic.isWinningHand)
                 // 目前 COM 總是 Pass
-                this._advanceAfterResponse();
+                this._handleComResponse();
             }, 500);
         }
     }
@@ -403,6 +403,20 @@ export class GameState {
         this.phase = "OPPONENT_RESPONSE";
         
         console.log("COM 切牌：", tile);
+    }
+
+   _handleComResponse() {
+        console.log("等待 COM 回應...");
+        
+        setTimeout(() => {
+            // TODO: 未來這裡可以加入 AI 判斷
+            // if (this.logic.canRon(...)) { this.applyAction(1, { type: 'RON' }); return; }
+            
+            // 目前測試階段：COM 總是選擇「取消/放過」
+            // 注意：我們明確調用 applyAction，就像玩家按下按鈕一樣
+            this.applyAction(1, { type: 'CANCEL' });
+            
+        }, 500); // 模擬思考時間
     }
 
     /* ======================
