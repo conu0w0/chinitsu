@@ -1,207 +1,203 @@
-/**
- * Renderer.js
- * Canvas Renderer（第一版・無動畫）
- * - 桌面 / 手牌 / 河 / 副露
- * - 不負責 Action Buttons（交給 DOM UI）
- */
-
 export class Renderer {
-    constructor(canvas, assets) {
+    constructor(canvas, gameState, assets = {}) {
         this.canvas = canvas;
         this.ctx = canvas.getContext("2d");
+        this.gameState = gameState;
         this.assets = assets;
+        this.uiContainer = document.getElementById("ui-overlay");
 
-        this.tileWidth = 40;
-        this.tileHeight = 60;
-        this.tileGap = 6;
+        // 設定內部解析度為 1024x1024
+        this.canvas.width = 1024;
+        this.canvas.height = 1024;
 
-        // 桌布
-        this.tableSize = 1024;
-        this.originX = (canvas.width - this.tableSize) / 2;
-        this.originY = (canvas.height - this.tableSize) / 2;
-
-        // 桌內座標（相對於桌布左上）
+        // 參數設定
+        this.tileWidth = 56;  // 稍微縮小一點點，讓排版更寬裕
+        this.tileHeight = 84;
+        this.tileGap = 2;
+        this.drawGap = 56;    // 摸牌間距
+        
+        // 中心點 x = 512
+        // 手牌總寬度約 800px，起始點 x 約 112
         this.ZONES = {
-            playerHand: { x: 200, y: 860 },
-            opponentHand: { x: 200, y: 100 },
+            // 玩家手牌 (貼近底部)
+            playerHand: { x: 110, y: 900 },
 
-            playerRiver: { x: 350, y: 650, cols: 6 },
-            opponentRiver: { x: 350, y: 300, cols: 6 }
+            // 玩家牌河 (中間偏下，左右置中)
+            // 6張牌寬約 240px，512 - 120 = 392
+            playerRiver: { x: 340, y: 600, cols: 6 },
+
+            // 對手牌河 (中間偏上)
+            comRiver: { x: 340, y: 300, cols: 6 },
+
+            // 對手手牌 (貼近頂部)
+            opponentHand: { x: 110, y: 50 }
         };
     }
 
-    /* ======================
-       主入口
-       ====================== */
-    render(state) {
-        this._clear();
-        this._drawBackground();
+    draw() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        this._drawHands(state);
-        this._drawFulu(state);
-        this._drawRivers(state);
+        // 繪製背景圖 (填滿 1024x1024)
+        if (this.assets.table) {
+            this.ctx.drawImage(this.assets.table, 0, 0, this.canvas.width, this.canvas.height);
+        } else {
+            // 如果沒有圖片，用深綠色填滿
+            this.ctx.fillStyle = "#1b4d3e"; 
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            // 畫個邊框示意
+            this.ctx.strokeStyle = "#d4af37"; // 金色邊框
+            this.ctx.lineWidth = 10;
+            this.ctx.strokeRect(0, 0, this.canvas.width, this.canvas.height);
+        }
 
-        if (state.phase === "ROUND_END") {
-            this._drawResult(state.lastResult);
+        this.drawInfo();
+        this.drawRivers();
+        this.drawHands();
+        this.renderUI();
+
+        if (this.gameState.phase === "ROUND_END") {
+            this.drawResult(this.gameState.lastResult);
         }
     }
 
-    /* ======================
-       基礎
-       ====================== */
-    _clear() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    drawInfo() {
+        this.ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+        this.ctx.font = "bold 24px sans-serif";
+        this.ctx.textAlign = "left";
+        this.ctx.textBaseline = "top";
+        
+        // 把資訊放在左上角，稍微避開對手手牌
+        this.ctx.fillText(`剩餘: ${this.gameState.yama.length}`, 20, 160);
+        this.ctx.fillText(`Dora:`, 20, 200);
+        
+        // 顯示結果字串 (如果有)
+        if (this.gameState.lastResult) {
+            this.ctx.fillStyle = "#ffff00";
+            this.ctx.textAlign = "center";
+            this.ctx.fillText("按畫面任意處重新開始", 512, 500);
+        }
     }
 
-    _drawBackground() {
-        if (!this.assets.table) return;
-
-        this.ctx.drawImage(
-            this.assets.table,
-            this.originX,
-            this.originY,
-            this.tableSize,
-            this.tableSize
-        );
+    _drawHands() {
+        this._drawPlayerHand();
+        this._drawOpponentHand();
     }
 
-    /* ======================
-       萬用畫牌（防呆）
-       ====================== */
-    _drawTile(tile, x, y, options = {}) {
-        const { rotate = 0, faceDown = false } = options;
-
-        const img = faceDown
-            ? this.assets.back
-            : this.assets.tiles?.[tile];
-
-        // 🛡️ 防呆：圖片不存在就不畫
-        if (!img) return;
-
-        const cx = this.originX + x;
-        const cy = this.originY + y;
-
-        this.ctx.save();
-        this.ctx.translate(
-            cx + this.tileWidth / 2,
-            cy + this.tileHeight / 2
-        );
-
-        if (rotate) this.ctx.rotate(rotate);
-
-        this.ctx.drawImage(
-            img,
-            -this.tileWidth / 2,
-            -this.tileHeight / 2,
-            this.tileWidth,
-            this.tileHeight
-        );
-
-        this.ctx.restore();
-    }
-
-    /* ======================
-       手牌
-       ====================== */
-    _drawHands(state) {
-        const gap = this.tileGap;
-
-        /* === 玩家手牌 === */
-        const player = state.players[0];
+    _drawPlayerHand() {
+        const player = this.gameState.players[0];
         const zone = this.ZONES.playerHand;
+        
+        const isTsumoState = (player.tepai.length % 3 === 2);
+        const lastIndex = player.tepai.length - 1;
 
         player.tepai.forEach((tile, i) => {
-            let x = zone.x + i * (this.tileWidth + gap);
-            const y = zone.y;
-
-            this._drawTile(tile, x, y);
-        });
-
-        /* === 對手手牌（牌背） === */
-        const opp = state.players[1];
-        const oppZone = this.ZONES.opponentHand;
-
-        opp.tepai.forEach((_, i) => {
-            const x = oppZone.x + i * (this.tileWidth + gap);
-            const y = oppZone.y;
-            this._drawTile(0, x, y, { faceDown: true });
-        });
-    }
-
-    /* ======================
-       副露（暗槓）
-       ====================== */
-    _drawFulu(state) {
-        const player = state.players[0];
-        if (!player.fulu.length) return;
-
-        const baseY = this.ZONES.playerHand.y - 70;
-        const startX = 200;
-        const groupGap = 40;
-
-        player.fulu.forEach((f, i) => {
-            if (f.type !== "ankan") return;
-
-            const baseX =
-                startX + i * (this.tileWidth * 4 + groupGap);
-
-            for (let j = 0; j < 4; j++) {
-                const x = baseX + j * (this.tileWidth + 2);
-                this._drawTile(f.tile, x, baseY, {
-                    faceDown: j === 1 || j === 2
-                });
+            let x = zone.x + i * (this.tileWidth + this.tileGap);
+            if (isTsumoState && i === lastIndex) {
+                x += this.drawGap;
             }
+            this.drawTile(tile, x, zone.y, this.tileWidth, this.tileHeight);
         });
     }
 
-    /* ======================
-       牌河（雙方）
-       ====================== */
-    _drawRivers(state) {
-        const gapX = this.tileWidth + 6;
-        const gapY = this.tileHeight + 6;
-
-        /* === 玩家牌河 === */
-        const river = state.players[0].river;
-        const zone = this.ZONES.playerRiver;
-
-        river.forEach((r, i) => {
-            const x = zone.x + (i % zone.cols) * gapX;
-            const y = zone.y - Math.floor(i / zone.cols) * gapY;
-
-            this._drawTile(r.tile, x, y, {
-                rotate: r.isRiichi ? Math.PI / 2 : 0
-            });
-        });
-
-        /* === 對手牌河 === */
-        const oppRiver = state.players[1].river;
-        const oppZone = this.ZONES.opponentRiver;
-
-        oppRiver.forEach((r, i) => {
-            const x = oppZone.x + (i % oppZone.cols) * gapX;
-            const y = oppZone.y + Math.floor(i / oppZone.cols) * gapY;
-
-            this._drawTile(r.tile, x, y);
-        });
-    }
-
-    /* ======================
-       結果顯示
-       ====================== */
-    _drawResult(result) {
-        if (!result) return;
-
-        this.ctx.fillStyle = "rgba(0,0,0,0.7)";
-        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-        this.ctx.fillStyle = "white";
-        this.ctx.font = "28px sans-serif";
-        this.ctx.fillText("和了！", 300, 300);
-
-        if (result.score?.display) {
-            this.ctx.font = "18px sans-serif";
-            this.ctx.fillText(result.score.display, 300, 340);
+    _drawOpponentHand() {
+        const com = this.gameState.players[1];
+        const zone = this.ZONES.opponentHand;
+        for (let i = 0; i < com.tepai.length; i++) {
+            let x = zone.x + i * (40 + 2); // 對手牌畫小且擠一點，當作遠景
+            this.drawTile(-1, x, zone.y, 40, 60, { faceDown: true });
         }
+    }
+    
+    drawRivers() {
+        this._drawRiverGroup(this.gameState.players[0].river, this.ZONES.playerRiver);
+        this._drawRiverGroup(this.gameState.players[1].river, this.ZONES.comRiver);
+    }
+    
+    _drawRiverGroup(riverData, zone) {
+        riverData.forEach((item, i) => {
+            const x = zone.x + (i % zone.cols) * (44); // 稍微緊湊一點
+            const y = zone.y + Math.floor(i / zone.cols) * (60); 
+            this.drawTile(item.tile, x, y, 40, 56, { isRiichi: item.isRiichi });
+        });
+    }
+
+    drawTile(tileVal, x, y, w, h, options = {}) {
+        const { faceDown = false, isRiichi = false } = options;
+        const img = faceDown ? this.assets.back : this.assets.tiles?.[tileVal];
+
+        if (img) {
+            this.ctx.drawImage(img, x, y, w, h);
+            if (isRiichi) {
+                this.ctx.fillStyle = "rgba(255, 0, 0, 0.4)";
+                this.ctx.fillRect(x, y, w, h);
+            }
+            return;
+        }
+
+        // Fallback
+        this.ctx.fillStyle = faceDown ? "#234" : "#f0f0f0";
+        this.ctx.fillRect(x, y, w, h);
+        this.ctx.strokeStyle = "#000";
+        this.ctx.strokeRect(x, y, w, h);
+
+        if (isRiichi) {
+            this.ctx.fillStyle = "rgba(255,0,0,0.3)";
+            this.ctx.fillRect(x, y, w, h);
+        }
+
+        if (!faceDown) {
+            this.ctx.fillStyle = "#c00";
+            this.ctx.font = `${Math.floor(h*0.6)}px Arial`;
+            this.ctx.textAlign = "center";
+            this.ctx.textBaseline = "middle";
+            this.ctx.fillText(`${tileVal + 1}s`, x + w/2, y + h/2 + 2);
+        }
+    }
+
+    renderUI() {
+        this.uiContainer.innerHTML = "";
+        const actions = this.gameState.getLegalActions(0);
+        const createBtn = (text, type, payload = {}) => {
+            const btn = document.createElement("button");
+            btn.className = "ui-btn";
+            btn.textContent = text;
+            btn.dataset.type = type;
+            if (Object.keys(payload).length > 0) {
+                btn.dataset.payload = JSON.stringify(payload);
+            }
+            this.uiContainer.appendChild(btn);
+        };
+
+        if (actions.canTsumo) createBtn("自摸", "TSUMO");
+        if (actions.canRon) createBtn("榮和", "RON");
+        if (actions.canRiichi) createBtn("立直", "RIICHI");
+        if (actions.canAnkan) {
+            const hand = this.gameState.players[0].tepai;
+            const counts = {};
+            hand.forEach(t => counts[t] = (counts[t]||0)+1);
+            const kanTile = parseInt(Object.keys(counts).find(k => counts[k]===4));
+            createBtn("槓", "ANKAN", { tile: kanTile });
+        }
+        if (actions.canCancel) createBtn("取消", "CANCEL");
+    }
+
+    drawResult(result) {
+        this.ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.fillStyle = "white";
+        this.ctx.textAlign = "center";
+        this.ctx.font = "60px sans-serif";
+        this.ctx.fillText("對局終了", 512, 400);
+
+        if (result && result.score) {
+            this.ctx.fillStyle = "#ffcc00";
+            this.ctx.fillText(result.score.display || "", 512, 500);
+            this.ctx.font = "30px sans-serif";
+            this.ctx.fillStyle = "#fff";
+            this.ctx.fillText(`飜: ${result.score.han} / 符: ${result.score.fu} `, 512, 580);
+        }
+        this.ctx.font = "20px sans-serif";
+        this.ctx.fillStyle = "#ccc";
+        this.ctx.fillText("點擊畫面重來", 512, 700);
     }
 }
