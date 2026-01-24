@@ -54,7 +54,7 @@ class MahjongGame {
     }
 
     /* ======================
-       啟動遊戲
+       開始新一局
        ====================== */
     async start() {
         await this.loadAssets();
@@ -85,18 +85,42 @@ class MahjongGame {
     }
 
     /* ======================
+       UI Overlay
+       ====================== */
+    function updateUI(state) {
+        const ui = document.getElementById("ui-overlay");
+        ui.innerHTML = "";
+
+        const actions = state.getLegalActions(0);
+
+        const addBtn = (label, action) => {
+            const btn = document.createElement("button");
+            btn.className = "ui-btn";
+            btn.textContent = label;
+            btn.onclick = () => state.applyAction(0, action);
+            ui.appendChild(btn);
+        };
+
+        if (actions.canTsumo) addBtn("自摸", { type: "TSUMO" });
+        if (actions.canRon) addBtn("榮和", { type: "RON" });
+        if (actions.canRiichi) addBtn("立直", { type: "RIICHI" });
+        if (actions.canAnkan) addBtn("槓", { type: "ANKAN" });
+        if (actions.canCancel) addBtn("取消", { type: "CANCEL" });
+    }
+
+    /* ======================
        主循環
        ====================== */
     gameLoop() {
-        this.renderer.render(this.state);
-        requestAnimationFrame(() => this.gameLoop());
+            this.renderer.render(this.state);
+            requestAnimationFrame(() => this.gameLoop());
+        }
     }
-}
 
-/* ======================
-   啟動
-   ====================== */
-window.onload = () => {
-    const game = new MahjongGame();
-    game.start();
-};
+    /* ======================
+       啟動
+       ====================== */
+    window.onload = () => {
+        const game = new MahjongGame();
+        game.start();
+    };
