@@ -1,78 +1,73 @@
-/* 全局重置 */
 html, body {
     margin: 0;
     padding: 0;
     width: 100%;
     height: 100%;
     background: #111; /* 深色背景 */
-    overflow: hidden; /* 禁止捲動 */
+    overflow: hidden; /* 防止出現捲軸 */
     
-    /* 使用 Flexbox 讓內容永遠置中 */
+    /* 使用 Flex 讓遊戲容器永遠居中 */
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-/* 遊戲容器：這是關鍵！
-   使用 min() 函數，讓寬高永遠取「視窗寬」或「視窗高」之中較小的那一個。
-   這樣可以保證容器永遠是正方形，且不會超出畫面。
-*/
 #game-container {
     position: relative;
-    width: min(98vw, 98vh);  /* 留一點點邊距 (98%) */
-    height: min(98vw, 98vh);
+    
+    /* 【關鍵修改】強制正方形，且適應視窗大小 */
+    /* 取視窗寬度或高度的 95% (留一點邊距)，選較小者作為邊長 */
+    width: min(95vw, 95vh);
+    height: min(95vw, 95vh);
+    
+    background: #000;
     box-shadow: 0 0 20px rgba(0,0,0,0.8); /* 加點陰影增加立體感 */
 }
 
-/* Canvas 跟隨容器大小 */
 #gameCanvas {
     width: 100%;
     height: 100%;
     display: block;
-    border-radius: 4px; /* 圓角看起來比較舒服 */
+    /* Canvas 會自動被拉伸填滿上面的正方形容器 */
 }
 
-/* UI 遮罩層：覆蓋在 Canvas 上方 */
 #ui-overlay {
     position: absolute;
-    bottom: 15%; /* 按鈕位置：距離底部 15% */
-    left: 50%;
-    transform: translateX(-50%);
+    bottom: 15%; /* 按鈕位置稍微拉高，避免貼底 */
+    left: 0;
+    width: 100%; /* 寬度佔滿容器，方便置中 */
     
     display: flex;
+    justify-content: center; /* 按鈕水平置中 */
     gap: 15px;
-    z-index: 100; /* 確保在最上層 */
-
-    /* 關鍵修復：讓遮罩層本身「不擋滑鼠」
-       這樣滑鼠可以穿透遮罩層點擊下方的麻將牌 */
-    pointer-events: none;
+    z-index: 10; /* 確保在 Canvas 之上 */
+    
+    /* 【關鍵修改】讓容器本身「穿透」滑鼠點擊，避免擋住下方的牌 */
+    pointer-events: none; 
 }
 
-/* 按鈕本體 */
 .ui-btn {
-    /* 關鍵修復：讓按鈕恢復「可點擊」 */
-    pointer-events: auto;
-
+    /* 【關鍵修改】讓按鈕恢復可點擊狀態 */
+    pointer-events: auto; 
+    
     padding: 12px 24px;
     font-size: 18px;
     font-weight: bold;
-    color: #fff;
-    background: linear-gradient(180deg, #444, #222); /* 漸層質感 */
+    color: white;
+    background: linear-gradient(to bottom, #444, #222);
     border: 2px solid #888;
     border-radius: 8px;
     cursor: pointer;
     box-shadow: 0 4px 6px rgba(0,0,0,0.5);
-    transition: all 0.1s;
-    font-family: sans-serif;
-}
-
-.ui-btn:hover {
-    background: linear-gradient(180deg, #555, #333);
-    border-color: #aaa;
-    transform: translateY(-2px);
+    transition: transform 0.1s;
 }
 
 .ui-btn:active {
-    transform: translateY(1px);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    transform: translateY(2px);
+    background: #555;
+}
+
+.ui-btn:hover {
+    border-color: #fff;
+    background: linear-gradient(to bottom, #555, #333);
 }
