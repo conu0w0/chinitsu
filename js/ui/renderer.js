@@ -161,9 +161,16 @@ export class Renderer {
             btn.className = "ui-btn";
             btn.textContent = text;
             btn.dataset.type = type;
+            
             if (Object.keys(payload).length > 0) {
                 btn.dataset.payload = JSON.stringify(payload);
             }
+
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation(); // 不讓 Canvas 吃到
+                this.gameState.applyAction(0, { type, ...payload });
+            });    
+            
             this.uiContainer.appendChild(btn);
         };
 
