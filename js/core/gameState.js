@@ -298,7 +298,7 @@ export class GameState {
                 console.log("立直見逃，振聽確定");
             }
 
-            console.log("玩家選擇 Skip (不榮和)");
+            console.log("選擇 Skip (不榮和)");
             this._advanceAfterResponse();
         }
     }
@@ -402,7 +402,7 @@ export class GameState {
         // 進入回應階段，等待玩家操作
         this.phase = "OPPONENT_RESPONSE";
         
-        console.log("COM 切牌：", tile);
+        console.log("COM 切牌：", `${tile + 1}s`);
     }
 
    _handleComResponse() {
