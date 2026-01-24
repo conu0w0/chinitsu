@@ -1,10 +1,8 @@
 /**
  * MahjongLogic.js
- * 僅負責「牌型是否合法」
- * 不負責役、飜、點數
- *
- * 牌表示：
- * 0~8 = 索子 1s~9s
+ * * 核心邏輯：
+ * 基於 (3n + 2) 的數學規律進行判定。
+ * 自動適應 0~4 次副露/暗槓後的剩餘手牌數量。
  */
 
 export class MahjongLogic {
@@ -13,56 +11,90 @@ export class MahjongLogic {
        公開 API
        ====================== */
 
-    // 是否為合法和牌（14 張）
-    isWinningHand(tiles) {
-        if (tiles.length !== 14) return false;
+    /**
+     * 檢查是否和牌
+     * @param {Array<number>} hand - 手牌陣列
+     * @param {number|null} winTile - 和了牌 (若手牌已包含則為 null)
+     * @returns {boolean}
+     */
+    checkWin(hand, winTile = null) {
+        // 1. 組合手牌
+        const tiles = winTile !== null ? [...hand, winTile] : [...hand];
+        const len = tiles.length;
+
+        // 2. 數學檢查：長度必須符合 3n + 2
+        // 可能長度：14, 11, 8, 5, 2
+        if (len < 2 || (len - 2) % 3 !== 0) {
+            return false;
+        }
 
         const counts = this._toCounts(tiles);
 
-        // 七對子（七種不同對子）
-        if (this._isSevenPairs(counts)) return true;
+        // 3. 七對子檢查 
+        // 嚴格限制：必須是「門清」狀態，也就是手牌必須滿 14 張
+        if (len === 14 && this._isSevenPairs(counts)) {
+            return true;
+        }
 
-        // 九蓮寶燈 / 純正九蓮（結構判定）
-        if (this._isNineGates(counts)) return true;
-
-        // 一般型（4 面子 + 1 雀頭）
+        // 4. 一般型檢查 (任意 n 組面子 + 1 組雀頭)
+        // 這裡不需要知道 n 是多少，只要能把牌消光就是贏
         return this._canFormStandardHand(counts);
     }
 
-    // 回傳聽牌集合（13 張）
-    getWaitTiles(tiles) {
+    /**
+     * 取得聽牌列表
+     * @param {Array<number>} hand - 手牌
+     * @returns {Set<number>}
+     */
+    getWaitTiles(hand) {
         const waits = new Set();
-        if (tiles.length !== 13) return waits;
+        const len = hand.length;
 
-        const baseCounts = this._toCounts(tiles);
+        // 數學檢查：聽牌狀態長度必須符合 3n + 1
+        // 可能長度：13, 10, 7, 4, 1
+        if (len < 1 || (len - 1) % 3 !== 0) {
+            return waits; // 長度不對，不可能聽牌
+        }
 
+        const baseCounts = this._toCounts(hand);
+
+        // 窮舉 1s~9s (0~8)
         for (let tile = 0; tile <= 8; tile++) {
+            // 剪枝：如果手上已有 4 張，不可能聽這張 (五枚目不可能)
             if (baseCounts[tile] === 4) continue;
 
-            const test = [...tiles, tile];
-            if (this.isWinningHand(test)) {
+            // 模擬和牌：利用 checkWin 的通用邏輯
+            if (this.checkWin(hand, tile)) {
                 waits.add(tile);
             }
         }
         return waits;
     }
 
-    // 是否可暗槓
-    // riichiWaitSet === null → 未立直
-    canAnkan(tiles, riichiWaitSet = null) {
-        const counts = this._toCounts(tiles);
+    /**
+     * 判斷是否可以暗槓
+     * @param {Array<number>} hand - 手牌 (包含剛摸到的牌)
+     * @param {Set<number>|null} riichiWaits - 立直時的聽牌集合
+     */
+    canAnkan(hand, riichiWaits = null) {
+        const counts = this._toCounts(hand);
 
         for (let tile = 0; tile <= 8; tile++) {
+            // 必須持有 4 張才能暗槓
             if (counts[tile] === 4) {
+                
+                // 狀況 A: 沒立直 -> 允許槓
+                if (!riichiWaits) return true;
 
-                // 未立直：一定可槓
-                if (!riichiWaitSet) return true;
-
-                // 已立直：模擬暗槓後聽牌是否相同
-                const after = tiles.filter(t => t !== tile);
+                // 狀況 B: 已立直 -> 檢查槓後聽牌是否改變
+                // 1. 移除 4 張 (例如 14 -> 10, 或 11 -> 7)
+                const after = hand.filter(t => t !== tile);
+                
+                // 2. 重新計算聽牌 (getWaitTiles 會自動適應 10, 7... 張的長度)
                 const newWaits = this.getWaitTiles(after);
 
-                if (this._sameSet(newWaits, riichiWaitSet)) {
+                // 3. 比較集合
+                if (this._isSameSet(newWaits, riichiWaits)) {
                     return true;
                 }
             }
@@ -71,7 +103,7 @@ export class MahjongLogic {
     }
 
     /* ======================
-       內部判定
+       內部核心演算法
        ====================== */
 
     _toCounts(tiles) {
@@ -80,7 +112,12 @@ export class MahjongLogic {
         return counts;
     }
 
-    // 七對子：七種「不同」對子
+    _isSameSet(a, b) {
+        if (a.size !== b.size) return false;
+        for (const x of a) if (!b.has(x)) return false;
+        return true;
+    }
+
     _isSevenPairs(counts) {
         let pairs = 0;
         for (let i = 0; i <= 8; i++) {
@@ -90,59 +127,47 @@ export class MahjongLogic {
         return pairs === 7;
     }
 
-    // 九蓮寶燈（結構判定）
-    _isNineGates(counts) {
-        if (counts[0] < 3 || counts[8] < 3) return false;
-
-        for (let i = 1; i <= 7; i++) {
-            if (counts[i] < 1) return false;
-        }
-
-        const total = counts.reduce((a, b) => a + b, 0);
-        return total === 14;
-    }
-
-    // 一般型：4 面子 + 1 雀頭
     _canFormStandardHand(counts) {
-        for (let head = 0; head <= 8; head++) {
-            if (counts[head] >= 2) {
-                const copy = [...counts];
-                copy[head] -= 2;
-
-                if (this._canFormMentsu(copy)) {
-                    return true;
+        // 窮舉雀頭
+        for (let i = 0; i <= 8; i++) {
+            if (counts[i] >= 2) {
+                counts[i] -= 2; // 移除雀頭
+                
+                // 剩下的牌能否全部組成面子？
+                if (this._decomposeMentsu(counts)) {
+                    return true; 
                 }
+                
+                counts[i] += 2; // Backtrack
             }
         }
         return false;
     }
 
-    _canFormMentsu(counts) {
-        for (let i = 0; i <= 8; i++) {
-            if (counts[i] === 0) continue;
+    // 遞迴消除面子
+    _decomposeMentsu(counts) {
+        // 尋找第一張存在的牌
+        let i = 0;
+        while (i <= 8 && counts[i] === 0) i++;
 
-            // 刻子
-            if (counts[i] >= 3) {
-                counts[i] -= 3;
-                if (this._canFormMentsu(counts)) return true;
-                counts[i] += 3;
-            }
+        // Base Case: 牌都消光了 -> 成功
+        // 這裡不需要檢查消了幾組，因為張數 (3n) 已經由外部長度檢查保證了
+        if (i > 8) return true;
 
-            // 順子
-            if (i <= 6 && counts[i] > 0 && counts[i+1] > 0 && counts[i+2] > 0) {
-                counts[i]--; counts[i+1]--; counts[i+2]--;
-                if (this._canFormMentsu(counts)) return true;
-                counts[i]++; counts[i+1]++; counts[i+2]++;
-            }
-
-            return false;
+        // Try 1: 刻子
+        if (counts[i] >= 3) {
+            counts[i] -= 3;
+            if (this._decomposeMentsu(counts)) return true;
+            counts[i] += 3;
         }
-        return true;
-    }
 
-    _sameSet(a, b) {
-        if (a.size !== b.size) return false;
-        for (const x of a) if (!b.has(x)) return false;
-        return true;
+        // Try 2: 順子
+        if (i <= 6 && counts[i+1] > 0 && counts[i+2] > 0) {
+            counts[i]--; counts[i+1]--; counts[i+2]--;
+            if (this._decomposeMentsu(counts)) return true;
+            counts[i]++; counts[i+1]++; counts[i+2]++;
+        }
+
+        return false;
     }
 }
