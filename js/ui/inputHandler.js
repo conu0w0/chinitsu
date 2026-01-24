@@ -19,8 +19,14 @@ export class InputHandler {
        ====================== */
     _onClick(event) {
         const rect = this.canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
+
+        // 實際顯示尺寸 vs canvas 內部尺寸
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+
+        // 把螢幕座標轉回 canvas 座標
+        const x = (event.clientX - rect.left) * scaleX;
+        const y = (event.clientY - rect.top) * scaleY;
 
         // ROUND_END → 任意點擊重新開始
         if (this.state.phase === "ROUND_END") {
