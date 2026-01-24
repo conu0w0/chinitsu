@@ -91,7 +91,7 @@ function updateUI(state) {
         const btn = document.createElement("button");
         btn.className = "ui-btn";
         btn.textContent = label;
-        btn.onclick = () => {
+        btn.onclick = (e) => {
             console.log("UI click:", label);
             e.stopPropagation();
             state.applyAction(0, action);
