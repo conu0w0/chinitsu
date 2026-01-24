@@ -1,7 +1,7 @@
 /**
  * InputHandler.js
  * 只負責「玩家點擊輸入」
- * - 點手牌：出牌 / 暗槓
+ * - 點手牌：出牌 
  * - ROUND_END：點一下重新開始
  */
 
@@ -18,6 +18,10 @@ export class InputHandler {
        主入口
        ====================== */
     _onClick(event) {
+        if (this._handleActionButtonClick(x, y)) {
+            return;
+        }
+        
         const rect = this.canvas.getBoundingClientRect();
 
         // 實際顯示尺寸 vs canvas 內部尺寸
@@ -40,7 +44,7 @@ export class InputHandler {
     }
 
     /* ======================
-       點玩家手牌
+       玩家點擊
        ====================== */
     _handlePlayerHandClick(px, py) {
         const player = this.state.players[0];
@@ -63,6 +67,38 @@ export class InputHandler {
                 return;
             }
         }
+    }
+
+    _handleActionButtonClick(px, py) {
+        const actions = this.state.getLegalActions(0);
+        const zone = this.renderer.ZONES.actions;
+        const ox = this.renderer.originX;
+        const oy = this.renderer.originY;
+
+        let x = ox + zone.x;
+        const y = oy + zone.y;
+        const w = 90;
+        const h = 36;
+        const gap = zone.gap;
+
+        const buttons = [
+            ["ANKAN", actions.canAnkan],
+            ["RIICHI", actions.canRiichi],
+            ["RON", actions.canRon],
+            ["TSUMO", actions.canTsumo],
+            ["CANCEL", actions.canCancel]
+        ];
+
+        for (const [type, enabled] of buttons) {
+            if (!enabled) continue;
+
+            if (this._hit(px, py, x, y, w, h)) {
+                this.state.applyAction(0, { type });
+                return true;
+            }
+            x += w + gap;
+        }
+        return false;
     }
 
     /* ======================
