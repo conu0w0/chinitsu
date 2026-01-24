@@ -88,7 +88,10 @@ function updateUI(state) {
         const btn = document.createElement("button");
         btn.className = "ui-btn";
         btn.textContent = label;
-        btn.onclick = () => state.applyAction(0, action);
+        btn.onclick = () => {
+            console.log("UI click:", label);
+            state.applyAction(0, action);
+        };
         ui.appendChild(btn);
     };
 
