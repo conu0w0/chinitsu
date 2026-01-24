@@ -93,6 +93,7 @@ function updateUI(state) {
         btn.textContent = label;
         btn.onclick = () => {
             console.log("UI click:", label);
+            e.stopPropagation();
             state.applyAction(0, action);
         };
         ui.appendChild(btn);
