@@ -15,6 +15,7 @@ html, body {
 
 #gameCanvas {
     position: absolute;
+    z-index: 1;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
@@ -22,6 +23,7 @@ html, body {
 
 #ui-overlay {
     position: absolute;
+    z-index: 10; 
     left: 50%;
     bottom: 20px;
     transform: translateX(-50%);
