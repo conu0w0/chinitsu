@@ -100,9 +100,7 @@ export class GameState {
             }
         }
         this._shuffle(this.yama);
-        console.log("牌山剩餘張數：", this.yama.length);
-        // 正確值應該是 36 - (14 + 13) = 9
-
+    
         // 配牌：親 14，子 13（依你規則）
         this.players.forEach((p, i) => {
             const count = (i === parentIndex) ? 14 : 13;
@@ -111,6 +109,9 @@ export class GameState {
             }
             p.tepai.sort((a, b) => a - b);
         });
+
+        console.log("牌山剩餘張數：", this.yama.length);
+        // 正確值應該是 36 - (14 + 13) = 9
 
         // 剩餘摸打次數 = 9
         this.remainingTurns = 9;
