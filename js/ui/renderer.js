@@ -78,7 +78,7 @@ export class Renderer {
         }
     }
 
-    _drawHands() {
+    drawHands() {
         this._drawPlayerHand();
         this._drawOpponentHand();
     }
