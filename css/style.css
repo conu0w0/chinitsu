@@ -1,48 +1,78 @@
+/* 全局重置 */
 html, body {
     margin: 0;
     padding: 0;
     width: 100%;
     height: 100%;
-    background: #111;
+    background: #111; /* 深色背景 */
+    overflow: hidden; /* 禁止捲動 */
+    
+    /* 使用 Flexbox 讓內容永遠置中 */
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
+/* 遊戲容器：這是關鍵！
+   使用 min() 函數，讓寬高永遠取「視窗寬」或「視窗高」之中較小的那一個。
+   這樣可以保證容器永遠是正方形，且不會超出畫面。
+*/
 #game-container {
     position: relative;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-    z-index: 0;
+    width: min(98vw, 98vh);  /* 留一點點邊距 (98%) */
+    height: min(98vw, 98vh);
+    box-shadow: 0 0 20px rgba(0,0,0,0.8); /* 加點陰影增加立體感 */
 }
 
+/* Canvas 跟隨容器大小 */
 #gameCanvas {
-    position: absolute;
-    z-index: 1;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: 4px; /* 圓角看起來比較舒服 */
 }
 
+/* UI 遮罩層：覆蓋在 Canvas 上方 */
 #ui-overlay {
     position: absolute;
-    z-index: 10; 
+    bottom: 15%; /* 按鈕位置：距離底部 15% */
     left: 50%;
-    bottom: 20px;
     transform: translateX(-50%);
+    
     display: flex;
-    gap: 12px;
-    pointer-events: auto;
+    gap: 15px;
+    z-index: 100; /* 確保在最上層 */
+
+    /* 關鍵修復：讓遮罩層本身「不擋滑鼠」
+       這樣滑鼠可以穿透遮罩層點擊下方的麻將牌 */
+    pointer-events: none;
 }
 
+/* 按鈕本體 */
 .ui-btn {
-    padding: 10px 16px;
-    font-size: 16px;
-    background: rgba(0,0,0,0.7);
-    color: white;
-    border: 1px solid #aaa;
-    border-radius: 6px;
+    /* 關鍵修復：讓按鈕恢復「可點擊」 */
+    pointer-events: auto;
+
+    padding: 12px 24px;
+    font-size: 18px;
+    font-weight: bold;
+    color: #fff;
+    background: linear-gradient(180deg, #444, #222); /* 漸層質感 */
+    border: 2px solid #888;
+    border-radius: 8px;
     cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+    transition: all 0.1s;
+    font-family: sans-serif;
 }
 
 .ui-btn:hover {
-    background: rgba(255,255,255,0.15);
+    background: linear-gradient(180deg, #555, #333);
+    border-color: #aaa;
+    transform: translateY(-2px);
+}
+
+.ui-btn:active {
+    transform: translateY(1px);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
