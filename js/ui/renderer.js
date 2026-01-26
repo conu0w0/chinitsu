@@ -544,6 +544,14 @@ export class Renderer {
                 });
             }
         }
+
+        if (result.type === "chombo") {
+             const roleText = result.isParent ? "親家" : "子家";
+
+             this.ctx.font = "36px sans-serif";
+             this.ctx.fillStyle = "#ff6666";
+             this.ctx.fillText(`${roleText} 罰符 ${result.score.total} 點`, 512, 480);
+        }
         
         this.ctx.font = "20px sans-serif";
         this.ctx.fillStyle = "#aaa";
