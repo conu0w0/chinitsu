@@ -295,8 +295,11 @@ export class Renderer {
                 break;
             }
 
-            case "PLAYER_RESPONSE": {
-                if (state.turn !== 0) return;
+            case "REACTION_DECISION": {
+                const responderIndex = (state.turn + 1) % state.players.length;
+                
+                if (responderIndex !== 0) return;
+                
                 const actions = state.getLegalActions(0);
                 if (!actions) return;
 
