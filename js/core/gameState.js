@@ -1,7 +1,6 @@
 /**
  * gameState.js
- * 遊戲狀態管理器（修正版）
- * 修正了回合切換邏輯與 COM 自動回應機制
+ * 遊戲狀態管理器 (Updated with UI Layering Logic)
  */
 
 import { MahjongLogic } from './mahjongLogic.js';
@@ -50,8 +49,12 @@ export class GameState {
         this.turn = 0;
         this.parentIndex = 0;
 
+        // 核心狀態 Phase
+        // INIT | DRAW 
+        // PLAYER_DECISION (Root層) | ANKAN_SELECTION (槓層) | RIICHI_DECLARATION (立直層)
+        // DISCARD_ONLY (只能切牌)
+        // REACTION_DECISION (回應層) | ROUND_END
         this.phase = "INIT";
-        // INIT | DRAW | PLAYER_DECISION | DISCARD | REACTION_DECISION | ROUND_END
 
         this.lastDiscard = null;
         this.roundContext = {};
@@ -81,16 +84,15 @@ export class GameState {
         }
         this._shuffle(this.yama);
 
-        // 1. 先發給所有人 13 張，並「理牌」
+        // 1. 發牌 (13張)
         this.players.forEach((p) => {
             for (let j = 0; j < 13; j++) {
                 p.tepai.push(this.yama.pop());
             }
-            // 理牌：這 13 張是整齊的
             p.tepai.sort((a, b) => a - b);
         });
 
-        // 2. 如果是莊家，再摸第 14 張 (放在最右邊，不排序)
+        // 2. 莊家摸第 14 張
         const parent = this.players[parentIndex];
         const firstTsumo = this.yama.pop();
         parent.tepai.push(firstTsumo);
@@ -101,22 +103,19 @@ export class GameState {
         this._resetActionContext();
 
         console.log(`=== 新局開始 (親: ${parentIndex === 0 ? '玩家' : 'COM'}) ===`);
-        console.log("牌山剩餘：", this.yama.length);
 
         // 決定初始階段
         if (this.turn === 0) {
-            // 玩家是親，進入決策階段 (天和/暗槓/打牌)
             this.phase = "PLAYER_DECISION";
         } else {
-            // COM 是親，直接讓 COM 思考並出牌
-            // (注意：標準規則親家配牌14張視為自摸牌)
+            // COM 行動
             this.phase = "PLAYER_DECISION";
             setTimeout(() => this._handleComTurn(), 500);
         }
     }
 
     /* ======================
-       UI：合法行為
+       UI：合法行為查詢
        ====================== */
     getLegalActions(playerIndex) {
         const player = this.players[playerIndex];
@@ -129,43 +128,47 @@ export class GameState {
             canCancel: false
         };
 
-        // 防呆：非玩家回合且非回應階段，禁止操作
+        // 非當前玩家或非回應階段 -> 禁止操作
         if (this.turn !== playerIndex && this.phase !== "REACTION_DECISION") {
             return actions;
         }
 
-        // 1. 自己回合的決策 (摸牌後)
+        // === 1. 自己回合的決策 (Root 層) ===
         if (this.phase === "PLAYER_DECISION" && playerIndex === 0) {
-            actions.canTsumo = true; // 實際上還需檢查 logic.isWinningHand，UI層通常會再過濾
-            actions.canCancel = true; // 這裡的 Cancel 指的是「不宣告自摸/槓/立直，準備出牌」
-
-            if (!player.isReach) actions.canRiichi = true;
-
-            actions.canAnkan = this.yama.length > 0 &&
-                this.logic.canAnkan(
-                    player.tepai,
-                    player.isReach ? player.riichiWaitSet : null
-                );
-            if (actions.canAnkan) {
-                actions.ankanTiles = this.logic.getAnkanTiles(player.tepai, player.isReach ? player.riichiWaitSet : null);
+            // 自摸判定
+            actions.canTsumo = this.logic.isWinningHand(player.tepai, this._getAnkanCount(player));
+            
+            // 暗槓判定
+            if (this.yama.length > 0) {
+                const waitSet = player.isReach ? player.riichiWaitSet : null;
+                actions.ankanTiles = this.logic.getAnkanTiles(player.tepai, this._getAnkanCount(player), waitSet);
+                actions.canAnkan = (actions.ankanTiles.length > 0);
             }
+
+            // 立直判定 (門前清 + 未立直 + 聽牌)
+            if (!player.isReach && player.fulu.length === 0) { // 這裡簡化判斷，實際應檢查是否門清
+                 // 這裡只檢查有沒有聽牌，logic.getWaitTiles 會回傳 Set
+                 const waits = this.logic.getWaitTiles(player.tepai);
+                 if (waits.size > 0 && this.points >= 1000) { // 簡易判斷，實際上還要看剩餘點數
+                     actions.canRiichi = true;
+                 }
+            }
+
+            // 在 Root 層，Cancel 意味著「跳過所有特殊動作，去切牌」
+            actions.canCancel = true; 
         }
 
-        // 2. 對手打牌後的決策 (榮和)
+        // === 2. 對手打牌後的決策 (榮和) ===
         if (this.phase === "REACTION_DECISION" && this.lastDiscard && playerIndex === 0) {
-            // 這裡可以預先判斷是否真的能胡，優化 UI 顯示
-            // const canWin = this.logic.isWinningHand([...player.tepai, this.lastDiscard.tile]);
-            // if (canWin) actions.canRon = true;
-
-            actions.canRon = true;
-            actions.canCancel = true; // 放過 (Skip)
+            actions.canRon = true; // 這裡假設總是顯示按鈕，實際點擊後再驗證 logic
+            actions.canCancel = true;
         }
 
         return actions;
     }
 
     /* ======================
-       行為入口
+       行為入口 (State Machine Core)
        ====================== */
     applyAction(playerIndex, action) {
         const type = action.type;
@@ -174,7 +177,7 @@ export class GameState {
         switch (this.phase) {
 
             /* ======================
-               玩家 / COM 摸牌後決策
+               ROOT 層：玩家決策
                ====================== */
             case "PLAYER_DECISION":
                 {
@@ -182,17 +185,35 @@ export class GameState {
                         this._handleTsumo(playerIndex);
                         return;
                     }
+
+                    // 嘗試暗槓 -> 進入邏輯判斷
+                    if (type === "TRY_ANKAN") {
+                        const ankanTiles = this.logic.getAnkanTiles(
+                            player.tepai, 
+                            this._getAnkanCount(player),
+                            player.isReach ? player.riichiWaitSet : null
+                        );
+
+                        if (ankanTiles.length === 0) return; // 防呆
+
+                        if (ankanTiles.length === 1) {
+                            // 只有一種選擇，直接槓
+                            this._handleAnkan(playerIndex, ankanTiles[0]);
+                        } else {
+                            // 多種選擇，進入子選單
+                            this.phase = "ANKAN_SELECTION";
+                        }
+                        return;
+                    }
+
+                    // 立直 -> 進入立直宣言層
                     if (type === "RIICHI") {
-                        this._handleRiichi(playerIndex);
                         this.phase = "RIICHI_DECLARATION";
+                        // 註：此時還未扣點，也未正式立直，等待切牌確認
                         return;
                     }
 
-                    if (type === "ANKAN") {
-                        this._handleAnkan(playerIndex, action.tile);
-                        return;
-                    }
-
+                    // 取消 -> 鎖定為只能切牌
                     if (type === "CANCEL") {
                         this.phase = "DISCARD_ONLY";
                         return;
@@ -200,25 +221,40 @@ export class GameState {
                     return;
                 }
 
-                /* ======================
-                   立直宣言中
-                   ====================== */
-            case "RIICHI_DECLARATION":
+            /* ======================
+               槓層：選擇槓哪一張
+               ====================== */
+            case "ANKAN_SELECTION": 
                 {
-                    // 取消立直宣言
-                    if (type === "CANCEL") {
-                        // 回到宣告前
-                        this.phase = "PLAYER_DECISION";
-                        // 注意：尚未成立立直，isReach 還沒設
+                    if (type === "ANKAN") {
+                        this._handleAnkan(playerIndex, action.tile);
                         return;
                     }
-                    // 其他 action 在這一層不該發生
+                    if (type === "CANCEL") {
+                        // 返回 Root
+                        this.phase = "PLAYER_DECISION";
+                        return;
+                    }
                     return;
                 }
 
-                /* ======================
-                   出牌後的回應
-                   ====================== */
+            /* ======================
+               立直層：宣言確認
+               ====================== */
+            case "RIICHI_DECLARATION":
+                {
+                    if (type === "CANCEL") {
+                        // 返回 Root
+                        this.phase = "PLAYER_DECISION";
+                        return;
+                    }
+                    // 此狀態下點擊手牌會觸發 playerDiscard，那邊會處理立直確立
+                    return;
+                }
+
+            /* ======================
+               回應層 (榮和/Skip)
+               ====================== */
             case "REACTION_DECISION":
                 {
                     if (type === "RON") {
@@ -232,18 +268,7 @@ export class GameState {
                     return;
                 }
 
-                /* ======================
-                   只能出牌（不該有 action）
-                   ====================== */
             case "DISCARD_ONLY":
-                {
-                    // 所有 action 都忽略，等 playerDiscard
-                    return;
-                }
-
-                /* ======================
-                   結束狀態
-                   ====================== */
             case "ROUND_END":
             default:
                 return;
@@ -251,8 +276,176 @@ export class GameState {
     }
 
     /* ======================
-       和牌處理
+       摸打流程與切牌處理
        ====================== */
+
+    // 玩家點擊手牌切牌時呼叫此函式
+    playerDiscard(playerIndex, tileIndex) {
+        const player = this.players[playerIndex];
+
+        // 檢查：如果是在立直宣言狀態下切牌，則確認立直
+        let isRiichiDeclarationDiscard = false;
+
+        if (this.phase === "RIICHI_DECLARATION") {
+            // 這裡可以加邏輯檢查：切這張牌是否維持聽牌？(MahjongLogic 支援的話)
+            // 暫時假設 UI 已經過濾或允許切牌
+            isRiichiDeclarationDiscard = true;
+            
+            // 執行立直扣點與標記 (先標記 actionContext，出牌後才正式生效)
+            this._handleRiichi(playerIndex); 
+            
+            // 狀態恢復正常流程，準備進入 REACTION
+            this.phase = "PLAYER_DECISION"; 
+        }
+
+        // 立直後限制：只能切剛摸到的牌
+        if (player.isReach && !isRiichiDeclarationDiscard) {
+            // 找出剛摸的那張牌 (通常是最後一張)
+            const isTsumoTile = (tileIndex === player.tepai.length - 1);
+            if (!isTsumoTile) {
+               console.warn("立直後只能切摸牌");
+               return; // 阻止切牌
+            }
+        }
+
+        // === 執行切牌 ===
+        const tile = player.tepai.splice(tileIndex, 1)[0];
+        player.tepai.sort((a, b) => a - b);
+
+        player.river.push({
+            tile,
+            isRiichi: this.actionContext.lastActionWasRiichi // 標記這張是立直宣言牌
+        });
+
+        if (this.actionContext.lastActionWasRiichi) {
+            if (this.roundContext.doubleRiichi) {
+                console.log("兩立直成立");
+            } else {
+                console.log("立直成立");
+            }
+        }
+
+        // 一發狀態處理
+        if (this.actionContext.ippatsuActive) {
+            this.actionContext.ippatsuActive = false;
+            this.actionContext.ippatsuBroken = true;
+        }
+
+        this.actionContext.lastActionWasRiichi = false; // 重置標記
+        this.actionContext.isKanburiCandidate = this.actionContext.lastActionWasKan;
+        this.actionContext.lastActionWasKan = false;
+
+        this.lastDiscard = {
+            tile,
+            fromPlayer: playerIndex
+        };
+        
+        this.phase = "REACTION_DECISION";
+        console.log(`玩家切牌: ${tile + 1}s`);
+
+        // === 觸發 COM 回應 ===
+        if (playerIndex === 0) {
+            setTimeout(() => {
+                this._handleComResponse();
+            }, 500);
+        }
+    }
+
+    // 回合推進
+    _advanceAfterResponse() {
+        if (this.yama.length === 0) {
+            this._handleRyuukyoku();
+            return;
+        }
+
+        this.turn = (this.turn + 1) % 2;
+        this._draw(this.turn);
+
+        // 如果輪到 COM
+        if (this.turn === 1) {
+            setTimeout(() => this._handleComTurn(), 600);
+        }
+    }
+
+    _draw(playerIndex) {
+        if (this.yama.length === 0) {
+            this._handleRyuukyoku();
+            return;
+        }
+
+        const tile = this.yama.pop();
+        const player = this.players[playerIndex];
+        player.tepai.push(tile);
+
+        const afterKan = this.actionContext.isAfterKan;
+        this._resetActionContext();
+        if (afterKan) this.actionContext.isAfterKan = true; // 嶺上
+
+        this.phase = "PLAYER_DECISION";
+        console.log(`${player.name} 摸牌: ${playerIndex === 0 ? `${tile + 1}s` : '??'}`);
+    }
+
+    /* ======================
+       動作處理 (Internal)
+       ====================== */
+
+    _handleRiichi(playerIndex) {
+        const player = this.players[playerIndex];
+        
+        // 標記立直
+        player.isReach = true;
+        player.riichiWaitSet = this.logic.getWaitTiles(player.tepai);
+        
+        // 扣點 1000
+        player.points -= 1000;
+
+        const yamaLeft = this.yama.length;
+        const isDoubleRiichi = (player.isParent && yamaLeft === 9) || (!player.isParent && yamaLeft === 8);
+
+        if (isDoubleRiichi) {
+            this.roundContext.doubleRiichi = true;
+        }
+
+        // 標記這個 Action 是立直，讓 playerDiscard 把那張牌橫置
+        this.actionContext.lastActionWasRiichi = true;
+    }
+
+    _handleAnkan(playerIndex, tile) {
+        const player = this.players[playerIndex];
+
+        // 移除手牌中的 4 張
+        let removedCount = 0;
+        for (let i = player.tepai.length - 1; i >= 0; i--) {
+            if (player.tepai[i] === tile) {
+                player.tepai.splice(i, 1);
+                removedCount++;
+            }
+        }
+
+        if (removedCount !== 4) {
+            console.error("暗槓錯誤：手牌中張數不足", tile, player.tepai);
+            return;
+        }
+
+        player.fulu.push({ type: "ankan", tile });
+        player.tepai.sort((a, b) => a - b);
+
+        // 一發中斷
+        if (this.actionContext.ippatsuActive) {
+            this.actionContext.ippatsuActive = false;
+            this.actionContext.ippatsuBroken = true;
+        }
+
+        this.actionContext.isAfterKan = true;
+        this.actionContext.lastActionWasKan = true;
+
+        console.log(`玩家 ${playerIndex} 暗槓 ${tile + 1}s`);
+        
+        // 槓完後直接回到 Root (因為摸了嶺上牌，又是一次新的 Decision)
+        this.phase = "PLAYER_DECISION";
+        this._draw(playerIndex); 
+    }
+
     _handleTsumo(playerIndex) {
         const player = this.players[playerIndex];
         const kanCount = this._getAnkanCount(player);
@@ -304,229 +497,55 @@ export class GameState {
         this._resetActionContext();
     }
 
-    /* ======================
-       立直 & 槓 & 取消
-       ====================== */
-    _handleRiichi(playerIndex) {
-        const player = this.players[playerIndex];
-        player.isReach = true;
-        player.riichiWaitSet = this.logic.getWaitTiles(player.tepai);
-
-        const yamaLeft = this.yama.length;
-        const isDoubleRiichi = (player.isParent && yamaLeft === 9) || (!player.isParent && yamaLeft === 8);
-
-        if (isDoubleRiichi) {
-            this.roundContext.doubleRiichi = true;
-        }
-
-        this.actionContext.lastActionWasRiichi = true;
-        // 注意：立直後還需要打出一張牌，狀態仍保持 PLAYER_DECISION 或等待 UI 觸發 playerDiscard
-    }
-
-    _handleAnkan(playerIndex, tile) {
-        const player = this.players[playerIndex];
-
-        // 移除手牌中的 4 張
-        let removedCount = 0;
-        for (let i = player.tepai.length - 1; i >= 0; i--) {
-            if (player.tepai[i] === tile) {
-                player.tepai.splice(i, 1);
-                removedCount++;
-            }
-        }
-
-        if (removedCount !== 4) {
-            console.error("暗槓錯誤：手牌中張數不足", tile, player.tepai);
-            return;
-        }
-
-        player.fulu.push({
-            type: "ankan",
-            tile
-        });
-        player.tepai.sort((a, b) => a - b);
-
-        // 槓 → 一發中斷
-        if (this.actionContext.ippatsuActive) {
-            this.actionContext.ippatsuActive = false;
-            this.actionContext.ippatsuBroken = true;
-        }
-
-        this.actionContext.isAfterKan = true;
-        this.actionContext.lastActionWasKan = true;
-
-        console.log(`玩家 ${playerIndex} 暗槓 ${tile + 1}s`);
-        this._draw(playerIndex); // 嶺上補牌
-    }
-
     _handleCancel(playerIndex) {
         const player = this.players[playerIndex];
 
-        // === 對手跳過立直宣言牌 ===
-        if (this.actionContext.lastActionWasRiichi && this.phase === "REACTION_DECISION") {
-           // ★ 立直正式成立
-           player.isReach = true;
-           this.phase = "RIICHI_LOCKED";
-           
-           // 一發開始
-           this.actionContext.ippatsuActive = true;
-           this.actionContext.ippatsuBroken = false;
+        // 這是「榮和階段」的 Cancel (見逃)
+        if (this.phase === "REACTION_DECISION") {
+            // 若之前是對手立直宣言牌，現在取消 -> 立直成功
+             if (this.actionContext.lastActionWasRiichi) {
+                // (注意：若是對手立直，lastActionWasRiichi 在對手 discard 時已設為 false 並存入 isRiichi)
+                // 這裡其實要判斷的是「是否有人剛立直且沒被榮」
+                // 由於簡化，我們用 "RIICHI_LOCKED" 概念通常不在 GameState 做太複雜判斷
+                // 這裡只要專注於「玩家不榮和」即可
+             }
+             
+             // 處理立直振聽
+             if (player.isReach && player.riichiWaitSet && player.riichiWaitSet.has(this.lastDiscard.tile)) {
+                 player.riichiFuriten = true;
+                 console.log("立直振聽 (見逃)");
+             }
+
+             console.log("選擇 Skip (不榮和)");
+             this._advanceAfterResponse();
         }
-
-         // 立直見逃 → 振聽
-         if (player.isReach && player.riichiWaitSet && player.riichiWaitSet.has(this.lastDiscard.tile)) {
-             player.riichiFuriten = true;
-             console.log("立直振聽", this.lastDiscard.tile + 1 + "s");
-         }
-
-         console.log("選擇 Skip (不榮和)");
-         this._advanceAfterResponse();
-    }
-
-    /* ======================
-       摸打流程
-       ====================== */
-
-    playerDiscard(playerIndex, tileIndex) {
-        const player = this.players[playerIndex];
-
-        // 立直成立後的出牌限制
-        if (this.phase === "RIICHI_LOCKED") {
-            const isTsumoTile = (tileIndex === player.tepai.length - 1);
-            if (!isTsumoTile) {
-               console.warn("立直後只能切摸牌");
-               return;
-            }
-        }
-
-        // 移除指定的牌並自動理牌
-        const tile = player.tepai.splice(tileIndex, 1)[0];
-        player.tepai.sort((a, b) => a - b);
-
-        player.river.push({
-            tile,
-            isRiichi: this.actionContext.lastActionWasRiichi
-        });
-
-        if (this.actionContext.lastActionWasRiichi) {
-            if (this.roundContext.doubleRiichi) {
-                console.log("兩立直成立");
-            } else {
-                console.log("立直成立");
-            }
-        }
-
-        // 立直者自己出牌 → 該輪一發機會結束
-        if (this.actionContext.ippatsuActive) {
-            this.actionContext.ippatsuActive = false;
-            this.actionContext.ippatsuBroken = true;
-        }
-
-        this.actionContext.lastActionWasRiichi = false;
-        this.actionContext.isKanburiCandidate = this.actionContext.lastActionWasKan;
-        this.actionContext.lastActionWasKan = false;
-
-        this.lastDiscard = {
-            tile,
-            fromPlayer: playerIndex
-        };
-        this.phase = "REACTION_DECISION";
-
-        console.log(`玩家切牌: ${tile + 1}s`);
-
-        // [重要修正] 對手是 COM，自動跳過榮和階段
-        if (playerIndex === 0) {
-            setTimeout(() => {
-                // 未來可在此加入 COM 的榮和判定 (logic.isWinningHand)
-                // 目前 COM 總是 Pass
-                this._handleComResponse();
-            }, 500);
-        }
-    }
-
-    // 回合推進 (決定下一家是誰)
-    _advanceAfterResponse() {
-        if (this.yama.length === 0) {
-            this._handleRyuukyoku();
-            return;
-        }
-
-        // 切換回合
-        this.turn = (this.turn + 1) % 2;
-
-        // 摸牌
-        this._draw(this.turn);
-
-        // 如果輪到 COM，執行 COM AI
-        if (this.turn === 1) {
-            setTimeout(() => this._handleComTurn(), 600);
-        }
-    }
-
-    _draw(playerIndex) {
-        if (this.yama.length === 0) {
-            this._handleRyuukyoku();
-            return;
-        }
-
-        const tile = this.yama.pop();
-        const player = this.players[playerIndex];
-        player.tepai.push(tile);
-
-        const afterKan = this.actionContext.isAfterKan;
-        // Reset action flags for the new turn
-        this._resetActionContext();
-        if (afterKan) this.actionContext.isAfterKan = true; // 嶺上牌標記
-
-        this.phase = "PLAYER_DECISION";
-        console.log(`${player.name} 摸牌: ${playerIndex === 0 ? `${tile + 1}s` : '??'}`);
     }
 
     /* ======================
        COM 邏輯
        ====================== */
+
     _handleComTurn() {
         const com = this.players[1];
-
         // 簡單 AI：隨機切
         const idx = Math.floor(Math.random() * com.tepai.length);
         const tile = com.tepai.splice(idx, 1)[0];
+        com.river.push({ tile, isRiichi: false });
 
-        com.river.push({
-            tile,
-            isRiichi: false
-        });
-
-        this.lastDiscard = {
-            tile,
-            fromPlayer: 1
-        };
-
-        // 進入回應階段，等待玩家操作
+        this.lastDiscard = { tile, fromPlayer: 1 };
         this.phase = "REACTION_DECISION";
-
         console.log("COM 切牌：", `${tile + 1}s`);
     }
 
     _handleComResponse() {
-        console.log("等待 COM 回應...");
-
-        setTimeout(() => {
-            // TODO: 未來這裡可以加入 AI 判斷
-            // if (this.logic.canRon(...)) { this.applyAction(1, { type: 'RON' }); return; }
-
-            // 目前測試階段：COM 總是選擇「取消/放過」
-            // 注意：我們明確調用 applyAction，就像玩家按下按鈕一樣
-            this.applyAction(1, {
-                type: 'CANCEL'
-            });
-
-        }, 500); // 模擬思考時間
+        // COM 總是 Pass
+        this.applyAction(1, { type: 'CANCEL' });
     }
 
     /* ======================
-       流局 & 雜項
+       Helpers & Utility
        ====================== */
+
     _handleRyuukyoku() {
         this.phase = "ROUND_END";
         console.log("=== 流局 ===");
@@ -536,34 +555,20 @@ export class GameState {
 
     _isDiscardFuriten(player) {
         const waits = this.logic.getWaitTiles(player.tepai);
-        // 檢查現物振聽：聽的牌是否在自己河裡
         return [...waits].some(t => player.river.some(r => r.tile === t));
     }
 
     _handleChombo(playerIndex, reason) {
         this.phase = "ROUND_END";
-
         const offender = this.players[playerIndex];
-        const opponent = this.players[(playerIndex + 1) % 2];
-
         const base = 32000;
-        const payment = offender.isParent ? base * 1.5 : base;
-
-        offender.points -= payment;
-        opponent.points += payment;
-
+        offender.points -= base;
+        
         this.lastResult = {
             type: "chombo",
-            score: {
-                display: `犯規：${reason}`,
-                yakus: [],
-                total: -payment
-            }
+            score: { display: `犯規：${reason}`, total: -base }
         };
-
         console.warn("犯規發生", reason);
-        this._resetActionContext();
-        this._resetRoundContext();
     }
 
     _getAnkanCount(player) {
@@ -572,9 +577,7 @@ export class GameState {
 
     resolveHand(playerIndex, ctx) {
         const player = this.players[playerIndex];
-        const ankanTiles = player.fulu
-            .filter(f => f.type === "ankan")
-            .map(f => f.tile);
+        const ankanTiles = player.fulu.filter(f => f.type === "ankan").map(f => f.tile);
 
         const patterns = decomposeHand(ctx.tiles, ankanTiles);
         const best = selectBestPattern(patterns, ctx);
@@ -590,11 +593,7 @@ export class GameState {
             isParent: ctx.isParent
         });
 
-        this.lastResult = {
-            best,
-            fu,
-            score
-        };
+        this.lastResult = { best, fu, score };
     }
 
     _resetActionContext() {
@@ -604,8 +603,7 @@ export class GameState {
             lastActionWasRiichi: false,
             ippatsuActive: false,
             ippatsuBroken: false,
-            isKanburiCandidate: false,
-            isTsubameCandidate: false
+            isKanburiCandidate: false
         };
     }
 
@@ -622,25 +620,16 @@ export class GameState {
 
     _buildWinContext(playerIndex, winType, winTile) {
         const player = this.players[playerIndex];
-
-        const waits = player.isReach ?
-            player.riichiWaitSet :
-            this.logic.getWaitTiles(player.tepai);
+        const waits = player.isReach ? player.riichiWaitSet : this.logic.getWaitTiles(player.tepai);
 
         return {
             winType,
             winTile,
-            tiles: winType === "tsumo" ?
-                [...player.tepai] :
-                [...player.tepai, winTile],
-
+            tiles: winType === "tsumo" ? [...player.tepai] : [...player.tepai, winTile],
             ...this.roundContext,
-
             waits,
-
             ippatsu: this.actionContext.ippatsuActive && !this.actionContext.ippatsuBroken,
             rinshan: this.actionContext.isAfterKan,
-
             riichi: player.isReach,
             isParent: player.isParent
         };
