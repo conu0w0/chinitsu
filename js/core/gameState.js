@@ -588,15 +588,25 @@ export class GameState {
 
     _handleChombo(playerIndex, reason) {
         this.phase = "ROUND_END";
+       
         const offender = this.players[playerIndex];
+        const otherIndex = (playerIndex + 1) % 2;
+        const other = this.players[otherIndex];
+       
         const base = 32000;
-        offender.points -= base;
+        const multiplier = offender.isParent ? 1.5 : 1;
+        const penalty = base * multiplier;
+       
+        offender.points -= penalty;
+        other.points += penalty;
 
         this.lastResult = {
             type: "chombo",
+            offenderIndex: playerIndex,
+            isParent: offender.isParent,
             score: {
                 display: `犯規：${reason}`,
-                total: -base
+                total: penalty
             }
         };
         console.warn("犯規發生", reason);
@@ -606,13 +616,17 @@ export class GameState {
         return player.fulu.filter(f => f.type === "ankan").length;
     }
 
-    resolveHand(playerIndex, ctx) {
+    resolveHand(playerIndex, ctx) {   
         const player = this.players[playerIndex];
         const ankanTiles = player.fulu.filter(f => f.type === "ankan").map(f => f.tile);
 
         const patterns = decomposeHand(ctx.tiles, ankanTiles);
         const best = selectBestPattern(patterns, ctx);
         const fu = calculateFu(best.pattern, ctx);
+
+        const winner = this.players[playerIndex];
+        const loserIndex = (playerIndex + 1) % 2;
+        const loser = this.players[loserIndex];
 
         const scoring = new Scoring();
         const score = scoring.scoreHand({
@@ -623,6 +637,12 @@ export class GameState {
             isKazoeYakuman: best.isKazoeYakuman,
             isParent: ctx.isParent
         });
+
+        const pts = score.score;
+
+        // 點數移動
+        winner.points += pts;
+        loser.points -= pts;
 
         this.lastResult = {
             best,
