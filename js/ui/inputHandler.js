@@ -77,13 +77,21 @@ export class InputHandler {
             let x = zone.x + i * (tileW + gap);
             if (isTsumo && i === lastIndex) x += drawGap;
 
-            if (this._hit(px, py, x, zone.y, tileW, tileH)) {
-                this.renderer.uiButtons = [];
-                state.playerDiscard(0, i);
-                return;
+            if (this._hit(px, py, x, zone.y, tileW, tileH)) continue;
+
+            if (player.isReach) {
+                const isTsumoTile = (i === lastIndex);
+                if (!isTsumoTile) {
+                    console.log("[Input] 已立直，不可更換手牌");
+                    return;
+                }
+            }
+
+            this.renderer.uiButtons = [];
+            state.playerDiscard(0, i);
+            return;
             }
         }
-    }
 
     /* ======================
        工具
