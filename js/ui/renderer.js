@@ -295,6 +295,20 @@ export class Renderer {
                 break;
             }
 
+            case "PLAYER_RESPONSE": {
+                const actions = state.getLegalActions(0);
+                if (!actions) return;
+
+                if (actions.canRon) {
+                    buttons.push({ text: "榮和", action: { type: "RON" } });
+                }
+
+                if (actions.canCancel) {
+                    buttons.push({ text: "取消", action: { type: "CANCEL" } });
+                }
+                break;
+            }
+
             case "DISCARD_ONLY":
             case "RIICHI_LOCKED":
             case "REACTION_DECISION":
