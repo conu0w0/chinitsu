@@ -64,6 +64,7 @@ export class InputHandler {
         const discardablePhases = [
             "PLAYER_DECISION",
             "RIICHI_DECLARATION",
+            "RIICHI_LOCKED",
             "DISCARD_ONLY",
         ];
 
@@ -92,14 +93,29 @@ export class InputHandler {
 
             const y = startY;
 
-            if (this._hit(px, py, x, y, tileW, tileH)) {
-                // ★ 出牌瞬間清空 UI（不管在哪一層）
-                this.renderer.uiButtons = [];
-
-                console.log("[Hand Click] discard index:", i);
-                this.state.playerDiscard(0, i);
-                return;
+            if (!this._hit(px, py, x, y, tileW, tileH)) continue;
+            
+            // ★ 立直成立後：只能在摸牌狀態下，打摸到的那一張
+            if (this.state.phase === "RIICHI_LOCKED") {
+                // 不是摸牌狀態，禁止出牌
+                if (!isTsumoState) {
+                    console.log("[Riichi Locked] 非摸牌狀態，禁止出牌");
+                    return;
+                }
+                
+                // 只能打最後一張（摸到的牌）
+                if (i !== lastIndex) {
+                    console.log("[Riichi Locked] 只能打摸到的牌");
+                    return;
+                }
             }
+            
+            // ★ 出牌瞬間清空 UI（不管在哪一層）
+            this.renderer.uiButtons = [];
+
+            console.log("[Hand Click] discard index:", i);
+            this.state.playerDiscard(0, i);
+            return;
         }
     }
 
