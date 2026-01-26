@@ -42,8 +42,8 @@ export class GameState {
         this.animationQueue = [];
 
         this.players = [
-            new Player(0, "玩家 (你)", false),
-            new Player(1, "對手 (COM)", true)
+            new Player(0, "玩家", false),
+            new Player(1, "COM", true)
         ];
 
         this.yama = [];
@@ -51,7 +51,7 @@ export class GameState {
         this.parentIndex = 0;
 
         this.phase = "INIT";
-        // INIT | DRAW | PLAYER_DECISION | DISCARD | PLAYER_RESPONSE | COM_RESPONSE | ROUND_END
+        // INIT | DRAW | PLAYER_DECISION | DISCARD | REACTION_DECISION | ROUND_END
 
         this.lastDiscard = null;
         this.roundContext = {};
@@ -110,7 +110,7 @@ export class GameState {
         } else {
             // COM 是親，直接讓 COM 思考並出牌
             // (注意：標準規則親家配牌14張視為自摸牌)
-            this.phase = "PLAYER_DECISION"; 
+            this.phase = "PLAYER_DECISION";
             setTimeout(() => this._handleComTurn(), 500);
         }
     }
@@ -152,7 +152,7 @@ export class GameState {
             // 這裡可以預先判斷是否真的能胡，優化 UI 顯示
             // const canWin = this.logic.isWinningHand([...player.tepai, this.lastDiscard.tile]);
             // if (canWin) actions.canRon = true;
-            
+
             actions.canRon = true;
             actions.canCancel = true; // 放過 (Skip)
         }
@@ -163,106 +163,88 @@ export class GameState {
     /* ======================
        行為入口
        ====================== */
-       applyAction(playerIndex, action) {
-       const type = action.type;
-       const player = this.players[playerIndex];
+    applyAction(playerIndex, action) {
+        const type = action.type;
+        const player = this.players[playerIndex];
 
-       switch (this.phase) {
+        switch (this.phase) {
 
-           /* ======================
-              玩家 / COM 摸牌後決策
-              ====================== */
-           case "PLAYER_DECISION": {
-               // 自摸（玩家或 COM 都可能）
-               if (type === "TSUMO") {
-                   this._handleTsumo(playerIndex);
-                   return;
-               }
+            /* ======================
+               玩家 / COM 摸牌後決策
+               ====================== */
+            case "PLAYER_DECISION":
+                {
+                    if (type === "TSUMO") {
+                        this._handleTsumo(playerIndex);
+                        return;
+                    }
+                    if (type === "RIICHI") {
+                        this._handleRiichi(playerIndex);
+                        this.phase = "RIICHI_DECLARATION";
+                        return;
+                    }
 
-               // 立直（只允許自己回合）
-               if (type === "RIICHI") {
-                   this._handleRiichi(playerIndex);
-                   this.phase = "RIICHI_DECLARATION";
-                   return;
-               }
+                    if (type === "ANKAN") {
+                        this._handleAnkan(playerIndex, action.tile);
+                        return;
+                    }
 
-               // 暗槓
-               if (type === "ANKAN") {
-                   this._handleAnkan(playerIndex, action.tile);
-                   // 槓後會補牌並回到 PLAYER_DECISION（在 _draw 裡）
-                   return;
-               }
-   
-               // 取消宣告 → 只能出牌
-               if (type === "CANCEL") {
-                   this.phase = "DISCARD_ONLY";
-                   return;
-               }   
-
-               return;
-           }
-
-           /* ======================
-              立直宣言中
-              ====================== */
-           case "RIICHI_DECLARATION": {
-               // 取消立直宣言
-               if (type === "CANCEL") {
-                   // 回到宣告前
-                   this.phase = "PLAYER_DECISION";
-                   // 注意：尚未成立立直，isReach 還沒設
-                   return;
-               }
-
-                  // 其他 action 在這一層不該發生
-                  return;
-              }
-
-           /* ======================
-              出牌後的回應
-              ====================== */
-           case "PLAYER_RESPONSE": {
-                // 玩家回應 COM 出牌
-                if (type === "RON") {
-                    this._handleRon(playerIndex);
+                    if (type === "CANCEL") {
+                        this.phase = "DISCARD_ONLY";
+                        return;
+                    }
                     return;
                 }
-                if (type === "CANCEL") {
-                    this._advanceAfterResponse();
+
+                /* ======================
+                   立直宣言中
+                   ====================== */
+            case "RIICHI_DECLARATION":
+                {
+                    // 取消立直宣言
+                    if (type === "CANCEL") {
+                        // 回到宣告前
+                        this.phase = "PLAYER_DECISION";
+                        // 注意：尚未成立立直，isReach 還沒設
+                        return;
+                    }
+                    // 其他 action 在這一層不該發生
                     return;
                 }
+
+                /* ======================
+                   出牌後的回應
+                   ====================== */
+            case "REACTION_DECISION":
+                {
+                    if (type === "RON") {
+                        this._handleRon(playerIndex);
+                        return;
+                    }
+                    if (type === "CANCEL") {
+                        this._advanceAfterResponse();
+                        return;
+                    }
+                    return;
+                }
+
+                /* ======================
+                   只能出牌（不該有 action）
+                   ====================== */
+            case "DISCARD_ONLY":
+                {
+                    // 所有 action 都忽略，等 playerDiscard
+                    return;
+                }
+
+                /* ======================
+                   結束狀態
+                   ====================== */
+            case "ROUND_END":
+            default:
                 return;
-           }
-          
-            case "COM_RESPONSE": {
-               // COM 回應玩家出牌
-               if (type === "RON") {
-                  this._handleRon(playerIndex);
-                  return;
-               }
-               if (type === "CANCEL") {
-                  this._advanceAfterResponse();
-                  return;
-               }
-               return;
-            }
-
-           /* ======================
-              只能出牌（不該有 action）
-              ====================== */
-           case "DISCARD_ONLY": {
-               // 所有 action 都忽略，等 playerDiscard
-               return;
-           }
-
-           /* ======================
-              結束狀態
-              ====================== */
-           case "ROUND_END":
-           default:
-               return;
-       }
-   }
+        }
+    }
 
     /* ======================
        和牌處理
@@ -329,9 +311,9 @@ export class GameState {
         const yamaLeft = this.yama.length;
         const isDoubleRiichi = (player.isParent && yamaLeft === 9) || (!player.isParent && yamaLeft === 8);
 
-       if (isDoubleRiichi) {
-          this.roundContext.doubleRiichi = true;
-       }
+        if (isDoubleRiichi) {
+            this.roundContext.doubleRiichi = true;
+        }
 
         this.actionContext.lastActionWasRiichi = true;
         // 注意：立直後還需要打出一張牌，狀態仍保持 PLAYER_DECISION 或等待 UI 觸發 playerDiscard
@@ -350,11 +332,14 @@ export class GameState {
         }
 
         if (removedCount !== 4) {
-             console.error("暗槓錯誤：手牌中張數不足", tile, player.tepai);
-             return;
+            console.error("暗槓錯誤：手牌中張數不足", tile, player.tepai);
+            return;
         }
 
-        player.fulu.push({ type: "ankan", tile });
+        player.fulu.push({
+            type: "ankan",
+            tile
+        });
         player.tepai.sort((a, b) => a - b);
 
         // 槓 → 一發中斷
@@ -390,8 +375,8 @@ export class GameState {
 
             // 立直見逃 → 振聽
             if (player.isReach && player.riichiWaitSet && player.riichiWaitSet.has(this.lastDiscard.tile)) {
-               player.riichiFuriten = true;
-               console.log("立直振聽", this.lastDiscard.tile + 1 + "s");
+                player.riichiFuriten = true;
+                console.log("立直振聽", this.lastDiscard.tile + 1 + "s");
             }
 
             console.log("選擇 Skip (不榮和)");
@@ -402,14 +387,13 @@ export class GameState {
     /* ======================
        摸打流程
        ====================== */
-    
-    // 玩家出牌
+
     playerDiscard(playerIndex, tileIndex) {
         const player = this.players[playerIndex];
 
         // 移除指定的牌並自動理牌
         const tile = player.tepai.splice(tileIndex, 1)[0];
-        player.tepai.sort((a, b) => a - b);       
+        player.tepai.sort((a, b) => a - b);
 
         player.river.push({
             tile,
@@ -434,9 +418,12 @@ export class GameState {
         this.actionContext.isKanburiCandidate = this.actionContext.lastActionWasKan;
         this.actionContext.lastActionWasKan = false;
 
-        this.lastDiscard = { tile, fromPlayer: playerIndex };
-        this.phase = "COM_RESPONSE";
-        
+        this.lastDiscard = {
+            tile,
+            fromPlayer: playerIndex
+        };
+        this.phase = "REACTION_DECISION";
+
         console.log(`玩家切牌: ${tile + 1}s`);
 
         // [重要修正] 對手是 COM，自動跳過榮和階段
@@ -458,7 +445,7 @@ export class GameState {
 
         // 切換回合
         this.turn = (this.turn + 1) % 2;
-        
+
         // 摸牌
         this._draw(this.turn);
 
@@ -470,8 +457,8 @@ export class GameState {
 
     _draw(playerIndex) {
         if (this.yama.length === 0) {
-             this._handleRyuukyoku();
-             return;
+            this._handleRyuukyoku();
+            return;
         }
 
         const tile = this.yama.pop();
@@ -497,27 +484,35 @@ export class GameState {
         const idx = Math.floor(Math.random() * com.tepai.length);
         const tile = com.tepai.splice(idx, 1)[0];
 
-        com.river.push({ tile, isRiichi: false });
+        com.river.push({
+            tile,
+            isRiichi: false
+        });
 
-        this.lastDiscard = { tile, fromPlayer: 1 };
-        
+        this.lastDiscard = {
+            tile,
+            fromPlayer: 1
+        };
+
         // 進入回應階段，等待玩家操作
         this.phase = "PLAYER_RESPONSE";
-        
+
         console.log("COM 切牌：", `${tile + 1}s`);
     }
 
-   _handleComResponse() {
+    _handleComResponse() {
         console.log("等待 COM 回應...");
-        
+
         setTimeout(() => {
             // TODO: 未來這裡可以加入 AI 判斷
             // if (this.logic.canRon(...)) { this.applyAction(1, { type: 'RON' }); return; }
-            
+
             // 目前測試階段：COM 總是選擇「取消/放過」
             // 注意：我們明確調用 applyAction，就像玩家按下按鈕一樣
-            this.applyAction(1, { type: 'CANCEL' });
-            
+            this.applyAction(1, {
+                type: 'CANCEL'
+            });
+
         }, 500); // 模擬思考時間
     }
 
@@ -551,7 +546,11 @@ export class GameState {
 
         this.lastResult = {
             type: "chombo",
-            score: { display: `犯規：${reason}`, yakus: [], total: -payment }
+            score: {
+                display: `犯規：${reason}`,
+                yakus: [],
+                total: -payment
+            }
         };
 
         console.warn("犯規發生", reason);
@@ -559,9 +558,9 @@ export class GameState {
         this._resetRoundContext();
     }
 
-   _getAnkanCount(player) {
-      return player.fulu.filter(f => f.type === "ankan").length;
-   }
+    _getAnkanCount(player) {
+        return player.fulu.filter(f => f.type === "ankan").length;
+    }
 
     resolveHand(playerIndex, ctx) {
         const player = this.players[playerIndex];
@@ -583,7 +582,11 @@ export class GameState {
             isParent: ctx.isParent
         });
 
-        this.lastResult = { best, fu, score };
+        this.lastResult = {
+            best,
+            fu,
+            score
+        };
     }
 
     _resetActionContext() {
@@ -612,16 +615,16 @@ export class GameState {
     _buildWinContext(playerIndex, winType, winTile) {
         const player = this.players[playerIndex];
 
-        const waits = player.isReach
-            ? player.riichiWaitSet
-            : this.logic.getWaitTiles(player.tepai);
+        const waits = player.isReach ?
+            player.riichiWaitSet :
+            this.logic.getWaitTiles(player.tepai);
 
         return {
             winType,
             winTile,
-            tiles: winType === "tsumo"
-                ? [...player.tepai]
-                : [...player.tepai, winTile],
+            tiles: winType === "tsumo" ?
+                [...player.tepai] :
+                [...player.tepai, winTile],
 
             ...this.roundContext,
 
