@@ -495,28 +495,32 @@ export class GameState {
 
         // 這是「榮和階段」的 Cancel (見逃)
         if (this.phase === "REACTION_DECISION") {
-            // 1. 抓出宣告立直的那個人 (通常是上一家)
-            const riichiPlayerIndex = this.actionContext.pendingRiichiPlayer;
-            const p = this.players[riichiPlayerIndex]; // 定義 p
+            if (this.actionContext.pendingRiichiPlayer !== null) {
+               // 1. 抓出宣告立直的那個人 (通常是上一家)
+               const riichiPlayerIndex = this.actionContext.pendingRiichiPlayer;
+               const p = this.players[riichiPlayerIndex]; // 定義 p
 
-            // 2. 鎖定立直狀態
-            p.isReach = true;
+               if(p) {
+                  // 2. 鎖定立直狀態
+                  p.isReach = true;
 
-            // 3. 鎖定立直後的聽牌列表 (為了之後檢查振聽)
-            p.riichiWaitSet = this.logic.getWaitTiles(p.tepai);
+                  // 3. 鎖定立直後的聽牌列表 (為了之後檢查振聽)
+                  p.riichiWaitSet = this.logic.getWaitTiles(p.tepai);
 
-            // 4. 設定一發狀態
-            this.actionContext.ippatsuActive = true;
-            this.actionContext.ippatsuBroken = false;
+                  // 4. 設定一發狀態
+                  this.actionContext.ippatsuActive = true;
+                  this.actionContext.ippatsuBroken = false;
 
-            // 5. 清除 pending 狀態
-            this.actionContext.pendingRiichi = false;
-            this.actionContext.pendingRiichiPlayer = null;
+                  // 5. 清除 pending 狀態
+                  this.actionContext.pendingRiichi = false;
+                  this.actionContext.pendingRiichiPlayer = null;
 
-            if (this.roundContext.doubleRiichi) {
-                console.log("兩立直成立");
-            } else {
-                console.log("立直成立 (不扣點)");
+                  if (this.roundContext.doubleRiichi) {
+                      console.log("兩立直成立");
+                  } else {
+                      console.log("立直成立 (不扣點)");
+                  }
+               }
             }
 
             // 處理立直振聽
