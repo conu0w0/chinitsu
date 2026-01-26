@@ -230,10 +230,9 @@ export class Renderer {
     renderUI() {
         this.uiButtons = [];
 
-        const actions = this.gameState.getLegalActions(0);
-        if (!actions) return;
-
-        const player = this.gameState.players[0];
+        const state = this.gameState;
+        const phase = state.phase;
+        const player = state.players[0];
         const handZone = this.ZONES.playerHand;
 
         // === UI 尺寸 ===
@@ -247,35 +246,73 @@ export class Renderer {
         // === UI y 位置（在手牌上方一點） ===
         const y = handZone.y - btnH - 12;
 
-        // === 收集要顯示的按鈕（順序由左到右） ===
+        // =================================================
+        // phase 決定「要不要畫 UI」與「畫哪一層」
+        // =================================================
+
         const buttons = [];
 
-        if (actions.canAnkan) {
-            const hand = player.tepai;
-            const counts = {};
-            hand.forEach(t => counts[t] = (counts[t] || 0) + 1);
-            const kanTile = parseInt(Object.keys(counts).find(k => counts[k] === 4));
-            buttons.push({ text: "槓", action: { type: "ANKAN", tile: kanTile } });
-        }
+        switch (phase) {
+            case "PLAYER_DECISION": {
+                const actions = state.getLegalActions(0);
+                if (!actions) return;
 
-        if (actions.canRiichi) buttons.push({ text: "立直", action: { type: "RIICHI" } });
-    
-        if (actions.canRon)   buttons.push({ text: "榮和", action: { type: "RON" } });
-        if (actions.canTsumo) buttons.push({ text: "自摸", action: { type: "TSUMO" } });
-    
-        // 取消一定最後
-        if (actions.canCancel) {
-            buttons.push({ text: "取消", action: { type: "CANCEL" } });
+                if (actions.canAnkan) {
+                    const counts = {};
+                    player.tepai.forEach(t => counts[t] = (counts[t] || 0) + 1);
+                    const kanTile = parseInt(
+                        Object.keys(counts).find(k => counts[k] === 4)
+                    );
+                    buttons.push({ text: "槓", action: { type: "ANKAN", tile: kanTile } });
+                }
+
+                if (actions.canRiichi) buttons.push({ text: "立直", action: { type: "RIICHI" } });
+                if (actions.canTsumo)  buttons.push({ text: "自摸", action: { type: "TSUMO" } });
+
+                // root 層才有取消
+                if (actions.canCancel) {
+                    buttons.push({ text: "取消", action: { type: "CANCEL" } });
+                }
+                break;
+            }
+
+            case "RIICHI_DECLARATION": {
+                // 立直宣言中：只能取消
+                buttons.push({ text: "取消", action: { type: "CANCEL" } });
+                break;
+            }    
+
+            case "KAN_DECISION": {
+                // 這裡假設 state 已經準備好可選槓組
+                const choices = state.pendingKanChoices || [];
+                choices.forEach(choice => {
+                    buttons.push({
+                        text: "槓",
+                        action: { type: "KAN_SELECT", tiles: choice }
+                    });
+                });
+                buttons.push({ text: "取消", action: { type: "CANCEL" } });
+                break;
+            }
+
+            case "DISCARD_ONLY":
+            case "RIICHI_LOCKED":
+            case "REACTION_DECISION":
+            case "ROUND_END":
+            default:
+                // 這些層次：完全不畫 UI
+                return;
         }
 
         if (buttons.length === 0) return;
 
-        // === 從右往左排，確保「取消」貼齊 anchor ===
+        // =================================================
+        // 繪製（從右往左）
+        // =================================================
         let x = anchorRight - btnW;
 
         for (let i = buttons.length - 1; i >= 0; i--) {
             const btn = buttons[i];
-
             this.drawUIButton(x, y, btnW, btnH, btn.text);
             this.uiButtons.push({ x, y, w: btnW, h: btnH, action: btn.action });
             x -= btnW + gap;
