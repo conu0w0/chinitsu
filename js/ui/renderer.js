@@ -39,6 +39,7 @@ export class Renderer {
             // 對手手牌 (貼近頂部)
             opponentHand: { x: 110, y: 50 }
         };
+        this.hasPlayedDrawAnimation = false;
     }
 
     /* ======================
@@ -129,8 +130,9 @@ export class Renderer {
                 x += this.drawGap;
 
                 // 觸發摸牌動畫 (只觸發一次，避免重複設定)
-                if (!this.drawAnimation) {
+                if (!this.hasPlayedDrawAnimation) {
                     this.startDrawAnimation(tile, x, zone.y);
+                    this.hasPlayedDrawAnimation = true;
                     return; // 動畫中先不畫這張靜態牌
                 }
             }
@@ -536,7 +538,7 @@ export class Renderer {
             y, 
             startY: y - 30, 
             startTime: performance.now(), 
-            duration: 200 
+            duration: 800 
         };
     }
 }
