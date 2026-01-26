@@ -587,6 +587,28 @@ export class Renderer {
         ctx.fillText("點擊任意處重新開始", 512, 800);
     }
 
+    _drawChombo(result) {
+        const ctx = this.ctx;
+
+        ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        ctx.fillStyle = "#ff6666";
+        ctx.textAlign = "center";
+
+        const roleText = result.isParent ? "親" : "子";
+
+        ctx.font = "bold 56px sans-serif";
+        ctx.fillText("犯規", 512, 360);
+
+        ctx.font = "36px sans-serif";
+        ctx.fillText(`${roleText} 罰符 ${result.score.total} 點`, 512, 440);
+
+        ctx.font = "20px sans-serif";
+        ctx.fillStyle = "#aaa";
+        ctx.fillText("點擊任意處重新開始", 512, 800);
+    }
+
     startDrawAnimation(tile, x, y) {
         this.drawAnimation = { 
             tile, 
