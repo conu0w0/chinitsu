@@ -311,7 +311,6 @@ export class Renderer {
 
             case "DISCARD_ONLY":
             case "RIICHI_LOCKED":
-            case "REACTION_DECISION":
             case "ROUND_END":
             default:
                 // 這些層次：完全不畫 UI
