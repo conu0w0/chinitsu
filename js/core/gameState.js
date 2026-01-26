@@ -375,8 +375,6 @@ export class GameState {
         const tile = this.yama.pop();
         const player = this.players[playerIndex];
         player.tepai.push(tile);
-        // 注意：為了方便測試，這裡每次摸牌都自動排序，實際遊戲可能只排手中的，摸到的牌放最右邊
-        player.tepai.sort((a, b) => a - b);
 
         const afterKan = this.actionContext.isAfterKan;
         // Reset action flags for the new turn
