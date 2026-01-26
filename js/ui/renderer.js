@@ -507,13 +507,17 @@ export class Renderer {
             this.ctx.font = "40px sans-serif";
             this.ctx.fillStyle = "#ffcc00";
             
-            // 顯示番數/符數
-            const detail = result.score.display || `${result.best.han}番 ${result.fu}符`;
+            // 顯示飜數/符數
+            const detail = result.score.display || `${result.best.han}飜 ${result.fu}符`;
             this.ctx.fillText(detail, 512, 400);
+
+            // 勝利類型文字
+            const roleText = result.isParent ? "親" : "子";
+            const winText = result.winType === "tsumo" ? "自摸" : "榮和";
             
             this.ctx.fillStyle = "#ffffff";
             this.ctx.font = "30px sans-serif";
-            this.ctx.fillText(`總分: ${result.score.total}`, 512, 480);
+            this.ctx.fillText(`${roleText} ${winText} ${result.score.total} 點`, 512, 480);
             
             // 列出役種
             if (result.score.yakus && result.score.yakus.length > 0) {
