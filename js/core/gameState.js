@@ -619,12 +619,14 @@ export class GameState {
             isKazoeYakuman: best.isKazoeYakuman,
             isParent: ctx.isParent
         });
-        console.log("SCORE OBJECT:", score);
 
         this.lastResult = {
             best,
             fu,
-            score
+            score: {
+                ...score,
+                total: score.score
+            }
         };
     }
 
