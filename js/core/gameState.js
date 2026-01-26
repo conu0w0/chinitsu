@@ -571,7 +571,7 @@ export class GameState {
 
     _handleRyuukyoku() {
         this.phase = "ROUND_END";
-        this.lastResult = null;
+        this.lastResult = { type: "ryuukyoku" };
         console.log("=== 流局 ===");
         this._resetActionContext();
         this._resetRoundContext();
