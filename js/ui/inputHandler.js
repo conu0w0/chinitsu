@@ -102,7 +102,7 @@ export class InputHandler {
         return (
             state.phase === "PLAYER_DECISION" ||
             state.phase === "DISCARD_ONLY" ||
-            state.phase === "RIICHI_LOCKED"
+            state.phase === "RIICHI_DECLARATION"
         );
     }
 }
