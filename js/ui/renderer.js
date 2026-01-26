@@ -488,6 +488,11 @@ export class Renderer {
        ====================== */
     drawResult(result) {
         if (!result) return;
+
+        if (result.type === "ryuukyoku") {
+            this._drawRyuukyoku();
+            return;
+        }
         
         // 半透明遮罩
         this.ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
@@ -533,6 +538,27 @@ export class Renderer {
         this.ctx.font = "20px sans-serif";
         this.ctx.fillStyle = "#aaa";
         this.ctx.fillText("點擊任意處重新開始", 512, 800);
+    }
+
+    _drawRyuukyoku() {
+        const ctx = this.ctx;
+
+        ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+        ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.textAlign = "center";
+
+        ctx.font = "bold 64px sans-serif";
+        ctx.fillText("流局", 512, 400);
+
+        ctx.font = "28px sans-serif";
+        ctx.fillStyle = "#cccccc";
+        ctx.fillText("本局無人和牌", 512, 470);
+
+        ctx.font = "20px sans-serif";
+        ctx.fillStyle = "#aaa";
+        ctx.fillText("點擊任意處重新開始", 512, 800);
     }
 
     startDrawAnimation(tile, x, y) {
