@@ -94,9 +94,11 @@ export class InputHandler {
             const y = startY;
 
             if (!this._hit(px, py, x, y, tileW, tileH)) continue;
+
+            const isRiichiLocked = (this.state.phase === "RIICHI_LOCKED");
             
             // ★ 立直成立後：只能在摸牌狀態下，打摸到的那一張
-            if (this.state.phase === "RIICHI_LOCKED") {
+            if (isRiichiLocked) {
                 // 不是摸牌狀態，禁止出牌
                 if (!isTsumoState) {
                     console.log("[Riichi Locked] 非摸牌狀態，禁止出牌");
