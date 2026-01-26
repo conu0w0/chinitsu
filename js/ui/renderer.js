@@ -296,6 +296,7 @@ export class Renderer {
             }
 
             case "PLAYER_RESPONSE": {
+                if (state.turn !== 0) return;
                 const actions = state.getLegalActions(0);
                 if (!actions) return;
 
