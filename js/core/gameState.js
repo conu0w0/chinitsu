@@ -463,7 +463,7 @@ export class GameState {
             .filter(f => f.type === "ankan")
             .map(f => f.tile);
 
-        const patterns = decomposeHand(player.tepai, ankanTiles);
+        const patterns = decomposeHand(ctx.tiles, ankanTiles);
         const best = selectBestPattern(patterns, ctx);
         const fu = calculateFu(best.pattern, ctx);
 
