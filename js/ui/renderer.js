@@ -566,9 +566,9 @@ export class Renderer {
             tile, 
             x, 
             y, 
-            startY: y - 30, 
+            startY: y - 120, 
             startTime: performance.now(), 
-            duration: 800 
+            duration: 500
         };
     }
 }
