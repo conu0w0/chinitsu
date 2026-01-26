@@ -79,6 +79,27 @@ export class MahjongLogic {
         return waits;
     }
 
+    getAnkanTiles(tepai, riichiWaitSet = null) {
+        const count = new Map();
+        for (const t of tepai) {
+            count.set(t, (count.get(t) || 0) + 1);
+        }
+
+        const result = [];
+        for (const [tile, n] of count) {
+            if (n === 4) {
+                // 立直後不能改變聽牌
+                if (riichiWaitSet) {
+                    const temp = tepai.filter(x => x !== tile);
+                    const waits = this.getWaitTiles(temp);
+                    if (!this._sameWaitSet(waits, riichiWaitSet)) continue;
+                }
+                result.push(tile);
+            }
+        }
+        return result;
+    }
+
     /**
      * 判斷是否可以暗槓
      * @param {Array<number>} hand - 手牌 (包含剛摸到的牌)
