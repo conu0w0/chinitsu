@@ -78,7 +78,9 @@ export class Renderer {
 
     drawHands() {
         this._drawPlayerHand();
+        this._drawPlayerMelds();
         this._drawOpponentHand();
+        this._drawOpponentMelds();
     }
 
     _drawPlayerHand() {
@@ -97,6 +99,34 @@ export class Renderer {
         });
     }
 
+    _drawPlayerMelds() {
+        const player = this.gameState.players[0];
+        const melds = player.fulu;
+        if (!melds || melds.length === 0) return;
+
+        const handZone = this.ZONES.playerHand;
+
+        // 計算手牌實際寬度（含摸牌凸出）
+        const handCount = player.tepai.length;
+        const isTsumoState = (handCount % 3 === 2);
+        const handWidth = handCount * (this.tileWidth + this.tileGap) + (isTsumoState ? this.drawGap : 0);
+
+        // 副露起點 = 手牌右側 + 一點間距
+        let x = handZone.x + handWidth + 16;
+        const y = handZone.y;
+
+        melds.forEach((meld) => {
+            if (meld.type === "ankan") {
+                for (let i = 0; i < 4; i++) {
+                    const faceDown = (i === 0 || i === 3);
+                    this.drawTile(meld.tile, x + i * (this.tileWidth + 2), y, this.tileWidth, this.tileHeight, { faceDown  }
+                    );
+                }
+                x += 4 * (this.tileWidth + 8); // 槓組之間留距離
+            }
+        });
+    }
+
     _drawOpponentHand() {
         const com = this.gameState.players[1];
         const zone = this.ZONES.opponentHand;
@@ -105,30 +135,75 @@ export class Renderer {
             this.drawTile(-1, x, zone.y, 40, 60, { faceDown: true });
         }
     }
-    
-    drawRivers() {
-        this._drawRiverGroup(this.gameState.players[0].river, this.ZONES.playerRiver);
-        this._drawRiverGroup(this.gameState.players[1].river, this.ZONES.comRiver);
+
+    _drawOpponentMelds() {
+        const com = this.gameState.players[1];
+        const melds = com.fulu;
+        if (!melds || melds.length === 0) return;
+
+        const handZone = this.ZONES.opponentHand;
+
+        const handCount = com.tepai.length;
+        const isTsumoState = (handCount % 3 === 2);
+        const handWidth = handCount * (40 + 2) + (isTsumoState ? this.drawGap : 0);
+
+        //  副露在「手牌左側」
+        let x = handZone.x - 16;
+        const y = handZone.y;
+
+        melds.forEach((meld) => {
+            if (meld.type === "ankan") {
+                // 往左畫
+                x -= 4 * (40 + 2);
+                
+                for (let i = 0; i < 4; i++) {
+                    const faceDown = (i === 0 || i === 3);
+                    this.drawTile(meld.tile, x + i * (40 + 2), y, 40, 60, { faceDown });
+                }
+
+                x -= 12; // 槓與槓之間的間距
+            }
+        });
     }
     
-    _drawRiverGroup(riverData, zone) {
+    drawRivers() {
+        this._drawRiverGroup(this.gameState.players[0].river, this.ZONES.playerRiver, false);
+        this._drawRiverGroup(this.gameState.players[1].river, this.ZONES.comRiver, true);
+    }
+    
+    _drawRiverGroup(riverData, zone, reverse = false) {
         riverData.forEach((item, i) => {
-            const x = zone.x + (i % zone.cols) * (44); // 稍微緊湊一點
+            const col = i % zone.cols;
+            const row = Math.floor(i / zone.cols);
+            const x = reverse ? zone.x + (zone.cols - 1 - col) * (44) : zone.x + col * (44);
             const y = zone.y + Math.floor(i / zone.cols) * (60); 
-            this.drawTile(item.tile, x, y, 40, 56, { isRiichi: item.isRiichi });
+            const isLast = (i === riverData.length - 1);
+            const rotate = item.isRiichi ? (reverse ? -90 : 90) : 0;
+            this.drawTile(item.tile, x, y, 40, 56, { rotate, highlight: isLast });
         });
     }
 
     drawTile(tileVal, x, y, w, h, options = {}) {
-        const { faceDown = false, isRiichi = false } = options;
+        const { faceDown = false, highlight = false, rotate = 0 } = options;
         const img = faceDown ? this.assets.back : this.assets.tiles?.[tileVal];
 
         if (img) {
-            this.ctx.drawImage(img, x, y, w, h);
-            if (isRiichi) {
-                this.ctx.fillStyle = "rgba(255, 0, 0, 0.4)";
-                this.ctx.fillRect(x, y, w, h);
+            if (rotate !== 0) {
+                this.ctx.save();
+                this.ctx.translate(x + w / 2, y + h / 2);
+                this.ctx.rotate((rotate * Math.PI) / 180);
+                this.ctx.drawImage(img, -w / 2, -h / 2, w, h);
+                this.ctx.restore();
+            } else {
+                this.ctx.drawImage(img, x, y, w, h);
             }
+
+            if (highlight) {
+                this.ctx.strokeStyle = "#ffd700";
+                this.ctx.lineWidth = 4;
+                this.ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
+            }
+            
             return;
         }
 
@@ -138,17 +213,17 @@ export class Renderer {
         this.ctx.strokeStyle = "#000";
         this.ctx.strokeRect(x, y, w, h);
 
-        if (isRiichi) {
-            this.ctx.fillStyle = "rgba(255,0,0,0.3)";
-            this.ctx.fillRect(x, y, w, h);
-        }
-
         if (!faceDown) {
             this.ctx.fillStyle = "#c00";
             this.ctx.font = `${Math.floor(h*0.6)}px Arial`;
             this.ctx.textAlign = "center";
             this.ctx.textBaseline = "middle";
             this.ctx.fillText(`${tileVal + 1}s`, x + w/2, y + h/2 + 2);
+        }
+        if (highlight) {
+            this.ctx.strokeStyle = "#ffd700"; // 金色外框
+            this.ctx.lineWidth = 4;
+            this.ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
         }
     }
 
@@ -158,36 +233,53 @@ export class Renderer {
         const actions = this.gameState.getLegalActions(0);
         if (!actions) return;
 
-        // UI 位置設定（右下角）
-        let x = 760;
-        let y = 720;
-        const w = 200;
-        const h = 56;
-        const gap = 12;
+        const player = this.gameState.players[0];
+        const handZone = this.ZONES.playerHand;
 
-        const addBtn = (text, action) => {
-            this.drawUIButton(x, y, w, h, text);
+        // === UI 尺寸 ===
+        const btnW = 96;
+        const btnH = 44;
+        const gap = 10;
 
-            this.uiButtons.push({
-                x, y, w, h,
-                action
-            });
+        // === 對齊基準：第 13 張手牌右側 ===
+        const anchorRight = handZone.x + 12 * (this.tileWidth + this.tileGap) + this.tileWidth;
 
-            y += h + gap;
-        };
+        // === UI y 位置（在手牌上方一點） ===
+        const y = handZone.y - btnH - 12;
+
+        // === 收集要顯示的按鈕（順序由左到右） ===
+        const buttons = [];
 
         if (actions.canAnkan) {
-            const hand = this.gameState.players[0].tepai;
+            const hand = player.tepai;
             const counts = {};
             hand.forEach(t => counts[t] = (counts[t] || 0) + 1);
             const kanTile = parseInt(Object.keys(counts).find(k => counts[k] === 4));
-            addBtn("槓", { type: "ANKAN", tile: kanTile });
+            buttons.push({ text: "槓", action: { type: "ANKAN", tile: kanTile } });
         }
 
-        if (actions.canRiichi) addBtn("立直", { type: "RIICHI" });
-        if (actions.canRon)   addBtn("榮和", { type: "RON" }); 
-        if (actions.canTsumo) addBtn("自摸", { type: "TSUMO" });
-        if (actions.canCancel) addBtn("取消", { type: "CANCEL" });
+        if (actions.canRiichi) buttons.push({ text: "立直", action: { type: "RIICHI" } });
+    
+        if (actions.canRon)   buttons.push({ text: "榮和", action: { type: "RON" } });
+        if (actions.canTsumo) buttons.push({ text: "自摸", action: { type: "TSUMO" } });
+    
+        // 取消一定最後
+        if (actions.canCancel) {
+            buttons.push({ text: "取消", action: { type: "CANCEL" } });
+        }
+
+        if (buttons.length === 0) return;
+
+        // === 從右往左排，確保「取消」貼齊 anchor ===
+        let x = anchorRight - btnW;
+
+        for (let i = buttons.length - 1; i >= 0; i--) {
+            const btn = buttons[i];
+
+            this.drawUIButton(x, y, btnW, btnH, btn.text);
+            this.uiButtons.push({ x, y, w: btnW, h: btnH, action: btn.action });
+            x -= btnW + gap;
+        }
     }
 
     drawUIButton(x, y, w, h, text) {
@@ -218,9 +310,6 @@ export class Renderer {
         if (result && result.score) {
             this.ctx.fillStyle = "#ffcc00";
             this.ctx.fillText(result.score.display || "", 512, 500);
-            this.ctx.font = "30px sans-serif";
-            this.ctx.fillStyle = "#fff";
-            this.ctx.fillText(`飜: ${result.score.han} / 符: ${result.score.fu} `, 512, 580);
         }
         this.ctx.font = "20px sans-serif";
         this.ctx.fillStyle = "#ccc";
