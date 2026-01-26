@@ -95,13 +95,23 @@ export class Renderer {
     }
 
     drawInfo() {
+        const ctx = this.ctx;
+        const state = this.gameState;
+        
         this.ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-        this.ctx.font = "bold 28px sans-serif";
         this.ctx.textAlign = "left";
         this.ctx.textBaseline = "top";
         
         // 顯示剩餘張數
-        this.ctx.fillText(`殘: ${this.gameState.yama.length}`, 20, 160);
+        this.ctx.font = "bold 28px sans-serif";
+        this.ctx.fillText(`余: ${this.gameState.yama.length}`, 20, 160);
+
+        // 玩家點數
+        ctx.font = "24px sans-serif";
+        ctx.fillText(`玩家：${state.players[0].points}`, 20, 210);
+
+        // 對手點數
+        ctx.fillText(`COM：${state.players[1].points}`, 20, 240);
     }
 
     /* ======================
