@@ -212,18 +212,25 @@ function checkRenhou(_, ctx) {
 
 function checkFourConcealedTriplesTanki(pattern, ctx) {
     if (pattern.type !== "standard") return null;
+   
     const k = pattern.mentsu.filter(m => m.type === "koutsu").length;
     if (k !== 4) return null;
 
-    return (ctx.winType === "ron" && ctx.winTile === pattern.pair)
+    return (ctx.winTile === pattern.pair)
         ? { name: "四暗刻單騎", rank: 2 }
         : null;
 }
 
-function checkFourConcealedTriples(pattern) {
+function checkFourConcealedTriples(pattern, ctx) {
     if (pattern.type !== "standard") return null;
+   
     const k = pattern.mentsu.filter(m => m.type === "koutsu").length;
-    return k === 4 ? { name: "四暗刻", rank: 1 } : null;
+    if (k !== 4) return null;
+   
+    if (ctx.winType === "tsumo") {
+       return { name: "四暗刻", rank: 1 };
+    }
+    return null;
 }
 
 function checkFourKans(pattern) {
@@ -241,13 +248,8 @@ const YAKUMAN_GROUPS = [
 ];
 
 /* ======================
-   其餘普通役、符數
-   （與你原本版本一致，未動）
+   其餘役種、符數
    ====================== */
-
-// ⚠️ 這一段你可以直接沿用你目前版本
-// checkNormalYakus / calculateFu / selectBestPattern
-// 不需要任何修改
 
 /**
  * 普通役種
