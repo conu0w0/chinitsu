@@ -168,15 +168,28 @@ export class GameState {
        行為入口
        ====================== */
     applyAction(playerIndex, action) {
-        console.log(`玩家 ${playerIndex} 執行: ${action.type}`, action);
-        switch (action.type) {
-            case "TSUMO": this._handleTsumo(playerIndex); break;
-            case "RON": this._handleRon(playerIndex); break;
-            case "RIICHI": this._handleRiichi(playerIndex); break;
-            case "ANKAN": this._handleAnkan(playerIndex, action.tile); break;
-            case "CANCEL": this._handleCancel(playerIndex); break;
-        }
-    }
+       const type = action.type;
+
+       switch (this.phase) {
+           case "PLAYER_DECISION":
+               if (type === "CANCEL") {
+                   this.phase = "DISCARD_ONLY";
+                   return;
+               }
+               if (type === "RIICHI") {
+                   this.phase = "RIICHI_DECLARATION";
+                   return;
+               }
+               break;
+
+           case "RIICHI_DECLARATION":
+               if (type === "CANCEL") {
+                   this.phase = "PLAYER_DECISION";
+                   return;
+               }
+               break;
+       }
+   }
 
     /* ======================
        和牌處理
