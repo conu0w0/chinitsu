@@ -57,6 +57,7 @@ export class GameState {
         this.phase = "INIT";
 
         this.lastDiscard = null;
+        this.lastResult = null;
         this.roundContext = {};
         this.actionContext = {};
 
@@ -68,6 +69,7 @@ export class GameState {
        初始化一局
        ====================== */
     initKyoku(parentIndex = 0) {
+        this.lastResult = null;
         this.parentIndex = parentIndex;
 
         this.players.forEach((p, i) => {
@@ -569,6 +571,7 @@ export class GameState {
 
     _handleRyuukyoku() {
         this.phase = "ROUND_END";
+        this.lastResult = null;
         console.log("=== 流局 ===");
         this._resetActionContext();
         this._resetRoundContext();
