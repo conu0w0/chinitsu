@@ -4,7 +4,7 @@ export class Renderer {
         this.ctx = canvas.getContext("2d");
         this.gameState = gameState;
         this.assets = assets;
-        this.uiContainer = document.getElementById("ui-overlay");
+        this.uiButtons = [];        
 
         // 設定內部解析度為 1024x1024
         this.canvas.width = 1024;
@@ -154,37 +154,58 @@ export class Renderer {
     }
 
     renderUI() {
-        this.uiContainer.innerHTML = "";
-        const actions = this.gameState.getLegalActions(0);
-        const createBtn = (text, type, payload = {}) => {
-            const btn = document.createElement("button");
-            btn.className = "ui-btn";
-            btn.textContent = text;
-            btn.dataset.type = type;
-            
-            if (Object.keys(payload).length > 0) {
-                btn.dataset.payload = JSON.stringify(payload);
-            }
+        this.uiButtons = [];
 
-            btn.addEventListener("click", (e) => {
-                e.stopPropagation(); // 不讓 Canvas 吃到
-                this.gameState.applyAction(0, { type, ...payload });
-            });    
-            
-            this.uiContainer.appendChild(btn);
+        const actions = this.gameState.getLegalActions(0);
+        if (!actions) return;
+
+        // UI 位置設定（右下角）
+        let x = 760;
+        let y = 720;
+        const w = 200;
+        const h = 56;
+        const gap = 12;
+
+        const addBtn = (text, action) => {
+            this.drawUIButton(x, y, w, h, text);
+
+            this.uiButtons.push({
+                x, y, w, h,
+                action
+            });
+
+            y += h + gap;
         };
 
-        if (actions.canTsumo) createBtn("自摸", "TSUMO");
-        if (actions.canRon) createBtn("榮和", "RON");
-        if (actions.canRiichi) createBtn("立直", "RIICHI");
         if (actions.canAnkan) {
             const hand = this.gameState.players[0].tepai;
             const counts = {};
-            hand.forEach(t => counts[t] = (counts[t]||0)+1);
-            const kanTile = parseInt(Object.keys(counts).find(k => counts[k]===4));
-            createBtn("槓", "ANKAN", { tile: kanTile });
+            hand.forEach(t => counts[t] = (counts[t] || 0) + 1);
+            const kanTile = parseInt(Object.keys(counts).find(k => counts[k] === 4));
+            addBtn("槓", { type: "ANKAN", tile: kanTile });
         }
-        if (actions.canCancel) createBtn("取消", "CANCEL");
+
+        if (actions.canRiichi) addBtn("立直", { type: "RIICHI" });
+        if (actions.canRon)   addBtn("榮和", { type: "RON" }); 
+        if (actions.canTsumo) addBtn("自摸", { type: "TSUMO" });
+        if (actions.canCancel) addBtn("取消", { type: "CANCEL" });
+    }
+
+    drawUIButton(x, y, w, h, text) {
+        const ctx = this.ctx;
+
+        ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+        ctx.fillRect(x, y, w, h);
+
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, w, h);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 24px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, x + w / 2, y + h / 2);
     }
 
     drawResult(result) {
