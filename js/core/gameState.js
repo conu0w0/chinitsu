@@ -199,7 +199,7 @@ export class GameState {
         const ctx = this._buildWinContext(playerIndex, "tsumo", winTile);
         this.resolveHand(playerIndex, ctx);
 
-        console.log(ctx.rinshan ? "嶺上開花" : "自摸和", this.lastResult);
+        console.log(ctx.rinshan ? "嶺上開花" : "自摸", this.lastResult);
         this.phase = "ROUND_END";
         this._resetActionContext();
     }
@@ -240,7 +240,16 @@ export class GameState {
         player.isReach = true;
         player.riichiWaitSet = this.logic.getWaitTiles(player.tepai);
 
+        const yamaLeft = this.yama.length;
+        const isDoubleRiichi = (player.isParent && yamaLeft === 9) || (!player.isParent && yamaLeft === 8);
+
+       if (isDoubleRiichi) {
+          this.roundContext.doubleRiichi = true;
+          console.log("兩立直");
+       }
+
         this.actionContext.lastActionWasRiichi = true;
+        console.log("立直");
         // 注意：立直後還需要打出一張牌，狀態仍保持 PLAYER_DECISION 或等待 UI 觸發 playerDiscard
     }
 
@@ -272,7 +281,7 @@ export class GameState {
         this.actionContext.isAfterKan = true;
         this.actionContext.lastActionWasKan = true;
 
-        console.log(`玩家 ${playerIndex} 暗槓 ${tile}`);
+        console.log(`玩家 ${playerIndex} 暗槓 ${tile + 1}s`);
         this._draw(playerIndex); // 嶺上補牌
     }
 
@@ -382,7 +391,7 @@ export class GameState {
         if (afterKan) this.actionContext.isAfterKan = true; // 嶺上牌標記
 
         this.phase = "PLAYER_DECISION";
-        console.log(`${player.name} 摸牌: ${playerIndex === 0 ? tile : '??'}`);
+        console.log(`${player.name} 摸牌: ${playerIndex === 0 ? `${tile + 1}s` : '??'}`);
     }
 
     /* ======================
