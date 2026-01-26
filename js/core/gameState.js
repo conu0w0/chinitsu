@@ -51,7 +51,7 @@ export class GameState {
         this.parentIndex = 0;
 
         this.phase = "INIT";
-        // INIT | DRAW | PLAYER_DECISION | DISCARD | OPPONENT_RESPONSE | ROUND_END
+        // INIT | DRAW | PLAYER_DECISION | DISCARD | PLAYER_RESPONSE | COM_RESPONSE | ROUND_END
 
         this.lastDiscard = null;
         this.roundContext = {};
@@ -129,7 +129,7 @@ export class GameState {
         };
 
         // 防呆：非玩家回合且非回應階段，禁止操作
-        if (this.turn !== playerIndex && this.phase !== "OPPONENT_RESPONSE") {
+        if (this.turn !== playerIndex && this.phase !== "PLAYER_RESPONSE") {
             return actions;
         }
 
@@ -148,11 +148,7 @@ export class GameState {
         }
 
         // 2. 對手打牌後的決策 (榮和)
-        if (
-            this.phase === "OPPONENT_RESPONSE" &&
-            this.lastDiscard &&
-            playerIndex === 0
-        ) {
+        if (this.phase === "PLAYER_RESPONSE" && this.lastDiscard && playerIndex === 0) {
             // 這裡可以預先判斷是否真的能胡，優化 UI 顯示
             // const canWin = this.logic.isWinningHand([...player.tepai, this.lastDiscard.tile]);
             // if (canWin) actions.canRon = true;
@@ -385,7 +381,7 @@ export class GameState {
         }
 
         // 2. 如果是在對手回合按 Cancel (不想榮和) -> 進入下一輪
-        if (this.phase === "OPPONENT_RESPONSE") {
+        if (this.phase === "PLAYER_RESPONSE" || this.phase === "COM_RESPONSE") {
             // 立直宣言牌被放過 → 一發成立條件開始
             if (this.actionContext.lastActionWasRiichi) {
                 this.actionContext.ippatsuActive = true;
@@ -439,7 +435,7 @@ export class GameState {
         this.actionContext.lastActionWasKan = false;
 
         this.lastDiscard = { tile, fromPlayer: playerIndex };
-        this.phase = "OPPONENT_RESPONSE";
+        this.phase = "COM_RESPONSE";
         
         console.log(`玩家切牌: ${tile + 1}s`);
 
@@ -494,19 +490,19 @@ export class GameState {
     /* ======================
        COM 邏輯
        ====================== */
-    _handleOpponentTurn() {
-        const opp = this.players[1];
+    _handleComTurn() {
+        const com = this.players[1];
 
         // 簡單 AI：隨機切
-        const idx = Math.floor(Math.random() * opp.tepai.length);
-        const tile = opp.tepai.splice(idx, 1)[0];
+        const idx = Math.floor(Math.random() * com.tepai.length);
+        const tile = com.tepai.splice(idx, 1)[0];
 
-        opp.river.push({ tile, isRiichi: false });
+        com.river.push({ tile, isRiichi: false });
 
         this.lastDiscard = { tile, fromPlayer: 1 };
         
         // 進入回應階段，等待玩家操作
-        this.phase = "OPPONENT_RESPONSE";
+        this.phase = "PLAYER_RESPONSE";
         
         console.log("COM 切牌：", `${tile + 1}s`);
     }
