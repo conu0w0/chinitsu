@@ -333,7 +333,7 @@ export class GameState {
         this.lastDiscard = { tile, fromPlayer: playerIndex };
         this.phase = "OPPONENT_RESPONSE";
         
-        console.log(`玩家切牌: ${tile} (${tileIndex})`);
+        console.log(`玩家切牌: ${tile + 1}s`);
 
         // [重要修正] 對手是 COM，自動跳過榮和階段
         if (playerIndex === 0) {
