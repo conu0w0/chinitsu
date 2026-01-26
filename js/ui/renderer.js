@@ -177,7 +177,10 @@ export class Renderer {
             const row = Math.floor(i / zone.cols);
             const x = reverse ? zone.x + (zone.cols - 1 - col) * (44) : zone.x + col * (44);
             const y = zone.y + Math.floor(i / zone.cols) * (60); 
-            const isLast = (i === riverData.length - 1);
+            const isLast = (this.gameState.lastDiscard &&
+                            this.gameState.lastDiscard.fromPlayer === (reverse ? 1 : 0) &&
+                            i === riverData.length - 1);
+            
             const rotate = item.isRiichi ? (reverse ? -90 : 90) : 0;
             this.drawTile(item.tile, x, y, 40, 56, { rotate, highlight: isLast });
         });
@@ -187,25 +190,52 @@ export class Renderer {
         const { faceDown = false, highlight = false, rotate = 0 } = options;
         const img = faceDown ? this.assets.back : this.assets.tiles?.[tileVal];
 
-        if (img) {
-            if (rotate !== 0) {
-                this.ctx.save();
-                this.ctx.translate(x + w / 2, y + h / 2);
-                this.ctx.rotate((rotate * Math.PI) / 180);
-                this.ctx.drawImage(img, -w / 2, -h / 2, w, h);
-                this.ctx.restore();
+        const ctx = this.ctx;
+
+        if (rotate !== 0) {
+            ctx.save();
+            ctx.translate(x + w / 2, y + h / 2);
+            ctx.rotate((rotate * Math.PI) / 180);
+
+            // === 牌本體 ===
+            if (img) {
+                ctx.drawImage(img, -w / 2, -h / 2, w, h);
             } else {
-                this.ctx.drawImage(img, x, y, w, h);
+                ctx.fillStyle = faceDown ? "#234" : "#f0f0f0";
+                ctx.fillRect(-w / 2, -h / 2, w, h);
+                ctx.strokeStyle = "#000";
+                ctx.strokeRect(-w / 2, -h / 2, w, h);
             }
 
+            // === highlight（跟著旋轉）===
             if (highlight) {
-                this.ctx.strokeStyle = "#ffd700";
-                this.ctx.lineWidth = 4;
-                this.ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
+                ctx.strokeStyle = "#ffd700";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(-w / 2 + 2, -h / 2 + 2, w - 4, h - 4);
             }
-            
+            ctx.restore();
             return;
         }
+
+        // ======================
+        // 沒旋轉的情況（原本）
+        // ======================
+
+        if (img) {
+            ctx.drawImage(img, x, y, w, h);
+        } else {
+            ctx.fillStyle = faceDown ? "#234" : "#f0f0f0";
+            ctx.fillRect(x, y, w, h);
+            ctx.strokeStyle = "#000";
+            ctx.strokeRect(x, y, w, h);
+        }
+
+        if (highlight) {
+            ctx.strokeStyle = "#ffd700";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
+        }
+    }
 
         // Fallback
         this.ctx.fillStyle = faceDown ? "#234" : "#f0f0f0";
@@ -222,7 +252,7 @@ export class Renderer {
         }
         if (highlight) {
             this.ctx.strokeStyle = "#ffd700"; // 金色外框
-            this.ctx.lineWidth = 4;
+            this.ctx.lineWidth = 2;
             this.ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
         }
     }
@@ -232,100 +262,49 @@ export class Renderer {
 
         const state = this.gameState;
         const phase = state.phase;
-        const player = state.players[0];
+
+        // 若不是當前可行動者 → 一律不畫
+        if (!this._isPlayerControllablePhase()) return;
+
+        const actions = state.getLegalActions(0);
+        if (!actions) return;
+
+        const buttons = [];
         const handZone = this.ZONES.playerHand;
 
-        // === UI 尺寸 ===
         const btnW = 96;
         const btnH = 44;
         const gap = 10;
 
-        // === 對齊基準：第 13 張手牌右側 ===
         const anchorRight = handZone.x + 12 * (this.tileWidth + this.tileGap) + this.tileWidth;
-
-        // === UI y 位置（在手牌上方一點） ===
         const y = handZone.y - btnH - 12;
 
-        // =================================================
-        // phase 決定「要不要畫 UI」與「畫哪一層」
-        // =================================================
+        /* ======================
+           依 phase 決定 UI
+           ====================== */
 
-        const buttons = [];
+        if (phase === "PLAYER_DECISION") {
+            if (actions.canAnkan) buttons.push({ text: "槓", action: { type: "ANKAN" } });
+            if (actions.canRiichi) buttons.push({ text: "立直", action: { type: "RIICHI" } });
+            if (actions.canTsumo) buttons.push({ text: "自摸", action: { type: "TSUMO" } });
+            if (actions.canCancel) buttons.push({ text: "取消", action: { type: "CANCEL" } });
+        }
 
-        switch (phase) {
-            case "PLAYER_DECISION": {
-                const actions = state.getLegalActions(0);
-                if (!actions) return;
+        if (phase === "RIICHI_DECLARATION") {
+            buttons.push({ text: "取消", action: { type: "CANCEL" } });
+        }
 
-                if (actions.canAnkan) {
-                    const counts = {};
-                    player.tepai.forEach(t => counts[t] = (counts[t] || 0) + 1);
-                    const kanTile = parseInt(
-                        Object.keys(counts).find(k => counts[k] === 4)
-                    );
-                    buttons.push({ text: "槓", action: { type: "ANKAN", tile: kanTile } });
-                }
-
-                if (actions.canRiichi) buttons.push({ text: "立直", action: { type: "RIICHI" } });
-                if (actions.canTsumo)  buttons.push({ text: "自摸", action: { type: "TSUMO" } });
-
-                // root 層才有取消
-                if (actions.canCancel) {
-                    buttons.push({ text: "取消", action: { type: "CANCEL" } });
-                }
-                break;
-            }
-
-            case "RIICHI_DECLARATION": {
-                // 立直宣言中：只能取消
-                buttons.push({ text: "取消", action: { type: "CANCEL" } });
-                break;
-            }    
-
-            case "KAN_DECISION": {
-                // 這裡假設 state 已經準備好可選槓組
-                const choices = state.pendingKanChoices || [];
-                choices.forEach(choice => {
-                    buttons.push({
-                        text: "槓",
-                        action: { type: "KAN_SELECT", tiles: choice }
-                    });
-                });
-                buttons.push({ text: "取消", action: { type: "CANCEL" } });
-                break;
-            }
-
-            case "REACTION_DECISION": {
-                const responderIndex = (state.turn + 1) % state.players.length;
-                
-                if (responderIndex !== 0) return;
-                
-                const actions = state.getLegalActions(0);
-                if (!actions) return;
-
-                if (actions.canRon) {
-                    buttons.push({ text: "榮和", action: { type: "RON" } });
-                }
-
-                if (actions.canCancel) {
-                    buttons.push({ text: "取消", action: { type: "CANCEL" } });
-                }
-                break;
-            }
-
-            case "DISCARD_ONLY":
-            case "RIICHI_LOCKED":
-            case "ROUND_END":
-            default:
-                // 這些層次：完全不畫 UI
-                return;
+        if (phase === "REACTION_DECISION") {
+            if (actions.canRon) buttons.push({ text: "榮和", action: { type: "RON" } });
+            if (actions.canCancel) buttons.push({ text: "取消", action: { type: "CANCEL" } });
         }
 
         if (buttons.length === 0) return;
 
-        // =================================================
-        // 繪製（從右往左）
-        // =================================================
+        /* ======================
+           繪製（右 → 左）
+           ====================== */
+
         let x = anchorRight - btnW;
 
         for (let i = buttons.length - 1; i >= 0; i--) {
@@ -334,6 +313,19 @@ export class Renderer {
             this.uiButtons.push({ x, y, w: btnW, h: btnH, action: btn.action });
             x -= btnW + gap;
         }
+    }
+
+    _isPlayerControllablePhase() {
+        const state = this.gameState;
+
+        if (state.phase === "PLAYER_DECISION" && state.turn === 0) return true;
+        if (state.phase === "RIICHI_DECLARATION") return true;
+
+        if (state.phase === "REACTION_DECISION") {
+            const responder = (state.turn + 1) % state.players.length;
+            return responder === 0;
+        }
+        return false;
     }
 
     drawUIButton(x, y, w, h, text) {
