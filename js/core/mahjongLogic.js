@@ -17,6 +17,11 @@ export class MahjongLogic {
      * @param {number|null} winTile - 和了牌 (若手牌已包含則為 null)
      * @returns {boolean}
      */
+
+    isWinningHand(hand, winTile = null) {
+        return this.checkWin(hand, winTile);
+    }
+
     checkWin(hand, winTile = null) {
         // 1. 組合手牌
         const tiles = winTile !== null ? [...hand, winTile] : [...hand];
