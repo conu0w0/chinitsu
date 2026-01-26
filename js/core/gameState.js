@@ -111,7 +111,7 @@ export class GameState {
             // COM 是親，直接讓 COM 思考並出牌
             // (注意：標準規則親家配牌14張視為自摸牌)
             this.phase = "PLAYER_DECISION"; 
-            setTimeout(() => this._handleOpponentTurn(), 500);
+            setTimeout(() => this._handleComTurn(), 500);
         }
     }
 
@@ -464,7 +464,7 @@ export class GameState {
 
         // 如果輪到 COM，執行 COM AI
         if (this.turn === 1) {
-            setTimeout(() => this._handleOpponentTurn(), 600);
+            setTimeout(() => this._handleComTurn(), 600);
         }
     }
 
