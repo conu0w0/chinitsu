@@ -358,30 +358,25 @@ export class GameState {
     _handleCancel(playerIndex) {
         const player = this.players[playerIndex];
 
-        // 1. 如果是在自己回合按 Cancel (不想立直/自摸)
-        if (this.turn === playerIndex && this.phase === "PLAYER_DECISION") {
-            // 這裡什麼都不做，等待玩家點擊牌進行 Discard
-            // 除非是立直後的強制 Cancel (不支援，立直必須出牌)
-            return;
+        // === 對手跳過立直宣言牌 ===
+        if (this.actionContext.lastActionWasRiichi && this.phase === "REACTION_DECISION") {
+           // ★ 立直正式成立
+           player.isReach = true;
+           this.phase = "RIICHI_LOCKED";
+           
+           // 一發開始
+           this.actionContext.ippatsuActive = true;
+           this.actionContext.ippatsuBroken = false;
         }
 
-        // 2. 如果是在對手回合按 Cancel (不想榮和) -> 進入下一輪
-        if (this.phase === "REACTION_DECISION") {
-            // 立直宣言牌被放過 → 一發成立條件開始
-            if (this.actionContext.lastActionWasRiichi) {
-                this.actionContext.ippatsuActive = true;
-                this.actionContext.ippatsuBroken = false;
-            }
+         // 立直見逃 → 振聽
+         if (player.isReach && player.riichiWaitSet && player.riichiWaitSet.has(this.lastDiscard.tile)) {
+             player.riichiFuriten = true;
+             console.log("立直振聽", this.lastDiscard.tile + 1 + "s");
+         }
 
-            // 立直見逃 → 振聽
-            if (player.isReach && player.riichiWaitSet && player.riichiWaitSet.has(this.lastDiscard.tile)) {
-                player.riichiFuriten = true;
-                console.log("立直振聽", this.lastDiscard.tile + 1 + "s");
-            }
-
-            console.log("選擇 Skip (不榮和)");
-            this._advanceAfterResponse();
-        }
+         console.log("選擇 Skip (不榮和)");
+         this._advanceAfterResponse();
     }
 
     /* ======================
@@ -391,9 +386,13 @@ export class GameState {
     playerDiscard(playerIndex, tileIndex) {
         const player = this.players[playerIndex];
 
-        if (player.isReach) {
+        // 立直成立後的出牌限制
+        if (this.phase === "RIICHI_LOCKED") {
             const isTsumoTile = (tileIndex === player.tepai.length - 1);
-            if (!isTsumoTile) return;
+            if (!isTsumoTile) {
+               console.warn("立直後只能切摸牌");
+               return;
+            }
         }
 
         // 移除指定的牌並自動理牌
