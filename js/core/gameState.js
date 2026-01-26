@@ -295,9 +295,9 @@ export class GameState {
             }
 
             // 立直見逃 → 振聽
-            if (player.isReach) {
-                player.riichiFuriten = true;
-                console.log("立直見逃，振聽確定");
+            if (player.isReach && player.riichiWaitSet && player.riichiWaitSet.has(this.lastDiscard.tile)) {
+               player.riichiFuriten = true;
+               console.log("立直振聽", this.lastDiscard.tile + 1 + "s");
             }
 
             console.log("選擇 Skip (不榮和)");
