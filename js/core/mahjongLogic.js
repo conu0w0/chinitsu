@@ -24,6 +24,8 @@ export class MahjongLogic {
     }
 
     checkWin(hand, kanCount = 0, winTile = null) {
+        if (kanCount < 0 || kanCount > 4) return false;
+        
         // 1. 組合手牌
         const tiles = winTile !== null ? [...hand, winTile] : [...hand];
         const len = tiles.length;
