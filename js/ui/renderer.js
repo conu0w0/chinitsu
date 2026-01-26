@@ -70,12 +70,6 @@ export class Renderer {
         
         // 把資訊放在左上角，稍微避開對手手牌
         this.ctx.fillText(`余: ${this.gameState.yama.length} 張`, 20, 160);
-        
-        // 顯示結果字串 (如果有)
-        if (this.gameState.lastResult) {
-            this.ctx.fillStyle = "#ffff00";
-            this.ctx.textAlign = "center";
-        }
     }
 
     drawHands() {
