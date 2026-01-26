@@ -125,11 +125,12 @@ export class GameState {
             canRon: false,
             canRiichi: false,
             canAnkan: false,
+            ankanTiles: [],
             canCancel: false
         };
 
         // 防呆：非玩家回合且非回應階段，禁止操作
-        if (this.turn !== playerIndex && this.phase !== "REACTION_DECISION" && this.phase !== "REACTION_DECISION") {
+        if (this.turn !== playerIndex && this.phase !== "REACTION_DECISION") {
             return actions;
         }
 
@@ -145,6 +146,9 @@ export class GameState {
                     player.tepai,
                     player.isReach ? player.riichiWaitSet : null
                 );
+            if (actions.canAnkan) {
+                actions.ankanTiles = this.logic.getAnkanTiles(player.tepai, player.isReach ? player.riichiWaitSet : null);
+            }
         }
 
         // 2. 對手打牌後的決策 (榮和)
