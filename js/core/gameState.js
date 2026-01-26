@@ -223,26 +223,33 @@ export class GameState {
               }
 
            /* ======================
-              對手出牌後的回應
+              出牌後的回應
               ====================== */
-           case "OPPONENT_RESPONSE": {
-               // 榮和（玩家或 COM，未來可擴充）
-               if (type === "RON") {
-                   this._handleRon(playerIndex);
-                   return;
-               }
-
-               // 放過 / 取消
-               if (type === "CANCEL") {
-                   this._handleCancel(playerIndex);
-                   return;
-               }
-
-               // 其他行為目前不支援，但 case 先留著
-               // 例如：吃、碰、槓
-               console.warn("未實作的回應行為:", type);
-               return;
+           case "PLAYER_RESPONSE": {
+                // 玩家回應 COM 出牌
+                if (type === "RON") {
+                    this._handleRon(playerIndex);
+                    return;
+                }
+                if (type === "CANCEL") {
+                    this._advanceAfterResponse();
+                    return;
+                }
+                return;
            }
+          
+            case "COM_RESPONSE": {
+               // COM 回應玩家出牌
+               if (type === "RON") {
+                  this._handleRon(playerIndex);
+                  return;
+               }
+               if (type === "CANCEL") {
+                  this._advanceAfterResponse();
+                  return;
+               }
+               return;
+            }
 
            /* ======================
               只能出牌（不該有 action）
