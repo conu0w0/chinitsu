@@ -347,6 +347,9 @@ export class GameState {
             tile,
             fromPlayer: playerIndex
         };
+       
+        // 切牌後，嶺上資格消失
+        this.actionContext.isAfterKan = false;
 
         this.phase = "REACTION_DECISION";
         console.log(`玩家切牌: ${tile + 1}s`);
@@ -361,6 +364,8 @@ export class GameState {
 
     // 回合推進
     _advanceAfterResponse() {
+        this.actionContext.isAfterKan = false;
+
         if (this.yama.length === 0) {
             this._handleRyuukyoku();
             return;
