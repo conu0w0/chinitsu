@@ -73,7 +73,6 @@ export class Renderer {
         if (this.gameState.lastResult) {
             this.ctx.fillStyle = "#ffff00";
             this.ctx.textAlign = "center";
-            this.ctx.fillText("按畫面任意處重新開始", 512, 500);
         }
     }
 
