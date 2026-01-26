@@ -499,11 +499,19 @@ export class Renderer {
     drawResult(result) {
         if (!result) return;
 
+        // === 犯規 ===
+        if (result.type === "chombo") {
+            this._drawChombo(result);
+            return;
+        }
+
+        // === 流局 ===
         if (result.type === "ryuukyoku") {
             this._drawRyuukyoku();
             return;
         }
-        
+
+        // === 和了 ===
         // 半透明遮罩
         this.ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
@@ -546,7 +554,7 @@ export class Renderer {
         }
 
         if (result.type === "chombo") {
-             const roleText = result.isParent ? "親家" : "子家";
+             const roleText = result.isParent ? "親" : "子";
 
              this.ctx.font = "36px sans-serif";
              this.ctx.fillStyle = "#ff6666";
