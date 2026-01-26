@@ -129,7 +129,7 @@ export class GameState {
         };
 
         // 防呆：非玩家回合且非回應階段，禁止操作
-        if (this.turn !== playerIndex && this.phase !== "PLAYER_RESPONSE" && this.phase !== "REACTION_DECISION") {
+        if (this.turn !== playerIndex && this.phase !== "REACTION_DECISION" && this.phase !== "REACTION_DECISION") {
             return actions;
         }
 
@@ -148,7 +148,7 @@ export class GameState {
         }
 
         // 2. 對手打牌後的決策 (榮和)
-        if (this.phase === "PLAYER_RESPONSE" && this.lastDiscard && playerIndex === 0) {
+        if (this.phase === "REACTION_DECISION" && this.lastDiscard && playerIndex === 0) {
             // 這裡可以預先判斷是否真的能胡，優化 UI 顯示
             // const canWin = this.logic.isWinningHand([...player.tepai, this.lastDiscard.tile]);
             // if (canWin) actions.canRon = true;
@@ -366,7 +366,7 @@ export class GameState {
         }
 
         // 2. 如果是在對手回合按 Cancel (不想榮和) -> 進入下一輪
-        if (this.phase === "PLAYER_RESPONSE" || this.phase === "COM_RESPONSE") {
+        if (this.phase === "REACTION_DECISION") {
             // 立直宣言牌被放過 → 一發成立條件開始
             if (this.actionContext.lastActionWasRiichi) {
                 this.actionContext.ippatsuActive = true;
@@ -500,7 +500,7 @@ export class GameState {
         };
 
         // 進入回應階段，等待玩家操作
-        this.phase = "PLAYER_RESPONSE";
+        this.phase = "REACTION_DECISION";
 
         console.log("COM 切牌：", `${tile + 1}s`);
     }
