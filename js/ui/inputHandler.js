@@ -17,7 +17,7 @@ export class InputHandler {
         const px = (event.clientX - rect.left) * scaleX;
         const py = (event.clientY - rect.top) * scaleY;
 
-        // UI 按鈕優先（Canvas UI）
+        // UI 按鈕優先
         if (this._handleUIButtonClick(px, py)) {
             return;
         }
@@ -42,6 +42,10 @@ export class InputHandler {
         for (const btn of buttons) {
             if (this._hit(px, py, btn.x, btn.y, btn.w, btn.h)) {
                 console.log("[Canvas UI] 觸發動作:", btn.action);
+
+                // ★ 任一 UI 動作，立刻讓 UI 失效
+                this.renderer.uiButtons = [];
+
                 this.state.applyAction(0, btn.action);
                 return true;
             }
@@ -56,9 +60,15 @@ export class InputHandler {
         const player = this.state.players[0];
         if (!player) return;
 
-        if (this.state.phase !== "PLAYER_DECISION" || this.state.turn !== 0) {
-            return;
-        }
+        // ★ 只允許「可出牌」的 phase
+        const discardablePhases = [
+            "PLAYER_DECISION",
+            "RIICHI_DECLARATION",
+            "DISCARD_ONLY",
+        ];
+
+        if (!discardablePhases.includes(this.state.phase)) return;
+        if (this.state.turn !== 0) return;
 
         const zone = this.renderer.ZONES?.playerHand || { x: 110, y: 900 };
         const tileW = this.renderer.tileWidth;
@@ -83,6 +93,9 @@ export class InputHandler {
             const y = startY;
 
             if (this._hit(px, py, x, y, tileW, tileH)) {
+                // ★ 出牌瞬間清空 UI（不管在哪一層）
+                this.renderer.uiButtons = [];
+
                 console.log("[Hand Click] discard index:", i);
                 this.state.playerDiscard(0, i);
                 return;
