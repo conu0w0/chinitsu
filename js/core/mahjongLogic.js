@@ -1,6 +1,6 @@
 /**
  * MahjongLogic.js
- * * 核心邏輯：
+ * 核心邏輯：
  * 基於 (3n + 2) 的數學規律進行判定。
  * 自動適應 0~4 次副露/暗槓後的剩餘手牌數量。
  */
@@ -18,14 +18,13 @@ export class MahjongLogic {
      * @param {number|null} winTile - 和了牌 (若手牌已包含則為 null)
      * @returns {boolean}
      */
-
     isWinningHand(hand, kanCount = 0, winTile = null) {
         return this.checkWin(hand, kanCount, winTile);
     }
 
     checkWin(hand, kanCount = 0, winTile = null) {
         if (kanCount < 0 || kanCount > 4) return false;
-        
+
         // 1. 組合手牌
         const tiles = winTile !== null ? [...hand, winTile] : [...hand];
         const len = tiles.length;
@@ -40,13 +39,12 @@ export class MahjongLogic {
         const counts = this._toCounts(tiles);
 
         // 3. 七對子檢查 
-        // 嚴格限制：必須是「門清」狀態，也就是手牌必須滿 14 張
+        // 嚴格限制：必須是「門清」狀態，也就是手牌必須滿 14 張 (無任何槓)
         if (len === 14 && this._isSevenPairs(counts)) {
             return true;
         }
 
         // 4. 一般型檢查 (任意 n 組面子 + 1 組雀頭)
-        // 這裡不需要知道 n 是多少，只要能把牌消光就是贏
         return this._canFormStandardHand(counts);
     }
 
@@ -63,11 +61,10 @@ export class MahjongLogic {
         // 數學檢查：聽牌狀態長度必須符合 3n + 1
         // 可能長度：13, 10, 7, 4, 1
         const requiredLen = 13 - kanCount * 3;
-        if (hand.length !== requiredLen) {
+        if (len !== requiredLen) {
+            // console.warn(`聽牌檢查長度不符: 當前${len}, 預期${requiredLen} (kan:${kanCount})`);
             return waits;
         }
-
-        const baseCounts = this._toCounts(hand);
 
         // 窮舉 1s~9s (0~8)
         for (let tile = 0; tile <= 8; tile++) {
@@ -79,7 +76,13 @@ export class MahjongLogic {
         return waits;
     }
 
-    getAnkanTiles(tepai, riichiWaitSet = null) {
+    /**
+     * 取得當前手牌中所有合法的暗槓選項
+     * @param {Array<number>} tepai - 目前手牌
+     * @param {number} kanCount - 目前已有的暗槓數 (修正重點：需要這個參數來計算剩餘張數)
+     * @param {Set<number>|null} riichiWaitSet - 若已立直，傳入立直時的聽牌
+     */
+    getAnkanTiles(tepai, kanCount = 0, riichiWaitSet = null) {
         const count = new Map();
         for (const t of tepai) {
             count.set(t, (count.get(t) || 0) + 1);
@@ -91,8 +94,13 @@ export class MahjongLogic {
                 // 立直後不能改變聽牌
                 if (riichiWaitSet) {
                     const temp = tepai.filter(x => x !== tile);
-                    const waits = this.getWaitTiles(temp);
-                    if (!this._sameWaitSet(waits, riichiWaitSet)) continue;
+                    
+                    // 修正 1: 這裡必須傳入 kanCount + 1，因為拿掉 4 張牌後，邏輯上等於多了一次槓
+                    // 例如：原本 14 張 (kan=0)，拿掉 4 張剩 10 張，getWaitTiles 預期 (13 - 1*3) = 10 張 -> 符合
+                    const waits = this.getWaitTiles(temp, kanCount + 1);
+                    
+                    // 修正 2: 這裡原本拼寫錯誤 (_sameWaitSet -> _isSameSet)
+                    if (!this._isSameSet(waits, riichiWaitSet)) continue;
                 }
                 result.push(tile);
             }
@@ -101,29 +109,26 @@ export class MahjongLogic {
     }
 
     /**
-     * 判斷是否可以暗槓
+     * 判斷是否可以暗槓 (單純回傳 Boolean)
      * @param {Array<number>} hand - 手牌 (包含剛摸到的牌)
-     * @param {Set<number>|null} riichiWaits - 立直時的聽牌集合
      * @param {number} kanCount
+     * @param {Set<number>|null} riichiWaits - 立直時的聽牌集合
      */
     canAnkan(hand, kanCount, riichiWaits = null) {
         const counts = this._toCounts(hand);
 
         for (let tile = 0; tile <= 8; tile++) {
-            // 必須持有 4 張才能暗槓
             if (counts[tile] === 4) {
                 
                 // 狀況 A: 沒立直 -> 允許槓
                 if (!riichiWaits) return true;
 
                 // 狀況 B: 已立直 -> 檢查槓後聽牌是否改變
-                // 1. 移除 4 張 (例如 14 -> 10, 或 11 -> 7)
                 const after = hand.filter(t => t !== tile);
                 
-                // 2. 重新計算聽牌 (getWaitTiles 會自動適應 10, 7... 張的長度)
+                // 這裡你原本寫對了 (kanCount + 1)，很棒！
                 const newWaits = this.getWaitTiles(after, kanCount + 1);
 
-                // 3. 比較集合
                 if (this._isSameSet(newWaits, riichiWaits)) {
                     return true;
                 }
@@ -143,6 +148,7 @@ export class MahjongLogic {
     }
 
     _isSameSet(a, b) {
+        if (!a || !b) return false; // 防呆
         if (a.size !== b.size) return false;
         for (const x of a) if (!b.has(x)) return false;
         return true;
@@ -181,21 +187,20 @@ export class MahjongLogic {
         while (i <= 8 && counts[i] === 0) i++;
 
         // Base Case: 牌都消光了 -> 成功
-        // 這裡不需要檢查消了幾組，因為張數 (3n) 已經由外部長度檢查保證了
         if (i > 8) return true;
 
-        // Try 1: 刻子
-        if (counts[i] >= 3) {
-            counts[i] -= 3;
-            if (this._decomposeMentsu(counts)) return true;
-            counts[i] += 3;
-        }
-
-        // Try 2: 順子
+        // Try 1: 順子
         if (i <= 6 && counts[i+1] > 0 && counts[i+2] > 0) {
             counts[i]--; counts[i+1]--; counts[i+2]--;
             if (this._decomposeMentsu(counts)) return true;
             counts[i]++; counts[i+1]++; counts[i+2]++;
+        }
+
+        // Try 2: 刻子
+        if (counts[i] >= 3) {
+            counts[i] -= 3;
+            if (this._decomposeMentsu(counts)) return true;
+            counts[i] += 3;
         }
 
         return false;
