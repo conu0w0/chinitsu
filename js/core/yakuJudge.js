@@ -10,7 +10,7 @@
 export function decomposeHand(tiles, ankanTiles = []) {
     const results = [];
     const originalCounts = toCounts(tiles);
-    const countsAfterKan = applyAnkan(originalCounts, ankanTiles);
+    const countsAfterKan = [...originalCounts]
 
     // === 七對子、九蓮只在門清、無暗槓時檢查 ===
     if (ankanTiles.length === 0) {
@@ -42,17 +42,6 @@ function toCounts(tiles) {
     return c;
 }
 
-function applyAnkan(counts, ankanTiles) {
-    const c = [...counts];
-    for (const tile of ankanTiles) {
-        c[tile] -= 4;
-        if (c[tile] < 0) {
-            throw new Error("Invalid ankan state");
-        }
-    }
-    return c;
-}
-
 /* ======================
    七對子
    ====================== */
@@ -74,7 +63,7 @@ function checkSevenPairs(counts) {
 }
 
 /* ======================
-   九蓮寶燈（構型）
+   九蓮寶燈
    ====================== */
 
 function checkNineGates(counts) {
