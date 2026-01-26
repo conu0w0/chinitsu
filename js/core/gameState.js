@@ -167,27 +167,97 @@ export class GameState {
     /* ======================
        行為入口
        ====================== */
-    applyAction(playerIndex, action) {
+       applyAction(playerIndex, action) {
        const type = action.type;
+       const player = this.players[playerIndex];
 
        switch (this.phase) {
-           case "PLAYER_DECISION":
-               if (type === "CANCEL") {
-                   this.phase = "DISCARD_ONLY";
+
+           /* ======================
+              玩家 / COM 摸牌後決策
+              ====================== */
+           case "PLAYER_DECISION": {
+               // 自摸（玩家或 COM 都可能）
+               if (type === "TSUMO") {
+                   this._handleTsumo(playerIndex);
                    return;
                }
+
+               // 立直（只允許自己回合）
                if (type === "RIICHI") {
+                   this._handleRiichi(playerIndex);
                    this.phase = "RIICHI_DECLARATION";
                    return;
                }
-               break;
 
-           case "RIICHI_DECLARATION":
-               if (type === "CANCEL") {
-                   this.phase = "PLAYER_DECISION";
+               // 暗槓
+               if (type === "ANKAN") {
+                   this._handleAnkan(playerIndex, action.tile);
+                   // 槓後會補牌並回到 PLAYER_DECISION（在 _draw 裡）
                    return;
                }
-               break;
+   
+               // 取消宣告 → 只能出牌
+               if (type === "CANCEL") {
+                   this.phase = "DISCARD_ONLY";
+                   return;
+               }   
+
+               return;
+           }
+
+           /* ======================
+              立直宣言中
+              ====================== */
+           case "RIICHI_DECLARATION": {
+               // 取消立直宣言
+               if (type === "CANCEL") {
+                   // 回到宣告前
+                   this.phase = "PLAYER_DECISION";
+                   // 注意：尚未成立立直，isReach 還沒設
+                   return;
+               }
+
+                  // 其他 action 在這一層不該發生
+                  return;
+              }
+
+           /* ======================
+              對手出牌後的回應
+              ====================== */
+           case "OPPONENT_RESPONSE": {
+               // 榮和（玩家或 COM，未來可擴充）
+               if (type === "RON") {
+                   this._handleRon(playerIndex);
+                   return;
+               }
+
+               // 放過 / 取消
+               if (type === "CANCEL") {
+                   this._handleCancel(playerIndex);
+                   return;
+               }
+
+               // 其他行為目前不支援，但 case 先留著
+               // 例如：吃、碰、槓
+               console.warn("未實作的回應行為:", type);
+               return;
+           }
+
+           /* ======================
+              只能出牌（不該有 action）
+              ====================== */
+           case "DISCARD_ONLY": {
+               // 所有 action 都忽略，等 playerDiscard
+               return;
+           }
+
+           /* ======================
+              結束狀態
+              ====================== */
+           case "ROUND_END":
+           default:
+               return;
        }
    }
 
