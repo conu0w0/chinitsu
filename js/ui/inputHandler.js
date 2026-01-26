@@ -77,7 +77,7 @@ export class InputHandler {
             let x = zone.x + i * (tileW + gap);
             if (isTsumo && i === lastIndex) x += drawGap;
 
-            if (this._hit(px, py, x, zone.y, tileW, tileH)) continue;
+            if (!this._hit(px, py, x, zone.y, tileW, tileH)) continue;
 
             if (player.isReach) {
                 const isTsumoTile = (i === lastIndex);
