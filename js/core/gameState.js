@@ -129,7 +129,7 @@ export class GameState {
         };
 
         // 防呆：非玩家回合且非回應階段，禁止操作
-        if (this.turn !== playerIndex && this.phase !== "PLAYER_RESPONSE") {
+        if (this.turn !== playerIndex && this.phase !== "PLAYER_RESPONSE" && this.phase !== "COM_RESPONSE") {
             return actions;
         }
 
