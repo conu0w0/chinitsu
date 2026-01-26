@@ -237,26 +237,6 @@ export class Renderer {
         }
     }
 
-        // Fallback
-        this.ctx.fillStyle = faceDown ? "#234" : "#f0f0f0";
-        this.ctx.fillRect(x, y, w, h);
-        this.ctx.strokeStyle = "#000";
-        this.ctx.strokeRect(x, y, w, h);
-
-        if (!faceDown) {
-            this.ctx.fillStyle = "#c00";
-            this.ctx.font = `${Math.floor(h*0.6)}px Arial`;
-            this.ctx.textAlign = "center";
-            this.ctx.textBaseline = "middle";
-            this.ctx.fillText(`${tileVal + 1}s`, x + w/2, y + h/2 + 2);
-        }
-        if (highlight) {
-            this.ctx.strokeStyle = "#ffd700"; // 金色外框
-            this.ctx.lineWidth = 2;
-            this.ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
-        }
-    }
-
     renderUI() {
         this.uiButtons = [];
 
