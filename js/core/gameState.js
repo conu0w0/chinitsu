@@ -183,8 +183,9 @@ export class GameState {
        ====================== */
     _handleTsumo(playerIndex) {
         const player = this.players[playerIndex];
+        const kanCount = this._getAnkanCount(player);
 
-        if (!this.logic.isWinningHand(player.tepai)) {
+        if (!this.logic.isWinningHand(player.tepai, kanCount)) {
             this._handleChombo(playerIndex, "誤自摸");
             return;
         }
@@ -213,7 +214,8 @@ export class GameState {
         }
 
         const hand = [...player.tepai, tile];
-        if (!this.logic.isWinningHand(hand)) {
+        const kanCount = this._getAnkanCount(player);
+        if (!this.logic.isWinningHand(hand, kanCount)) {
             this._handleChombo(playerIndex, "誤榮和");
             return;
         }
@@ -456,6 +458,10 @@ export class GameState {
         this._resetActionContext();
         this._resetRoundContext();
     }
+
+   _getAnkanCount(player) {
+      return player.fulu.filter(f => f.type === "ankan").length;
+   }
 
     resolveHand(playerIndex, ctx) {
         const player = this.players[playerIndex];
