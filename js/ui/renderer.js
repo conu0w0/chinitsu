@@ -4,7 +4,8 @@ export class Renderer {
         this.ctx = canvas.getContext("2d");
         this.gameState = gameState;
         this.assets = assets;
-        this.uiButtons = [];        
+        this.uiButtons = [];   
+        this.drawAnimation = null;
 
         // 設定內部解析度為 1024x1024
         this.canvas.width = 1024;
@@ -53,6 +54,7 @@ export class Renderer {
         this.drawInfo();
         this.drawRivers();
         this.drawHands();
+        this.drawDrawAnimation();
         this.renderUI();
 
         if (this.gameState.phase === "ROUND_END") {
@@ -94,6 +96,11 @@ export class Renderer {
             let x = zone.x + i * (this.tileWidth + this.tileGap);
             if (isTsumoState && i === lastIndex) {
                 x += this.drawGap;
+
+                if (!this.drawAnimation) {
+                    this.startDrawAnimation(tile, x, zone.y);
+                    return;
+                }
             }
             this.drawTile(tile, x, zone.y, this.tileWidth, this.tileHeight);
         });
@@ -237,6 +244,32 @@ export class Renderer {
         }
     }
 
+    drawDrawAnimation() {
+        if (!this.drawAnimation) return;
+
+        const ctx = this.ctx;
+        const now = performance.now();
+        const anim = this.drawAnimation;
+
+        const t = Math.min((now - anim.startTime) / anim.duration, 1);
+
+        // ease-out
+        const ease = 1 - Math.pow(1 - t, 3);
+
+        const y = anim.startY + (anim.y - anim.startY) * ease;
+        const alpha = ease;
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+
+        this.drawTile(anim.tile, anim.x, y, this.tileWidth, this.tileHeight);
+        ctx.restore();
+
+        if (t >= 1) {
+            this.drawAnimation = null;
+        }
+    }
+
     renderUI() {
         this.uiButtons = [];
 
@@ -341,4 +374,10 @@ export class Renderer {
         this.ctx.fillStyle = "#ccc";
         this.ctx.fillText("點擊畫面重來", 512, 700);
     }
+
+    startDrawAnimation(tile, x, y) {
+        this.drawAnimation = { tile, x, y, startY: y - 20, startTime: performance.now(), duration: 200 };
+    }
+
 }
+
