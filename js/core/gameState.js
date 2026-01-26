@@ -145,13 +145,10 @@ export class GameState {
                 actions.canAnkan = (actions.ankanTiles.length > 0);
             }
 
-            // 立直判定 (門前清 + 未立直 + 聽牌)
+            // 立直判定 (門前清 + 未立直)
             if (!player.isReach && player.fulu.length === 0) { // 這裡簡化判斷，實際應檢查是否門清
-                 // 這裡只檢查有沒有聽牌，logic.getWaitTiles 會回傳 Set
                  const waits = this.logic.getWaitTiles(player.tepai);
-                 if (waits.size > 0 && this.points >= 1000) { // 簡易判斷，實際上還要看剩餘點數
-                     actions.canRiichi = true;
-                 }
+                 actions.canRiichi = true;
             }
 
             // 在 Root 層，Cancel 意味著「跳過所有特殊動作，去切牌」
