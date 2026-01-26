@@ -136,7 +136,7 @@ export class GameState {
         // === 1. 自己回合的決策 (Root 層) ===
         if (this.phase === "PLAYER_DECISION" && playerIndex === 0) {
             // 自摸判定
-            actions.canTsumo = this.logic.isWinningHand(player.tepai, this._getAnkanCount(player));
+            actions.canTsumo = true;
             
             // 暗槓判定
             if (this.yama.length > 0) {
@@ -157,7 +157,7 @@ export class GameState {
 
         // === 2. 對手打牌後的決策 (榮和) ===
         if (this.phase === "REACTION_DECISION" && this.lastDiscard && playerIndex === 0) {
-            actions.canRon = true; // 這裡假設總是顯示按鈕，實際點擊後再驗證 logic
+            actions.canRon = true; 
             actions.canCancel = true;
         }
 
