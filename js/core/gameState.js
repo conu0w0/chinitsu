@@ -245,11 +245,9 @@ export class GameState {
 
        if (isDoubleRiichi) {
           this.roundContext.doubleRiichi = true;
-          console.log("兩立直");
        }
 
         this.actionContext.lastActionWasRiichi = true;
-        console.log("立直");
         // 注意：立直後還需要打出一張牌，狀態仍保持 PLAYER_DECISION 或等待 UI 觸發 playerDiscard
     }
 
@@ -271,6 +269,7 @@ export class GameState {
         }
 
         player.fulu.push({ type: "ankan", tile });
+        player.tepai.sort((a, b) => a - b);
 
         // 槓 → 一發中斷
         if (this.actionContext.ippatsuActive) {
@@ -330,6 +329,14 @@ export class GameState {
             tile,
             isRiichi: this.actionContext.lastActionWasRiichi
         });
+
+        if (this.actionContext.lastActionWasRiichi) {
+            if (this.roundContext.doubleRiichi) {
+                console.log("兩立直成立");
+            } else {
+                console.log("立直成立");
+            }
+        }
 
         // 立直者自己出牌 → 該輪一發機會結束
         if (this.actionContext.ippatsuActive) {
