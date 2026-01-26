@@ -147,9 +147,8 @@ export class GameState {
                 actions.canAnkan = (actions.ankanTiles.length > 0);
             }
 
-            // 立直判定 (門前清 + 未立直)
-            if (!player.isReach && player.fulu.length === 0) { // 這裡簡化判斷，實際應檢查是否門清
-                const waits = this.logic.getWaitTiles(player.tepai);
+            // 立直判定 (未立直)
+            if (!player.isReach) {
                 actions.canRiichi = true;
             }
 
