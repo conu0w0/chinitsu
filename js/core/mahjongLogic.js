@@ -13,23 +13,25 @@ export class MahjongLogic {
 
     /**
      * 檢查是否和牌
-     * @param {Array<number>} hand - 手牌陣列
+     * @param {Array<number>} hand - 手牌陣列（不含暗槓）
+     * @param {number} kanCount - 暗槓數
      * @param {number|null} winTile - 和了牌 (若手牌已包含則為 null)
      * @returns {boolean}
      */
 
-    isWinningHand(hand, winTile = null) {
-        return this.checkWin(hand, winTile);
+    isWinningHand(hand, kanCount = 0, winTile = null) {
+        return this.checkWin(hand, kanCount, winTile);
     }
 
-    checkWin(hand, winTile = null) {
+    checkWin(hand, kanCount = 0, winTile = null) {
         // 1. 組合手牌
         const tiles = winTile !== null ? [...hand, winTile] : [...hand];
         const len = tiles.length;
+        const requiredLen = 14 - kanCount * 3;
 
         // 2. 數學檢查：長度必須符合 3n + 2
         // 可能長度：14, 11, 8, 5, 2
-        if (len < 2 || (len - 2) % 3 !== 0) {
+        if (len !== requiredLen) {
             return false;
         }
 
@@ -49,16 +51,18 @@ export class MahjongLogic {
     /**
      * 取得聽牌列表
      * @param {Array<number>} hand - 手牌
+     * @param {number} kanCount - 暗槓數
      * @returns {Set<number>}
      */
-    getWaitTiles(hand) {
+    getWaitTiles(hand, kanCount = 0) {
         const waits = new Set();
         const len = hand.length;
 
         // 數學檢查：聽牌狀態長度必須符合 3n + 1
         // 可能長度：13, 10, 7, 4, 1
-        if (len < 1 || (len - 1) % 3 !== 0) {
-            return waits; // 長度不對，不可能聽牌
+        const requiredLen = 13 - kanCount * 3;
+        if (hand.length !== requiredLen) {
+            return waits;
         }
 
         const baseCounts = this._toCounts(hand);
@@ -66,7 +70,7 @@ export class MahjongLogic {
         // 窮舉 1s~9s (0~8)
         for (let tile = 0; tile <= 8; tile++) {
             // 模擬和牌：利用 checkWin 的通用邏輯
-            if (this.checkWin(hand, tile)) {
+            if (this.checkWin(hand, kanCount, tile)) {
                 waits.add(tile);
             }
         }
@@ -77,8 +81,9 @@ export class MahjongLogic {
      * 判斷是否可以暗槓
      * @param {Array<number>} hand - 手牌 (包含剛摸到的牌)
      * @param {Set<number>|null} riichiWaits - 立直時的聽牌集合
+     * @param {number} kanCount
      */
-    canAnkan(hand, riichiWaits = null) {
+    canAnkan(hand, kanCount, riichiWaits = null) {
         const counts = this._toCounts(hand);
 
         for (let tile = 0; tile <= 8; tile++) {
@@ -93,7 +98,7 @@ export class MahjongLogic {
                 const after = hand.filter(t => t !== tile);
                 
                 // 2. 重新計算聽牌 (getWaitTiles 會自動適應 10, 7... 張的長度)
-                const newWaits = this.getWaitTiles(after);
+                const newWaits = this.getWaitTiles(after, kanCount + 1);
 
                 // 3. 比較集合
                 if (this._isSameSet(newWaits, riichiWaits)) {
