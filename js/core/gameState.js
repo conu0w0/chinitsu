@@ -129,7 +129,7 @@ export class GameState {
         };
 
         // 防呆：非玩家回合且非回應階段，禁止操作
-        if (this.turn !== playerIndex && this.phase !== "PLAYER_RESPONSE" && this.phase !== "COM_RESPONSE") {
+        if (this.turn !== playerIndex && this.phase !== "PLAYER_RESPONSE" && this.phase !== "REACTION_DECISION") {
             return actions;
         }
 
@@ -222,7 +222,7 @@ export class GameState {
                         return;
                     }
                     if (type === "CANCEL") {
-                        this._advanceAfterResponse();
+                        this._handleCancel(playerIndex);
                         return;
                     }
                     return;
@@ -390,6 +390,11 @@ export class GameState {
 
     playerDiscard(playerIndex, tileIndex) {
         const player = this.players[playerIndex];
+
+        if (player.isReach) {
+            const isTsumoTile = (tileIndex === player.tepai.length - 1);
+            if (!isTsumoTile) return;
+        }
 
         // 移除指定的牌並自動理牌
         const tile = player.tepai.splice(tileIndex, 1)[0];
