@@ -630,7 +630,9 @@ export class GameState {
             score: {
                 ...score,
                 total: score.score
-            }
+            },
+            winType: ctx.winType,
+            isParent: ctx.isParent 
         };
     }
 
