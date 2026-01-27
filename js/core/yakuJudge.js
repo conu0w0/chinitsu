@@ -300,13 +300,23 @@ function checkMenzenTsumo(_, ctx) {
 }
 
 function checkTanyao(pattern) {
+    // 手牌
     for (let i = 0; i <= 8; i++) {
         if ((i === 0 || i === 8) && pattern.counts[i] > 0) {
             return null;
         }
     }
+
+    // 副露
+    for (const m of pattern.mentsu) {
+        if (m.type === "ankan") {
+            if (isYaochu(m.tile)) return null;
+        }
+    }
+
     return { name: "斷么九", han: 1 };
 }
+
 
 /* ===== 平和（Pinfu）判定相關 ===== */
 
@@ -428,9 +438,25 @@ function checkIttsuu(pattern) {
     return ok ? { name: "一氣通貫", han: 2 } : null;
 }
 
-function checkSanankou(pattern) {
-    const k = pattern.mentsu.filter(m => m.type === "koutsu").length;
-    return k === 3 ? { name: "三暗刻", han: 2 } : null;
+function checkSanankou(pattern, ctx) {
+    let ankouCount = 0;
+
+    pattern.mentsu.forEach(m => {
+        if (m.type === "ankan") {
+            ankouCount++;
+            return;
+        }
+
+        if (m.type === "koutsu") {
+            // ★ 核心邏輯：如果是榮和，且這個刻子包含榮和牌 → 變明刻，不計入
+            if (ctx.winType === "ron" && m.tiles.includes(ctx.winTile)) {
+                return; 
+            }
+            ankouCount++;
+        }
+    });
+   
+    return ankouCount === 3 ? { name: "三暗刻", han: 2 } : null;
 }
 
 function checkSankantsu(pattern) {
@@ -564,6 +590,10 @@ function isBetter(a, b) {
     if (a.han !== b.han) {
         return a.han > b.han;
     }
+
+    const aPinfu = a.yakus.includes("平和");
+    const bPinfu = b.yakus.includes("平和");
+    if (aPinfu !== bPinfu) return aPinfu;
 
     return a.yakus.length > b.yakus.length;
 }
