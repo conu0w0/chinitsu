@@ -115,8 +115,8 @@ export class GameState {
         // 如果狀態不是 DEALING，就停止 (代表發完了)
         if (this.phase !== "DEALING") return;
 
-        // 發一張
-        this.dealOneTile();
+        // 發牌
+        this.dealBatch();
 
         // 設定間隔 (例如 50ms 發一張)，遞迴呼叫自己
         setTimeout(() => {
