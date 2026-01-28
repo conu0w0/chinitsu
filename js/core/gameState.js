@@ -50,11 +50,17 @@ export class GameState {
         this.parentIndex = 0;
 
         // 核心狀態 Phase
-        // INIT | DRAW 
+        // INIT | DEALING | DRAW 
         // PLAYER_DECISION (Root層) | ANKAN_SELECTION (槓層) | RIICHI_DECLARATION (立直層)
         // DISCARD_ONLY (只能切牌)
         // REACTION_DECISION (回應層) | ROUND_END
         this.phase = "INIT";
+
+        this.dealState = {
+            round: 0,          // 第幾輪發牌（0~3 = 四張輪，4 = 單張輪）
+            currentPlayer: 0,  // 0 = 親, 1 = 子
+            tilesLeftInBatch: 0,
+        };
 
         this.lastDiscard = null;
         this.lastResult = null;
@@ -87,11 +93,16 @@ export class GameState {
         this._shuffle(this.yama);
 
         // 1. 發牌 (13張)
-        this.players.forEach((p) => {
-            for (let j = 0; j < 13; j++) {
-                p.tepai.push(this.yama.pop());
-            }
-            p.tepai.sort((a, b) => a - b);
+        this.phase = "DEALING";
+        this.dealState = {
+            round: 0,
+            currentPlayer: 0,
+            tilesLeftInBatch: 4
+        };
+
+        this.players.forEach(p => {
+           p.tepai = [];
+           p.handFaceDown = false; // 發牌時是正面
         });
 
         // 2. 莊家摸第 14 張
@@ -114,6 +125,63 @@ export class GameState {
             this.phase = "PLAYER_DECISION";
             setTimeout(() => this._handleComTurn(), 500);
         }
+    }
+
+    dealOneTile() {
+       const ds = this.dealState;
+       const player = this.players[ds.currentPlayer];
+
+       const tile = this.yama.pop();
+       player.tepai.push(tile);
+
+       // 通知 Renderer：這是一張「發牌動畫」
+       this.lastAction = {
+          type: "deal",
+          player: ds.currentPlayer,
+          tile
+       };
+
+       ds.tilesLeftInBatch--;
+       
+       // 一手抓完
+       if (ds.tilesLeftInBatch === 0) {
+           if (ds.round < 3) {
+               // 換人
+               ds.currentPlayer ^= 1;
+               ds.tilesLeftInBatch = 4;
+             
+               if (ds.currentPlayer === 0) {
+                   ds.round++;
+               }
+           } else {
+              // 最後一輪（第 13 張）
+              if (ds.currentPlayer === 0) {
+                  ds.currentPlayer = 1;
+                  ds.tilesLeftInBatch = 1;
+              } else {
+                  // 發牌完成
+                  this.finishDealing();
+              }
+           }
+       }
+    }
+
+    finishDealing() {
+       this.phase = "DEAL_FLIP"; // 翻牌階段
+       this.players.forEach(p => {
+          p.handFaceDown = true;
+       });
+    }
+
+    startFirstTurn() {
+       this.players.forEach(p => {
+          p.handFaceDown = false;
+          p.tepai.sort(...); // 整理牌
+       });
+       
+       this.phase = "DRAW";
+       this.turn = 0; // 親
+       this.drawTile(0); // 這裡就是你原本的摸牌動畫
     }
 
     /* ======================
