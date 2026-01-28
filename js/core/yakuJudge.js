@@ -154,6 +154,35 @@ function searchMentsuWithLimit(counts, current, need, onComplete) {
 }
 
 /* ======================
+   聽牌型拆解
+   ====================== */
+
+function isTankiWait(pattern, winTile) {
+    const usedInShuntsu = pattern.mentsu.some(m => m.type === "shuntsu" && m.tiles.includes(winTile)
+    );
+
+    const usedInKoutsu = pattern.mentsu.some(m => m.type === "koutsu" && m.tile === winTile
+    );
+
+    return !usedInShuntsu && !usedInKoutsu;
+}
+
+function isEdgeWait(pattern, winTile) {
+    return pattern.mentsu.some(m => m.type === "shuntsu" && ((m.tiles[0] === 0 && winTile === 2) || (m.tiles[0] === 6 && winTile === 6))
+    );
+}
+
+function isClosedWait(pattern, winTile) {
+    return pattern.mentsu.some(m => m.type === "shuntsu" && m.tiles[1] === winTile
+    );
+}
+
+function isRyanmenWait(pattern, winTile) {
+    return pattern.mentsu.some(m => m.type === "shuntsu" && (m.tiles[0] === winTile || m.tiles[2] === winTile)
+    );
+}
+
+/* ======================
    役滿判定
    ====================== */
 
