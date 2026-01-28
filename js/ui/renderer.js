@@ -36,7 +36,10 @@ export class Renderer {
 
         const W = this.canvas.width;
         const H = this.canvas.height;
-        const riverX = W * 0.383;
+        const CX = W / 2;
+        const CY = H / 2;
+        
+        const riverX = CX - (riverTotalWidth / 2);
         const playerRiverY = CY + (infoBoxH / 2) + infoBoxGap;
         const comRiverY = CY - (infoBoxH / 2) - infoBoxGap;
 
