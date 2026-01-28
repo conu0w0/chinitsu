@@ -512,7 +512,7 @@ export class Renderer {
         const btnH = 50;
         const gap = 15;
         // 動態計算按鈕位置 (避開手牌)
-        const anchorRight = handZone.x + 12 * (this.tileWidth + this.tileGap);
+        const anchorRight = handZone.x + 13 * (this.tileWidth + this.tileGap);
         const y = handZone.y - btnH - 20;
 
         if (state.phase === "PLAYER_DECISION") {
