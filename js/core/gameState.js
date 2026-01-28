@@ -103,6 +103,21 @@ export class GameState {
            p.handFaceDown = false; // 發牌時是正面
         });
         console.log(`=== 配牌開始 (親: ${this.parentIndex}) ===`);
+        this._autoDeal();
+    }
+   
+    // 新增在 GameState 類別裡
+    _autoDeal() {
+        // 如果狀態不是 DEALING，就停止 (代表發完了)
+        if (this.phase !== "DEALING") return;
+
+        // 發一張
+        this.dealOneTile();
+
+        // 設定間隔 (例如 50ms 發一張)，遞迴呼叫自己
+        setTimeout(() => {
+            this._autoDeal();
+        }, 50); 
     }
 
     dealOneTile() {
@@ -723,7 +738,7 @@ export class GameState {
     _buildWinContext(playerIndex, winType, winTile) {
         const player = this.players[playerIndex];
         const waits = player.isReach ? player.riichiWaitSet : this.logic.getWaitTiles(player.tepai);
-        const isTenhou = ctx.tenhou === true;
+        const isTenhou = this.roundContext.tenhou === true;
 
         return {
             winType,
