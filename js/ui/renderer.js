@@ -123,6 +123,7 @@ export class Renderer {
     _drawPlayerHand() {
         const player = this.gameState.players[0];
         const zone = this.ZONES.playerHand;
+        const faceDown = player.handFaceDown;
         const isTsumoState = this.gameState.justDrewTile;
         const lastIndex = player.tepai.length - 1;
 
@@ -140,7 +141,7 @@ export class Renderer {
                     return; // 動畫中先不畫這張靜態牌
                 }
             }
-            this.drawTile(tile, x, zone.y, this.tileWidth, this.tileHeight);
+            this.drawTile(tile, x, zone.y, this.tileWidth, this.tileHeight, { faceDown });
         });
     }
 
