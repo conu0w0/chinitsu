@@ -20,26 +20,22 @@ export class Renderer {
         this.canvas.height = 1024;
 
         // === 參數設定 ===
-        this.tileWidth = 56;  
-        this.tileHeight = 84;
+        this.tileWidth = 48;  
+        this.tileHeight = 76;
         this.tileGap = 2;
-        this.drawGap = 20;    // 摸牌與手牌的間距
+        this.drawGap = 16;    // 摸牌與手牌的間距
 
         // === 版面配置 (ZONES) ===
+        const W = this.canvas.width;
+        const H = this.canvas.height;
+
         this.ZONES = {
-            // 玩家手牌 (貼近底部)
-            playerHand: { x: 110, y: 900 },
-
-            // 玩家牌河 (中間偏下)
-            playerRiver: { x: 340, y: 600, cols: 6 },
-
-            // 對手牌河 (中間偏上)
-            comRiver: { x: 340, y: 300, cols: 6 },
-
-            // 對手手牌 (貼近頂部)
-            opponentHand: { x: 110, y: 50 }
-        };
-        this.hasPlayedDrawAnimation = false;
+            playerHand: { x: W * 0.10, y: H * 0.86 },
+            playerRiver: { x: W * 0.31, y: H * 0.60, cols: 6 },
+            comHand: { x: W * 0.10, y: H * 0.15 },            
+            comRiver: { x: W * 0.31, y: H * 0.34, cols: 6 },
+        }
+        if (this.drawAnimation === null) this.hasPlayedDrawAnimation = false;
     }
 
     /* ======================
@@ -120,16 +116,14 @@ export class Renderer {
     drawHands() {
         this._drawPlayerHand();
         this._drawPlayerMelds();
-        this._drawOpponentHand();
-        this._drawOpponentMelds();
+        this._drawComHand();
+        this._drawComMelds();
     }
 
     _drawPlayerHand() {
         const player = this.gameState.players[0];
         const zone = this.ZONES.playerHand;
-        
-        // 判斷是否為「摸牌狀態」(張數 3n+2)
-        const isTsumoState = (player.tepai.length % 3 === 2);
+        const isTsumoState = this.gameState.justDrewTile;
         const lastIndex = player.tepai.length - 1;
 
         player.tepai.forEach((tile, i) => {
@@ -172,9 +166,9 @@ export class Renderer {
         });
     }
 
-    _drawOpponentHand() {
+    _drawComHand() {
         const com = this.gameState.players[1];
-        const zone = this.ZONES.opponentHand;
+        const zone = this.ZONES.comHand;
         
         const w = 40; // 縮小版
         const h = 60;
@@ -185,12 +179,12 @@ export class Renderer {
         }
     }
 
-    _drawOpponentMelds() {
+    _drawComMelds() {
         const com = this.gameState.players[1];
         const melds = com.fulu;
         if (!melds || melds.length === 0) return;
 
-        const handZone = this.ZONES.opponentHand;
+        const handZone = this.ZONES.comHand;
         const w = 40;
         
         // 對手副露畫在手牌左邊
@@ -241,7 +235,7 @@ export class Renderer {
         this._drawRiverGroup(this.gameState.players[1].river, this.ZONES.comRiver, true);
     }
     
-    _drawRiverGroup(riverData, zone, isOpponent) {
+    _drawRiverGroup(riverData, zone, isCom) {
         const w = 40; 
         const h = 56;
         
@@ -250,17 +244,17 @@ export class Renderer {
             const row = Math.floor(i / zone.cols);
             
             // 玩家從左到右，對手從右到左
-            const x = isOpponent 
+            const x = isCom 
                 ? zone.x + (zone.cols - 1 - col) * w 
                 : zone.x + col * w;
                 
             const y = zone.y + row * h; 
             
             const isLast = (this.gameState.lastDiscard &&
-                            this.gameState.lastDiscard.fromPlayer === (isOpponent ? 1 : 0) &&
+                            this.gameState.lastDiscard.fromPlayer === (isCom ? 1 : 0) &&
                             i === riverData.length - 1);
             
-            const rotate = item.isRiichi ? (isOpponent ? -90 : 90) : 0;
+            const rotate = item.isRiichi ? (isCom ? -90 : 90) : 0;
             
             // 立直牌位置微調
             let drawX = x;
