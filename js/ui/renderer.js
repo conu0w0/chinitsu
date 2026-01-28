@@ -1,6 +1,6 @@
 /**
  * renderer.js
- * 負責將 GameState 繪製到 Canvas 上 (Updated: Mirror Fix & Kan Gap)
+ * 負責將 GameState 繪製到 Canvas 上 (Updated: Melds Alignment & Dealing Smoothness)
  */
 
 export class Renderer {
@@ -17,17 +17,18 @@ export class Renderer {
         this.lastHandLength = 0; 
         this.lastComHandLength = 0;
 
+        // 設定解析度
         this.canvas.width = 1024;
         this.canvas.height = 1024;
 
+        // === 參數設定 ===
         this.tileWidth = 48;  
         this.tileHeight = 76;
         this.tileGap = 2;
-        this.drawGap = 20;    // 摸牌與手牌的間距 (加大一點更明顯)
+        this.drawGap = 20;    // 摸牌與手牌的間距
 
-        // 副露的小尺寸
-        this.meldWidth = 36;
-        this.meldHeight = 56;
+        this.meldWidth = 36;  // 副露牌寬
+        this.meldHeight = 56; // 副露牌高
 
         const W = this.canvas.width;
         const H = this.canvas.height;
@@ -35,9 +36,15 @@ export class Renderer {
         this.ZONES = {
             playerHand: { x: W * 0.10, y: H * 0.86 },
             playerRiver: { x: W * 0.31, y: H * 0.60, cols: 6 },
-            // COM 手牌起始點稍微往右移一點，留空間給鏡像的摸牌
+            
+            // 玩家副露錨點 (靠右)
+            playerMeld: { x: W * 0.95, y: H * 0.86 + (76 - 56) }, 
+
             comHand: { x: W * 0.15, y: H * 0.15 },            
             comRiver: { x: W * 0.31, y: H * 0.34, cols: 6 },
+            
+            // COM 副露錨點 (靠左 - 鏡像)
+            comMeld: { x: W * 0.05, y: H * 0.15 + (76 - 56) }
         }
     }
 
@@ -68,11 +75,13 @@ export class Renderer {
         const player = this.gameState.players[0];
         const currentLen = player.tepai.length;
         const validPhases = ["DEALING", "DRAW", "PLAYER_DECISION"];
+        const isDealing = (this.gameState.phase === "DEALING"); // ★ 判斷是否發牌中
 
         if (validPhases.includes(this.gameState.phase) && currentLen > this.lastHandLength) {
             const diff = currentLen - this.lastHandLength;
-            // 判斷是否為摸牌狀態 (張數餘 2)
-            const isDrawState = (currentLen % 3 === 2);
+            
+            // ★ FIX: 發牌階段不計算摸牌間隙，避免動畫跳動
+            const isDrawState = !isDealing && (currentLen % 3 === 2);
 
             for (let i = 0; i < diff; i++) {
                 const tileIndex = this.lastHandLength + i;
@@ -81,7 +90,7 @@ export class Renderer {
                 const zone = this.ZONES.playerHand;
                 let targetX = zone.x + tileIndex * (this.tileWidth + this.tileGap);
                 
-                // ★ FIX: 只要是最後一張且處於摸牌狀態，就加上間隔 (支援槓後摸牌)
+                // 只有非發牌階段且是摸牌位，才加間隔
                 if (isDrawState && tileIndex === currentLen - 1) {
                     targetX += this.drawGap;
                 }
@@ -103,20 +112,19 @@ export class Renderer {
         this.lastHandLength = currentLen;
     }
 
-    // === ★ FIX: 偵測 COM 手牌變化 (鏡像邏輯) ===
+    // === 修正：偵測 COM 手牌變化 ===
     _checkComHandChanges() {
         const com = this.gameState.players[1];
         const currentLen = com.tepai.length;
         const validPhases = ["DEALING", "DRAW", "COM_DECISION"];
+        const isDealing = (this.gameState.phase === "DEALING");
 
         if (validPhases.includes(this.gameState.phase) && currentLen > this.lastComHandLength) {
             const diff = currentLen - this.lastComHandLength;
-            const isDrawState = (currentLen % 3 === 2);
             
-            // 計算 COM 手牌整體位移 (為了留出左邊的摸牌空位)
-            // 如果是摸牌狀態，手牌本體(index 0~N-2)要往右推一個 drawGap
-            const bodyOffsetX = this.drawGap + this.tileWidth;
-
+            // ★ FIX: 發牌階段忽略間隙
+            const isDrawState = !isDealing && (currentLen % 3 === 2);
+            
             for (let i = 0; i < diff; i++) {
                 const tileIndex = this.lastComHandLength + i;
                 const zone = this.ZONES.comHand;
@@ -124,11 +132,10 @@ export class Renderer {
 
                 let targetX;
                 
-                // ★ 鏡像邏輯：如果是剛摸的那張牌 (最後一張)，放在最左邊
+                // 鏡像邏輯：剛摸的那張牌放在最左邊
                 if (isDrawState && tileIndex === currentLen - 1) {
-                    targetX = zone.x - (w + this.drawGap); // 放在左側
+                    targetX = zone.x - (w + this.drawGap); 
                 } else {
-                    // 其他牌正常排列
                     targetX = zone.x + tileIndex * (w + 2);
                 }
 
@@ -185,7 +192,7 @@ export class Renderer {
     }
 
     /* ======================
-       2. 手牌繪製
+       2. 手牌與副露繪製
        ====================== */
     drawHands() {
         this._drawPlayerHand();
@@ -199,8 +206,9 @@ export class Renderer {
         const zone = this.ZONES.playerHand;
         const globalFaceDown = player.handFaceDown; 
         
-        // ★ FIX: 通用的「摸牌狀態」判斷：長度餘 2
-        const isDrawState = (player.tepai.length % 3 === 2);
+        // ★ FIX: 發牌階段忽略間隙
+        const isDealing = (this.gameState.phase === "DEALING");
+        const isDrawState = !isDealing && (player.tepai.length % 3 === 2);
 
         player.tepai.forEach((tile, i) => {
             const isAnimating = this.animations.some(anim => !anim.isCom && anim.index === i);
@@ -208,8 +216,8 @@ export class Renderer {
 
             let x = zone.x + i * (this.tileWidth + this.tileGap);
             
-            // ★ FIX: 只要是最後一張且是摸牌狀態，就加上間隔
-            if (this.gameState.phase !== "DEALING" && isDrawState && i === player.tepai.length - 1) {
+            // 只有最後一張且是摸牌狀態才加空隙
+            if (isDrawState && i === player.tepai.length - 1) {
                 x += this.drawGap;
             }
             
@@ -217,26 +225,29 @@ export class Renderer {
         });
     }
 
+    // ★★★ 重寫：玩家副露 (從右向左) ★★★
     _drawPlayerMelds() {
         const player = this.gameState.players[0];
         const melds = player.fulu;
         if (!melds || melds.length === 0) return;
 
-        const handZone = this.ZONES.playerHand;
-        
-        // 計算手牌寬度 (包含摸牌間隔)
-        const handCount = player.tepai.length;
-        const isDrawState = (handCount % 3 === 2);
-        let handWidth = handCount * (this.tileWidth + this.tileGap);
-        if (isDrawState) handWidth += this.drawGap;
+        // 起始點：螢幕右側錨點
+        let currentX = this.ZONES.playerMeld.x;
+        const y = this.ZONES.playerMeld.y;
 
-        let x = handZone.x + handWidth + 40; 
-        const y = handZone.y + (this.tileHeight - this.meldHeight); // 底部對齊
-
+        // 遍歷副露 (順序：先槓的在最右邊)
         melds.forEach((meld) => {
-            // ★ FIX: 傳入較小的尺寸
-            const widthUsed = this._drawSingleMeld(meld, x, y, this.meldWidth, this.meldHeight);
-            x += widthUsed + 10; 
+            // 1. 先計算這個副露的總寬度 (不要畫，只算寬度)
+            const width = this._calculateMeldWidth(meld, this.meldWidth);
+            
+            // 2. 因為是往左長，所以起點 x 要扣掉寬度
+            const drawX = currentX - width;
+            
+            // 3. 畫在這個位置
+            this._drawSingleMeld(meld, drawX, y, this.meldWidth, this.meldHeight);
+            
+            // 4. 更新下一個副露的起點 (再往左移，並加上一點間隙)
+            currentX -= (width + 10);
         });
     }
 
@@ -246,57 +257,53 @@ export class Renderer {
         const w = 48; 
         const h = 76;
         
-        // ★ FIX: 鏡像邏輯
-        const isDrawState = (com.tepai.length % 3 === 2);
+        // ★ FIX: 發牌階段忽略間隙
+        const isDealing = (this.gameState.phase === "DEALING");
+        const isDrawState = !isDealing && (com.tepai.length % 3 === 2);
         
         for (let i = 0; i < com.tepai.length; i++) {
             const isAnimating = this.animations.some(anim => anim.isCom && anim.index === i);
             if (isAnimating) continue;
 
             let x;
-            
-            // 如果是摸牌狀態，且這是最後一張牌 -> 畫在最左邊 (鏡像的右手)
             if (isDrawState && i === com.tepai.length - 1) {
-                 x = zone.x - (w + this.drawGap);
+                 x = zone.x - (w + this.drawGap); // 摸牌在最左
             } else {
-                 // 其他牌畫在基準點右邊
                  x = zone.x + i * (w + 2);
             }
-            
             this.drawTile(-1, x, zone.y, w, h, { faceDown: true });
         }
     }
 
+    // ★★★ 重寫：COM 副露 (從左向右 - 鏡像) ★★★
     _drawComMelds() {
         const com = this.gameState.players[1];
         const melds = com.fulu;
         if (!melds || melds.length === 0) return;
 
-        const handZone = this.ZONES.comHand;
-        
-        // 計算起始位置 (接在 COM 手牌右側)
-        const handCount = com.tepai.length;
-        // 注意：雖然最後一張牌畫在左邊，但邏輯上手牌佔用的「右邊界」還是由最右邊的牌決定
-        // 手牌通常索引是 0~(N-2)，N-1在左邊。所以右邊界是由 (N-2) 決定的。
-        // 為了簡單起見，我們還是用總張數算寬度，視覺上比較整齊。
-        
-        // 修正：因為 COM 摸牌畫在左邊了，右邊不會有「凸出去」的一張，所以寬度比較緊湊
-        let effectiveCount = isDrawState(com) ? handCount - 1 : handCount;
-        let handWidth = effectiveCount * (this.tileWidth + 2);
-        
-        let x = handZone.x + handWidth + 40; 
-        const y = handZone.y + (this.tileHeight - this.meldHeight); // 底部對齊
+        // 起始點：螢幕左側錨點
+        let currentX = this.ZONES.comMeld.x;
+        const y = this.ZONES.comMeld.y;
 
         melds.forEach((meld) => {
-            // ★ FIX: 傳入較小的尺寸
-            const widthUsed = this._drawSingleMeld(meld, x, y, this.meldWidth, this.meldHeight);
-            x += widthUsed + 10; 
+            // 1. 直接從左邊開始畫
+            const width = this._drawSingleMeld(meld, currentX, y, this.meldWidth, this.meldHeight);
+            
+            // 2. 更新下一個起點 (往右移)
+            currentX += (width + 10);
         });
-        
-        function isDrawState(p) { return p.tepai.length % 3 === 2; }
     }
 
-    // ★ FIX: 支援傳入 w, h
+    // 輔助：計算副露寬度 (不繪製)
+    _calculateMeldWidth(meld, w) {
+        if (meld.type === "ankan") {
+            return 4 * (w + 2);
+        } else {
+            return 3 * (w + 2);
+        }
+    }
+
+    // 繪製單個副露 (返回佔用的寬度)
     _drawSingleMeld(meld, x, y, w, h) {
         if (meld.type === "ankan") {
             for (let i = 0; i < 4; i++) {
@@ -432,7 +439,7 @@ export class Renderer {
         const btnW = 100;
         const btnH = 50;
         const gap = 15;
-        // 計算按鈕列的右邊界，根據手牌位置動態調整
+        // 動態計算按鈕位置 (避開手牌)
         const anchorRight = handZone.x + 14 * (this.tileWidth + this.tileGap);
         const y = handZone.y - btnH - 20;
 
