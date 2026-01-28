@@ -50,11 +50,11 @@ export class Renderer {
 
         this.ZONES = {
             playerHand: { x: W * 0.10, y: H * 0.88 },
-            playerRiver: { x: riverX, y: H * playerRiverY, cols: 6 },
+            playerRiver: { x: riverX, y: playerRiverY, cols: 6 },
             playerMeld: { x: W * 0.95, y: H * 0.88 + (76 - 56) }, 
 
             comHand: { x: W * 0.82, y: H * 0.15 },            
-            comRiver: { x: riverX, y: H * comRiverY, cols: 6 },
+            comRiver: { x: riverX, y: comRiverY, cols: 6 },
             comMeld: { x: W * 0.05, y: H * 0.15 + (76 - 56) }
         }
     }
@@ -374,8 +374,8 @@ export class Renderer {
     }
     
     _drawRiverGroup(riverData, zone, isCom) {
-        const w = 40; 
-        const h = 56;
+        const w = this.riverTileWidth; 
+        const h = this.riverTileHeight;
         
         // 用來記錄當前這一行，已經累積了多少 X 軸的偏移量
         let currentRowX = 0;
