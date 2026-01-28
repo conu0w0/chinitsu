@@ -46,7 +46,7 @@ export class Renderer {
         
         const riverX = CX - (riverTotalWidth / 2);
         const playerRiverY = CY + (infoBoxH / 2) + infoBoxGap;
-        const comRiverY = CY - (infoBoxH / 2) - infoBoxGap;
+        const comRiverY = CY - (infoBoxH / 2) - infoBoxGap - (3 * this.riverTileHeight);
 
         this.ZONES = {
             playerHand: { x: W * 0.10, y: H * 0.88 },
