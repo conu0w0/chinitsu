@@ -393,10 +393,12 @@ export class Renderer {
             let drawY = zone.y + currentRow * h;
             
             // 設定旋轉角度
-            const rotate = item.isRiichi ? (isCom ? -90 : 90) : 0;
+            const rotate = item.isRiichi ? (isCom ? 90 : -90) : 0;
 
             if (rotate !== 0) {
-                drawY += 10; 
+                const offset = (h - w) / 2;
+                drawX += offset;
+                drawY += offset; 
             }
 
             // === 4. 繪製牌 ===
