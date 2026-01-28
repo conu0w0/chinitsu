@@ -27,20 +27,26 @@ export class Renderer {
         this.tileGap = 2;
         this.drawGap = 20;    // 摸牌與手牌的間距
 
+        const infoBoxW = 260;
+        const infoBoxH = 120;
+        const infoBoxGap = 25;
+
         this.meldWidth = 36;  // 副露牌寬
         this.meldHeight = 56; // 副露牌高
 
         const W = this.canvas.width;
         const H = this.canvas.height;
         const riverX = W * 0.383;
+        const playerRiverY = CY + (infoBoxH / 2) + infoBoxGap;
+        const comRiverY = CY - (infoBoxH / 2) - infoBoxGap;
 
         this.ZONES = {
             playerHand: { x: W * 0.10, y: H * 0.88 },
-            playerRiver: { x: riverX, y: H * 0.60, cols: 6 },
+            playerRiver: { x: riverX, y: H * playerRiverY, cols: 6 },
             playerMeld: { x: W * 0.95, y: H * 0.88 + (76 - 56) }, 
 
             comHand: { x: W * 0.82, y: H * 0.15 },            
-            comRiver: { x: riverX, y: H * 0.32, cols: 6 },
+            comRiver: { x: riverX, y: H * comRiverY, cols: 6 },
             comMeld: { x: W * 0.05, y: H * 0.15 + (76 - 56) }
         }
     }
