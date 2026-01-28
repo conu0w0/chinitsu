@@ -1,6 +1,6 @@
 /**
  * renderer.js
- * 負責將 GameState 繪製到 Canvas 上 (Updated: Melds Alignment & Dealing Smoothness)
+ * 負責將 GameState 繪製到 Canvas 上
  */
 
 export class Renderer {
@@ -512,7 +512,7 @@ export class Renderer {
         const btnH = 50;
         const gap = 15;
         // 動態計算按鈕位置 (避開手牌)
-        const anchorRight = handZone.x + 14 * (this.tileWidth + this.tileGap);
+        const anchorRight = handZone.x + 12 * (this.tileWidth + this.tileGap);
         const y = handZone.y - btnH - 20;
 
         if (state.phase === "PLAYER_DECISION") {
@@ -626,7 +626,6 @@ export class Renderer {
             this.ctx.fillStyle = "#ffffff";
             this.ctx.font = "bold 60px sans-serif";
             let title = "對局終了";
-            if (result.score && result.score.yakumanRank > 0) title = "役滿！";
             this.ctx.fillText(title, 512, 300);
 
             if (result.score) {
