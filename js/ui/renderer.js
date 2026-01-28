@@ -32,14 +32,15 @@ export class Renderer {
 
         const W = this.canvas.width;
         const H = this.canvas.height;
+        const riverX = W * 0.383;
 
         this.ZONES = {
             playerHand: { x: W * 0.10, y: H * 0.88 },
-            playerRiver: { x: W * 0.36, y: H * 0.60, cols: 6 },
+            playerRiver: { x: riverX, y: H * 0.60, cols: 6 },
             playerMeld: { x: W * 0.95, y: H * 0.88 + (76 - 56) }, 
 
             comHand: { x: W * 0.82, y: H * 0.15 },            
-            comRiver: { x: W * 0.36, y: H * 0.25, cols: 6 },
+            comRiver: { x: riverX, y: H * 0.32, cols: 6 },
             comMeld: { x: W * 0.05, y: H * 0.15 + (76 - 56) }
         }
     }
