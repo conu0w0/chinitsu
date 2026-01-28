@@ -117,7 +117,7 @@ export class Renderer {
         if (validPhases.includes(this.gameState.phase) && currentLen > this.lastComHandLength) {
             const diff = currentLen - this.lastComHandLength;
             for (let i = 0; i < diff; i++) {
-                const w = 40; // COM 牌寬
+                const w = 48; // COM 牌寬
                 const tileIndex = this.lastComHandLength + i;
                 const zone = this.ZONES.comHand;
                 let targetX = zone.x + tileIndex * (w + 2);
@@ -188,6 +188,27 @@ export class Renderer {
         this._drawComMelds();
     }
 
+    _drawPlayerHand() {
+        const player = this.gameState.players[0];
+        const zone = this.ZONES.playerHand;
+        const globalFaceDown = player.handFaceDown; // GameState 控制的整體蓋牌狀態
+
+        player.tepai.forEach((tile, i) => {
+            // 防鬼影：如果這張牌正在動畫中 (isCom: false)，跳過繪製
+            const isAnimating = this.animations.some(anim => !anim.isCom && anim.index === i);
+            if (isAnimating) return;
+
+            let x = zone.x + i * (this.tileWidth + this.tileGap);
+            
+            // 只有在非配牌階段且是第14張才拉開距離
+            if (this.gameState.phase !== "DEALING" && i === 13) {
+                x += this.drawGap;
+            }
+            
+            this.drawTile(tile, x, zone.y, this.tileWidth, this.tileHeight, { faceDown: globalFaceDown });
+        });
+    }
+
     _drawPlayerMelds() {
         const player = this.gameState.players[0];
         const melds = player.fulu;
@@ -210,6 +231,22 @@ export class Renderer {
             const widthUsed = this._drawSingleMeld(meld, x, y, false);
             x += widthUsed + 10; // 每個副露之間留點空隙
         });
+    }
+
+    _drawComHand() {
+        const com = this.gameState.players[1];
+        const zone = this.ZONES.comHand;
+        const w = 48; 
+        const h = 76;
+        
+        for (let i = 0; i < com.tepai.length; i++) {
+            // 防鬼影：如果這張牌正在動畫中 (isCom: true)，跳過繪製
+            const isAnimating = this.animations.some(anim => anim.isCom && anim.index === i);
+            if (isAnimating) continue;
+
+            let x = zone.x + i * (w + 2); 
+            this.drawTile(-1, x, zone.y, w, h, { faceDown: true });
+        }
     }
 
     _drawComMelds() {
