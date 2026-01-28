@@ -14,7 +14,7 @@ export function decomposeHand(tiles, ankanTiles = []) {
 
     // === 七對子、九蓮只在門清、無暗槓時檢查 ===
     if (ankanTiles.length === 0) {
-        const chiitoi = checkChiitoi(countsAfterKan);
+        const chiitoi = checkChiitoiTsu(countsAfterKan);
         if (chiitoi) {
             results.push({ ...chiitoi, counts: [...originalCounts] });
         }
@@ -46,7 +46,7 @@ function toCounts(tiles) {
    七對子
    ====================== */
 
-function checkChiitoi(counts) {
+function checkChiitoiTsu(counts) {
     let pairCount = 0;
     for (let i = 0; i <= 8; i++) {
         if (counts[i] === 2) pairCount++;
