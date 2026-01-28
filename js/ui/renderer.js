@@ -31,6 +31,8 @@ export class Renderer {
         const infoBoxH = 120;
         const infoBoxGap = 25;
 
+        const riverTotalWidth = (5 * this.riverTileWidth) + this.riverTileHeight;
+
         this.meldWidth = 36;  // 副露牌寬
         this.meldHeight = 56; // 副露牌高
 
