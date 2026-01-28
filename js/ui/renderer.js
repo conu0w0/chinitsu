@@ -45,7 +45,7 @@ export class Renderer {
         const CY = H / 2;
         
         const riverX = CX - (riverTotalWidth / 2);
-        const playerRiverY = CY + (infoBoxH / 2) + infoBoxGap + (0.8 * this.riverTileHeight);
+        const playerRiverY = CY + (infoBoxH / 2) + infoBoxGap - (0.2 * this.riverTileHeight);
         const comRiverY = CY - (infoBoxH / 2) - infoBoxGap - (0.8 * this.riverTileHeight);
 
         this.ZONES = {
