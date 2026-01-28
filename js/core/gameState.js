@@ -555,7 +555,8 @@ export class GameState {
         this.actionContext.isAfterKan = true;
         this.actionContext.lastActionWasKan = true;
 
-        console.log(`玩家 ${playerIndex} 暗槓 ${tile + 1}s`);
+        const who = (playerIndex === 0) ? "玩家" : "COM";
+        console.log(`${who} 暗槓 ${tile + 1}s`);
 
         // 槓完後直接回到 Root (因為摸了嶺上牌，又是一次新的 Decision)
         this.phase = "PLAYER_DECISION";
