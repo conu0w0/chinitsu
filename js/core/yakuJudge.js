@@ -272,7 +272,7 @@ function checkGoldenGateBridge(pattern) {
 function checkSuuankouTanki(pattern, ctx) {
     if (pattern.type !== "standard") return null;
    
-    const k = pattern.mentsu.filter(m => m.type === "koutsu").length;
+    const k = pattern.mentsu.filter(m => m.type === "koutsu" || m.type === "ankan").length;
     if (k !== 4) return null;
     
     if (ctx.isTenhou) {
@@ -287,7 +287,7 @@ function checkSuuankouTanki(pattern, ctx) {
 function checkSuuankou(pattern, ctx) {
     if (pattern.type !== "standard") return null;
    
-    const k = pattern.mentsu.filter(m => m.type === "koutsu").length;
+    const k = pattern.mentsu.filter(m => m.type === "koutsu" || m.type === "ankan").length;
     if (k !== 4) return null;
    
     if (ctx.winType === "tsumo") {
@@ -512,7 +512,6 @@ function checkSanankou(pattern, ctx) {
         }
 
         if (m.type === "koutsu") {
-            // ★ 核心邏輯：如果是榮和，且這個刻子包含榮和牌 → 變明刻，不計入
             if (ctx.winType === "ron" && m.tile === ctx.winTile) {
                 return; 
             }
@@ -520,7 +519,7 @@ function checkSanankou(pattern, ctx) {
         }
     });
    
-    return ankouCount === 3 ? { name: "三暗刻", han: 2 } : null;
+    return ankouCount >= 3 ? { name: "三暗刻", han: 2 } : null;
 }
 
 function checkSankantsu(pattern) {
