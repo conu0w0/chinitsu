@@ -35,11 +35,11 @@ export class Renderer {
 
         this.ZONES = {
             playerHand: { x: W * 0.10, y: H * 0.88 },
-            playerRiver: { x: W * 0.31, y: H * 0.60, cols: 6 },
+            playerRiver: { x: W * 0.36, y: H * 0.60, cols: 6 },
             playerMeld: { x: W * 0.95, y: H * 0.88 + (76 - 56) }, 
 
             comHand: { x: W * 0.82, y: H * 0.15 },            
-            comRiver: { x: W * 0.31, y: H * 0.40, cols: 6 },
+            comRiver: { x: W * 0.36, y: H * 0.25, cols: 6 },
             comMeld: { x: W * 0.05, y: H * 0.15 + (76 - 56) }
         }
     }
@@ -259,7 +259,6 @@ export class Renderer {
         });
     }
 
-    // ★★★ 重寫：玩家副露 (從右向左) ★★★
     _drawPlayerMelds() {
         const player = this.gameState.players[0];
         const melds = player.fulu;
@@ -290,8 +289,7 @@ export class Renderer {
         const zone = this.ZONES.comHand;
         const w = 48; 
         const h = 76;
-        
-        // ★ FIX: 發牌階段忽略間隙
+
         const isDealing = (this.gameState.phase === "DEALING");
         const isDrawState = !isDealing && (com.tepai.length % 3 === 2);
         
@@ -364,27 +362,52 @@ export class Renderer {
         const w = 40; 
         const h = 56;
         
+        // 用來記錄當前這一行，已經累積了多少 X 軸的偏移量
+        let currentRowX = 0;
+        let currentRow = 0;
+
         riverData.forEach((item, i) => {
-            const col = i % zone.cols;
-            const row = Math.floor(i / zone.cols);
+            // === 1. 換行判斷 ===
+            // 每 6 張牌換一行 (除了第 0 張)
+            if (i > 0 && i % zone.cols === 0) {
+                currentRow++;
+                currentRowX = 0; // 換行後，X 偏移歸零
+            }
             
-            const x = isCom 
-                ? zone.x + (zone.cols - 1 - col) * w 
-                : zone.x + col * w;
-                
-            const y = zone.y + row * h; 
+            // === 2. 計算這張牌佔用的「視覺寬度」 ===
+            const tileSpace = item.isRiichi ? h : w;
+
+            // === 3. 計算繪圖座標 (DrawX) ===
+            let drawX;
             
+            if (isCom) {
+                // COM 的牌河：從右向左排列
+                const lineStartRight = zone.x + (zone.cols * w); 
+                drawX = lineStartRight - currentRowX - tileSpace;
+            } else {
+                // 玩家 的牌河：從左向右排列
+                drawX = zone.x + currentRowX;
+            }
+
+            // Y 軸位置 (加上立直的微調)
+            let drawY = zone.y + currentRow * h;
+            
+            // 設定旋轉角度
+            const rotate = item.isRiichi ? (isCom ? -90 : 90) : 0;
+
+            if (rotate !== 0) {
+                drawY += 10; 
+            }
+
+            // === 4. 繪製牌 ===
             const isLast = (this.gameState.lastDiscard &&
                             this.gameState.lastDiscard.fromPlayer === (isCom ? 1 : 0) &&
                             i === riverData.length - 1);
-            
-            const rotate = item.isRiichi ? (isCom ? -90 : 90) : 0;
-            
-            let drawX = x;
-            let drawY = y;
-            if (rotate !== 0) drawY += 10; 
 
             this.drawTile(item.tile, drawX, drawY, w, h, { rotate, highlight: isLast });
+
+            // === 5. 為了「下一張牌」更新累積偏移量 ===
+            currentRowX += tileSpace;
         });
     }
 
