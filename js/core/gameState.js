@@ -513,6 +513,8 @@ export class GameState {
         const yamaLeft = this.yama.length;
         const noCalls = this.players.every(p => p.fulu.length === 0);
 
+        let isDouble = false;
+
         if (noCalls) {
             // 親家：牌山剩 9 張時立直
             if (player.isParent && yamaLeft === 9) {
