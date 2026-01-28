@@ -151,7 +151,7 @@ export class GameState {
        this.lastAction = {
           type: "deal_batch",
           player: ds.currentPlayer,
-          tile
+          tiles: newTiles
        };
 
        ds.tilesLeftInBatch = 0;
