@@ -121,10 +121,10 @@ export class GameState {
         // 設定間隔 (例如 50ms 發一張)，遞迴呼叫自己
         setTimeout(() => {
             this._autoDeal();
-        }, 50); 
+        }, 400); 
     }
 
-    dealOneTile() {
+    dealBatch() {
        if (this.phase !== "DEALING") return;
        
        // 防呆：如果牌山沒了，直接強制結束
@@ -135,54 +135,52 @@ export class GameState {
 
        const ds = this.dealState;
        const player = this.players[ds.currentPlayer];
-       const tile = this.yama.pop();
-       player.tepai.push(tile);
+       const count = ds.tilesLeftInBatch;
+       
+       const newTiles = [];
+       for (let i = 0; i < count; i++) {
+           if (this.yama.length > 0) {
+               const tile = this.yama.pop();
+               player.tepai.push(tile);
+               newTiles.push(tile);
+           }
+       }
 
        // 通知 Renderer (動畫用)
        this.lastAction = {
-          type: "deal",
+          type: "deal_batch",
           player: ds.currentPlayer,
           tile
        };
 
-       ds.tilesLeftInBatch--;
+       ds.tilesLeftInBatch = 0;
+       const nextPlayer = (ds.currentPlayer + 1) % 2;
+       
+       if (ds.currentPlayer !== this.parentIndex) {
+           ds.round++;
+       }
 
-       // ★★★ 關鍵修正：只有當這一批次 (4張或1張) 歸零時，才切換玩家與重置數量 ★★★
-       if (ds.tilesLeftInBatch === 0) {
-           // 1. 切換下一個玩家
-           const nextPlayer = (ds.currentPlayer + 1) % 2;
+       ds.currentPlayer = nextPlayer;
 
-           // 2. 如果剛才那個玩家是子家 (代表一輪結束)，Round + 1
-           if (ds.currentPlayer !== this.parentIndex) {
-               ds.round++;
-           }
-           
-           ds.currentPlayer = nextPlayer;
-
-           // 3. 判定下一手要抓幾張 (寫在裡面才對！)
-           if (ds.round < 3) {
-               ds.tilesLeftInBatch = 4; // 前三輪抓 4 張
-           } else if (ds.round === 3) {
-               ds.tilesLeftInBatch = 1; // 最後一輪抓 1 張
-           } else {
-               // ds.round === 4，代表 13 張都發完了
-               this.finishDealing();
-               return; // 結束
-           }
+       if (ds.round < 3) {
+           ds.tilesLeftInBatch = 4; // 前三輪抓 4 張
+       } else if (ds.round === 3) {
+           ds.tilesLeftInBatch = 1; // 最後一輪抓 1 張
+       } else {
+           this.finishDealing();
+           return; 
        }
     }
 
-    finishDealing() {
-       this.phase = "DEAL_FLIP"; 
-       console.log("配牌完畢，蓋牌整理...");
-       
-       // 模擬蓋牌
-       this.players.forEach(p => p.handFaceDown = true);
-       
-       // 延遲一秒後自動進入開牌整理（這部分通常由 UI 監聽 phase 變化來做動畫）
-       setTimeout(() => this.startFirstTurn(), 1000);
+    finishDealing() {       
+       setTimeout(() => {
+           this.phase = "DEAL_FLIP"; 
+           this.players.forEach(p => p.handFaceDown = true);
+           console.log("配牌完畢，自動理牌中...");
+           setTimeout(() => this.startFirstTurn(), 800);
+       }, 800); 
     }
-   
+      
     startFirstTurn() {
        console.log("開牌！親家摸牌");
        this.players.forEach(p => {
