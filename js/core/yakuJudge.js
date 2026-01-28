@@ -14,9 +14,9 @@ export function decomposeHand(tiles, ankanTiles = []) {
 
     // === 七對子、九蓮只在門清、無暗槓時檢查 ===
     if (ankanTiles.length === 0) {
-        const sevenPairs = checkSevenPairs(countsAfterKan);
-        if (sevenPairs) {
-            results.push({ ...sevenPairs, counts: [...originalCounts] });
+        const chiitoi = checkChiitoi(countsAfterKan);
+        if (chiitoi) {
+            results.push({ ...chiitoi, counts: [...originalCounts] });
         }
 
         const kyuuren = checkKyuuren(countsAfterKan);
@@ -198,7 +198,7 @@ function checkIshigamiSannen(_, ctx) {
     return null;
 }
 
-function checkPureChuuren(pattern) {
+function checkKyuurenKyuumenMachi(pattern) {
     if (pattern.type !== "kyuuren") return null;
 
     const c = pattern.counts;
@@ -234,7 +234,7 @@ function checkRyuuiisou(pattern) {
 }
 
 function checkDaichikurin(pattern) {
-    if (pattern.type !== "sevenPairs") return null;
+    if (pattern.type !== "chiitoi") return null;
 
     const total = pattern.counts.reduce((a, b) => a + b, 0);
     if (total !== 14) return null;
@@ -662,7 +662,7 @@ export function calculateFu(pattern, ctx) {
     // === 特例直接回傳 ===
 
     // 七對子
-    if (pattern.type === "sevenPairs") {
+    if (pattern.type === "chiitoi") {
         return 25;
     }
 
