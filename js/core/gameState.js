@@ -173,7 +173,9 @@ export class GameState {
        }
     }
 
-    finishDealing() {       
+    finishDealing() {
+       this.phase = "DEALING_WAIT";
+       
        setTimeout(() => {
            this.phase = "DEAL_FLIP"; 
            this.players.forEach(p => p.handFaceDown = true);
