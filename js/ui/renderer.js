@@ -25,7 +25,10 @@ export class Renderer {
         this.tileWidth = 48;  
         this.tileHeight = 76;
         this.tileGap = 2;
-        this.drawGap = 20;    // 摸牌與手牌的間距
+        this.drawGap = 20;
+
+        this.riverTileWidth = 40; 
+        this.riverTileHeight = 56;
 
         const infoBoxW = 260;
         const infoBoxH = 120;
