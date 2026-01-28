@@ -274,6 +274,10 @@ function checkSuuankouTanki(pattern, ctx) {
    
     const k = pattern.mentsu.filter(m => m.type === "koutsu").length;
     if (k !== 4) return null;
+    
+    if (ctx.isTenhou) {
+       return { name: "四暗刻單騎", rank: 2 };
+   }
 
     return (ctx.winTile === pattern.pair)
         ? { name: "四暗刻單騎", rank: 2 }
