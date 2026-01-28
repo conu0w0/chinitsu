@@ -449,7 +449,7 @@ function checkSanankou(pattern, ctx) {
 
         if (m.type === "koutsu") {
             // ★ 核心邏輯：如果是榮和，且這個刻子包含榮和牌 → 變明刻，不計入
-            if (ctx.winType === "ron" && m.tiles.includes(ctx.winTile)) {
+            if (ctx.winType === "ron" && m.tile === ctx.winTile) {
                 return; 
             }
             ankouCount++;
