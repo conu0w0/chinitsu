@@ -106,7 +106,8 @@ export class GameState {
            p.tepai = [];
            p.handFaceDown = false; // 發牌時是正面
         });
-        console.log(`=== 配牌開始 (親: ${this.parentIndex}) ===`);
+        const parentName = (this.parentIndex === 0) ? "玩家" : "COM";
+        console.log(`=== 配牌開始 (親: ${parentName}) ===`);
         this._autoDeal();
     }
    
