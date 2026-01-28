@@ -34,16 +34,12 @@ export class Renderer {
         const H = this.canvas.height;
 
         this.ZONES = {
-            playerHand: { x: W * 0.10, y: H * 0.86 },
+            playerHand: { x: W * 0.10, y: H * 0.75 },
             playerRiver: { x: W * 0.31, y: H * 0.60, cols: 6 },
-            
-            // 玩家副露錨點 (靠右)
-            playerMeld: { x: W * 0.95, y: H * 0.86 + (76 - 56) }, 
+            playerMeld: { x: W * 0.95, y: H * 0.85 + (76 - 56) }, 
 
-            comHand: { x: W * 0.15, y: H * 0.15 },            
-            comRiver: { x: W * 0.31, y: H * 0.34, cols: 6 },
-            
-            // COM 副露錨點 (靠左 - 鏡像)
+            comHand: { x: W * 0.90, y: H * 0.15 },            
+            comRiver: { x: W * 0.31, y: H * 0.40, cols: 6 },
             comMeld: { x: W * 0.05, y: H * 0.15 + (76 - 56) }
         }
     }
@@ -70,7 +66,7 @@ export class Renderer {
         }
     }
 
-    // === 修正：偵測玩家手牌變化 ===
+    // === 偵測玩家手牌變化 ===
     _checkHandChanges() {
         const player = this.gameState.players[0];
         const currentLen = player.tepai.length;
@@ -79,8 +75,7 @@ export class Renderer {
 
         if (validPhases.includes(this.gameState.phase) && currentLen > this.lastHandLength) {
             const diff = currentLen - this.lastHandLength;
-            
-            // ★ FIX: 發牌階段不計算摸牌間隙，避免動畫跳動
+            // 發牌階段不計算摸牌間隙，避免動畫跳動
             const isDrawState = !isDealing && (currentLen % 3 === 2);
 
             for (let i = 0; i < diff; i++) {
@@ -112,7 +107,7 @@ export class Renderer {
         this.lastHandLength = currentLen;
     }
 
-    // === 修正：偵測 COM 手牌變化 ===
+    // === 偵測 COM 手牌變化 ===
     _checkComHandChanges() {
         const com = this.gameState.players[1];
         const currentLen = com.tepai.length;
@@ -122,7 +117,7 @@ export class Renderer {
         if (validPhases.includes(this.gameState.phase) && currentLen > this.lastComHandLength) {
             const diff = currentLen - this.lastComHandLength;
             
-            // ★ FIX: 發牌階段忽略間隙
+            // 發牌階段忽略間隙
             const isDrawState = !isDealing && (currentLen % 3 === 2);
             
             for (let i = 0; i < diff; i++) {
@@ -130,13 +125,11 @@ export class Renderer {
                 const zone = this.ZONES.comHand;
                 const w = 48;
 
-                let targetX;
+                let targetX = zone.x - tileIndex * (w + 2);
                 
                 // 鏡像邏輯：剛摸的那張牌放在最左邊
                 if (isDrawState && tileIndex === currentLen - 1) {
-                    targetX = zone.x - (w + this.drawGap); 
-                } else {
-                    targetX = zone.x + tileIndex * (w + 2);
+                    targetX -= this.drawGap; 
                 }
 
                 this.animations.push({
@@ -147,7 +140,7 @@ export class Renderer {
                     x: targetX,
                     y: zone.y,
                     startX: targetX,
-                    startY: zone.y - 150,
+                    startY: zone.y + 150,
                     startTime: performance.now(),
                     duration: 400
                 });
@@ -265,17 +258,15 @@ export class Renderer {
             const isAnimating = this.animations.some(anim => anim.isCom && anim.index === i);
             if (isAnimating) continue;
 
-            let x;
+            let x = zone.x - i * (w + 2);
             if (isDrawState && i === com.tepai.length - 1) {
-                 x = zone.x - (w + this.drawGap); // 摸牌在最左
-            } else {
-                 x = zone.x + i * (w + 2);
+                 x -= this.drawGap;
             }
             this.drawTile(-1, x, zone.y, w, h, { faceDown: true });
         }
     }
 
-    // ★★★ 重寫：COM 副露 (從左向右 - 鏡像) ★★★
+    // COM 副露
     _drawComMelds() {
         const com = this.gameState.players[1];
         const melds = com.fulu;
