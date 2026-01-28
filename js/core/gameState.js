@@ -123,12 +123,18 @@ export class GameState {
     dealOneTile() {
        if (this.phase !== "DEALING") return;
        
+       // 防呆：如果牌山沒了，直接強制結束
+       if (this.yama.length === 0) {
+           this.finishDealing();
+           return;
+       }
+
        const ds = this.dealState;
        const player = this.players[ds.currentPlayer];
        const tile = this.yama.pop();
        player.tepai.push(tile);
 
-       // 通知 Renderer：這是一張「發牌動畫」
+       // 通知 Renderer (動畫用)
        this.lastAction = {
           type: "deal",
           player: ds.currentPlayer,
@@ -137,27 +143,28 @@ export class GameState {
 
        ds.tilesLeftInBatch--;
 
-       // 當前這手（4張或1張）抓完了
+       // ★★★ 關鍵修正：只有當這一批次 (4張或1張) 歸零時，才切換玩家與重置數量 ★★★
        if (ds.tilesLeftInBatch === 0) {
-           // 切換下一個玩家
+           // 1. 切換下一個玩家
            const nextPlayer = (ds.currentPlayer + 1) % 2;
 
-           // 如果剛才抓完的是子家，代表一輪結束
+           // 2. 如果剛才那個玩家是子家 (代表一輪結束)，Round + 1
            if (ds.currentPlayer !== this.parentIndex) {
                ds.round++;
            }
            
            ds.currentPlayer = nextPlayer;
-       }
-       
-       // 判定下一手要抓幾張
-       if (ds.round < 3) {
-           ds.tilesLeftInBatch = 4; // 前三輪抓 4 張
-       } else if (ds.round === 3) {
-           ds.tilesLeftInBatch = 1; // 最後一輪抓 1 張
-       } else {
-           // ds.round === 4，代表 13 張都發完了
-           this.finishDealing();
+
+           // 3. 判定下一手要抓幾張 (寫在裡面才對！)
+           if (ds.round < 3) {
+               ds.tilesLeftInBatch = 4; // 前三輪抓 4 張
+           } else if (ds.round === 3) {
+               ds.tilesLeftInBatch = 1; // 最後一輪抓 1 張
+           } else {
+               // ds.round === 4，代表 13 張都發完了
+               this.finishDealing();
+               return; // 結束
+           }
        }
     }
 
