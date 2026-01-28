@@ -657,17 +657,19 @@ export class GameState {
     _buildWinContext(playerIndex, winType, winTile) {
         const player = this.players[playerIndex];
         const waits = player.isReach ? player.riichiWaitSet : this.logic.getWaitTiles(player.tepai);
+        const isTenhou = ctx.tenhou === true;
 
         return {
             winType,
             winTile,
+            isTenhou,
             tiles: winType === "tsumo" ? [...player.tepai] : [...player.tepai, winTile],
             ...this.roundContext,
             waits,
             ippatsu: this.actionContext.ippatsuActive && !this.actionContext.ippatsuBroken,
             rinshan: this.actionContext.isAfterKan,
             riichi: player.isReach,
-            isParent: player.isParent
+            isParent: player.isParent,
         };
     }
 
