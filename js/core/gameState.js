@@ -50,7 +50,7 @@ export class GameState {
         this.parentIndex = 0;
 
         // 核心狀態 Phase
-        // INIT | DEALING | DRAW 
+        // INIT | DEALING | DEAL_FLIP | DRAW 
         // PLAYER_DECISION (Root層) | ANKAN_SELECTION (槓層) | RIICHI_DECLARATION (立直層)
         // DISCARD_ONLY (只能切牌)
         // REACTION_DECISION (回應層) | ROUND_END
@@ -86,9 +86,7 @@ export class GameState {
         // 建立牌山：索子 1s~9s 各 4 張 (共 36 張)
         this.yama = [];
         for (let tile = 0; tile <= 8; tile++) {
-            for (let i = 0; i < 4; i++) {
-                this.yama.push(tile);
-            }
+            for (let i = 0; i < 4; i++) this.yama.push(tile) ;
         }
         this._shuffle(this.yama);
 
@@ -96,7 +94,7 @@ export class GameState {
         this.phase = "DEALING";
         this.dealState = {
             round: 0,
-            currentPlayer: 0,
+            currentPlayer: parentIndex,
             tilesLeftInBatch: 4
         };
 
@@ -104,33 +102,14 @@ export class GameState {
            p.tepai = [];
            p.handFaceDown = false; // 發牌時是正面
         });
-
-        // 2. 莊家摸第 14 張
-        const parent = this.players[parentIndex];
-        const firstTsumo = this.yama.pop();
-        parent.tepai.push(firstTsumo);
-
-        this.turn = parentIndex;
-        this.lastDiscard = null;
-        this._resetRoundContext();
-        this._resetActionContext();
-
-        console.log(`=== 新局開始 (親: ${parentIndex === 0 ? '玩家' : 'COM'}) ===`);
-
-        // 決定初始階段
-        if (this.turn === 0) {
-            this.phase = "PLAYER_DECISION";
-        } else {
-            // COM 行動
-            this.phase = "PLAYER_DECISION";
-            setTimeout(() => this._handleComTurn(), 500);
-        }
+        console.log(`=== 配牌開始 (親: ${this.parentIndex}) ===`);
     }
 
     dealOneTile() {
+       if (this.phase !== "DEALING") return;
+       
        const ds = this.dealState;
        const player = this.players[ds.currentPlayer];
-
        const tile = this.yama.pop();
        player.tepai.push(tile);
 
@@ -142,46 +121,58 @@ export class GameState {
        };
 
        ds.tilesLeftInBatch--;
-       
-       // 一手抓完
+
+       // 當前這手（4張或1張）抓完了
        if (ds.tilesLeftInBatch === 0) {
-           if (ds.round < 3) {
-               // 換人
-               ds.currentPlayer ^= 1;
-               ds.tilesLeftInBatch = 4;
-             
-               if (ds.currentPlayer === 0) {
-                   ds.round++;
-               }
-           } else {
-              // 最後一輪（第 13 張）
-              if (ds.currentPlayer === 0) {
-                  ds.currentPlayer = 1;
-                  ds.tilesLeftInBatch = 1;
-              } else {
-                  // 發牌完成
-                  this.finishDealing();
-              }
+           // 切換下一個玩家
+           const nextPlayer = (ds.currentPlayer + 1) % 2;
+
+           // 如果剛才抓完的是子家，代表一輪結束
+           if (ds.currentPlayer !== this.parentIndex) {
+               ds.round++;
            }
+           
+           ds.currentPlayer = nextPlayer;
+       }
+       
+       // 判定下一手要抓幾張
+       if (ds.round < 3) {
+           ds.tilesLeftInBatch = 4; // 前三輪抓 4 張
+       } else if (ds.round === 3) {
+           ds.tilesLeftInBatch = 1; // 最後一輪抓 1 張
+       } else {
+           // ds.round === 4，代表 13 張都發完了
+           this.finishDealing();
        }
     }
 
     finishDealing() {
-       this.phase = "DEAL_FLIP"; // 翻牌階段
-       this.players.forEach(p => {
-          p.handFaceDown = true;
-       });
+       this.phase = "DEAL_FLIP"; 
+       console.log("配牌完畢，蓋牌整理...");
+       
+       // 模擬蓋牌
+       this.players.forEach(p => p.handFaceDown = true);
+       
+       // 延遲一秒後自動進入開牌整理（這部分通常由 UI 監聽 phase 變化來做動畫）
+       setTimeout(() => this.startFirstTurn(), 1000);
     }
-
+   
     startFirstTurn() {
+       console.log("開牌！親家摸牌");
        this.players.forEach(p => {
           p.handFaceDown = false;
-          p.tepai.sort(...); // 整理牌
+          p.tepai.sort((a, b) => a - b); // 整理手牌
        });
        
+       // 輪到莊家
+       this.turn = this.parentIndex;
+       
+       // 莊家摸第 14 張 (真正的摸牌動畫)
        this.phase = "DRAW";
-       this.turn = 0; // 親
-       this.drawTile(0); // 這裡就是你原本的摸牌動畫
+       this._draw(this.turn); 
+       
+       // 摸完後才進入決策階段
+       this.phase = "PLAYER_DECISION";
     }
 
     /* ======================
