@@ -415,7 +415,6 @@ function checkPinfu(pattern, ctx) {
     if (pattern.mentsu.some(m => m.type !== "shuntsu")) return null;
 
     const winTile = ctx.winTile;
-    if (pattern.pair === winTile) return null;
 
     // 檢查所有的順子，看看哪一組是用 winTile 完成的，並且是否為兩面聽
     const hasRyanmenWait = pattern.mentsu.some(m => {
