@@ -174,48 +174,55 @@ export class Renderer {
         const ctx = this.ctx;
         const state = this.gameState;
         
-        // 取得螢幕中心點
+        // 1. 取得螢幕中心
         const cx = this.canvas.width / 2;
         const cy = this.canvas.height / 2;
 
-        //設定資訊框的大小
-        const boxWidth = 240;
-        const boxHeight = 110;
+        // 2. 定義資訊框大小
+        const boxWidth = 260;
+        const boxHeight = 120;
         const x = cx - boxWidth / 2;
         const y = cy - boxHeight / 2;
 
-        // === 1. 繪製半透明背景 ===
-        ctx.fillStyle = "rgba(0, 0, 0, 0.65)"; // 深色半透明背景
+        // === 畫背景 (半透明黑底 + 細邊框) ===
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)"; 
         ctx.fillRect(x, y, boxWidth, boxHeight);
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.2)"; 
+        
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
         ctx.lineWidth = 1;
         ctx.strokeRect(x, y, boxWidth, boxHeight);
 
-        // === 2. 準備文字資料 ===
-        // 判斷親家 (莊家) 是誰，預設 0 是玩家
-        const dealerIdx = (state.dealerIndex !== undefined) ? state.dealerIndex : 0;
+        const parentIdx = state.parentIndex; 
         
-        const playerRole = (dealerIdx === 0) ? "[親]" : "[子]";
-        const comRole    = (dealerIdx === 1) ? "[親]" : "[子]";
+        // 判斷親/子稱號
+        const p0Role = (parentIdx === 0) ? "[親]" : "[子]"; // 玩家
+        const p1Role = (parentIdx === 1) ? "[親]" : "[子]"; // COM
 
-        // === 3. 繪製文字 (置中對齊) ===
+        // 取得分數
+        const p0Score = state.players[0].points;
+        const p1Score = state.players[1].points;
+        
+        // 取得餘牌
+        const yamaCount = state.yama.length;
+
+        // === 畫文字 (置中) ===
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
+
+        // 上行：COM 資訊
         ctx.font = "bold 20px sans-serif";
-
-        // 上行：COM
         ctx.fillStyle = "#ffffff";
-        ctx.fillText(`${comRole} COM：${state.players[1].points} 點`, cx, cy - 30);
+        ctx.fillText(`${p1Role} COM：${p1Score}`, cx, cy - 35);
 
-        // 中行：餘牌 (用黃色凸顯)
+        // 中行：餘牌 (黃色高亮)
+        ctx.font = "bold 24px sans-serif";
         ctx.fillStyle = "#ffcc00"; 
-        ctx.font = "bold 22px sans-serif";
-        ctx.fillText(`余：${state.yama.length} 張`, cx, cy);
+        ctx.fillText(`余：${yamaCount} 張`, cx, cy + 2);
 
-        // 下行：玩家
-        ctx.fillStyle = "#ffffff";
+        // 下行：玩家資訊
         ctx.font = "bold 20px sans-serif";
-        ctx.fillText(`${playerRole} 玩家：${state.players[0].points} 點`, cx, cy + 30);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(`${p0Role} 玩家：${p0Score}`, cx, cy + 40);
     }
 
     /* ======================
