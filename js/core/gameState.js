@@ -511,21 +511,15 @@ export class GameState {
        
         const player = this.players[playerIndex];
         const yamaLeft = this.yama.length;
+        
+        // 確保沒人鳴牌
         const noCalls = this.players.every(p => p.fulu.length === 0);
 
-        let isDouble = false;
+        // 判斷是否符合「親家9張」或「子家8張」
+        const isFirstTurn = (player.isParent && yamaLeft === 9) || 
+                            (!player.isParent && yamaLeft === 8);
 
-        if (noCalls) {
-            // 親家：牌山剩 9 張時立直
-            if (player.isParent && yamaLeft === 9) {
-                this.roundContext.doubleRiichi = true;
-            }
-            // 子家：牌山剩 8 張時立直
-            else if (!player.isParent && yamaLeft === 8) {
-                this.roundContext.doubleRiichi = true;
-            }
-        }
-        this.actionContext.pendingDoubleRiichi = isDouble;
+        this.actionContext.pendingDoubleRiichi = noCalls && isFirstTurn;
     }
 
     _handleAnkan(playerIndex, tile) {
