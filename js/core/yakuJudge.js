@@ -381,59 +381,31 @@ function checkTanyao(pattern) {
     return { name: "斷么九", han: 1 };
 }
 
-
-/* ===== 平和（Pinfu）判定相關 ===== */
-
-function isTankiWait(pattern, winTile) {
-    const usedInShuntsu = pattern.mentsu.some(m =>
-        m.type === "shuntsu" &&
-        m.tiles.includes(winTile)
-    );
-
-    const usedInKoutsu = pattern.mentsu.some(m =>
-        m.type === "koutsu" &&
-        m.tile === winTile
-    );
-
-    return !usedInShuntsu && !usedInKoutsu;
-}
-
-function isEdgeWait(pattern, winTile) {
-    return pattern.mentsu.some(m =>
-        m.type === "shuntsu" &&
-        ((m.tiles[0] === 0 && winTile === 2) || (m.tiles[0] === 6 && winTile === 6))
-    );
-}
-
-function isClosedWait(pattern, winTile) {
-    return pattern.mentsu.some(m =>
-        m.type === "shuntsu" &&
-        m.tiles[1] === winTile
-    );
-}
-
-function isRyanmenWait(pattern, winTile) {
-    return pattern.mentsu.some(m =>
-        m.type === "shuntsu" &&
-        (
-            m.tiles[0] === winTile ||
-            m.tiles[2] === winTile
-        )
-    );
-}
-
 function checkPinfu(pattern, ctx) {
     if (pattern.type !== "standard") return null;
-
-    // 全順子
     if (pattern.mentsu.some(m => m.type !== "shuntsu")) return null;
 
     const winTile = ctx.winTile;
+    if (pattern.pair === winTile) return null;
 
-    if (isTankiWait(pattern, winTile)) return null;
-    if (isEdgeWait(pattern, winTile)) return null;
-    if (isClosedWait(pattern, winTile)) return null;
-    if (!isRyanmenWait(pattern, winTile)) return null;
+    // 檢查所有的順子，看看哪一組是用 winTile 完成的，並且是否為兩面聽
+    const hasRyanmenWait = pattern.mentsu.some(m => {
+
+        if (m.type !== "shuntsu") return false;
+        
+        const [t1, t2, t3] = m.tiles;
+
+        if (t2 === winTile) return false;
+        if (t3 === winTile && t1 === 0) return false;
+        if (t1 === winTile && t3 === 8) return false;
+        if (t1 === winTile || t3 === winTile) {
+            return true;
+        }
+
+        return false;
+    });
+
+    if (!hasRyanmenWait) return null;
 
     return { name: "平和", han: 1 };
 }
