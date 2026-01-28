@@ -34,11 +34,11 @@ export class Renderer {
         const H = this.canvas.height;
 
         this.ZONES = {
-            playerHand: { x: W * 0.10, y: H * 0.75 },
+            playerHand: { x: W * 0.10, y: H * 0.88 },
             playerRiver: { x: W * 0.31, y: H * 0.60, cols: 6 },
-            playerMeld: { x: W * 0.95, y: H * 0.85 + (76 - 56) }, 
+            playerMeld: { x: W * 0.95, y: H * 0.88 + (76 - 56) }, 
 
-            comHand: { x: W * 0.90, y: H * 0.15 },            
+            comHand: { x: W * 0.82, y: H * 0.15 },            
             comRiver: { x: W * 0.31, y: H * 0.40, cols: 6 },
             comMeld: { x: W * 0.05, y: H * 0.15 + (76 - 56) }
         }
@@ -173,15 +173,49 @@ export class Renderer {
     drawInfo() {
         const ctx = this.ctx;
         const state = this.gameState;
-        ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-        ctx.textAlign = "left";
-        ctx.textBaseline = "top";
-        ctx.font = "bold 28px sans-serif";
-        ctx.fillText(`余：${this.gameState.yama.length}`, 20, 160);
+        
+        // 取得螢幕中心點
+        const cx = this.canvas.width / 2;
+        const cy = this.canvas.height / 2;
 
-        ctx.font = "24px sans-serif";
-        ctx.fillText(`玩 家：${state.players[0].points}`, 20, 210);
-        ctx.fillText(`COM：${state.players[1].points}`, 20, 240);
+        //設定資訊框的大小
+        const boxWidth = 240;
+        const boxHeight = 110;
+        const x = cx - boxWidth / 2;
+        const y = cy - boxHeight / 2;
+
+        // === 1. 繪製半透明背景 ===
+        ctx.fillStyle = "rgba(0, 0, 0, 0.65)"; // 深色半透明背景
+        ctx.fillRect(x, y, boxWidth, boxHeight);
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.2)"; 
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, boxWidth, boxHeight);
+
+        // === 2. 準備文字資料 ===
+        // 判斷親家 (莊家) 是誰，預設 0 是玩家
+        const dealerIdx = (state.dealerIndex !== undefined) ? state.dealerIndex : 0;
+        
+        const playerRole = (dealerIdx === 0) ? "[親]" : "[子]";
+        const comRole    = (dealerIdx === 1) ? "[親]" : "[子]";
+
+        // === 3. 繪製文字 (置中對齊) ===
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = "bold 20px sans-serif";
+
+        // 上行：COM
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(`${comRole} COM：${state.players[1].points} 點`, cx, cy - 30);
+
+        // 中行：餘牌 (用黃色凸顯)
+        ctx.fillStyle = "#ffcc00"; 
+        ctx.font = "bold 22px sans-serif";
+        ctx.fillText(`余：${state.yama.length} 張`, cx, cy);
+
+        // 下行：玩家
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 20px sans-serif";
+        ctx.fillText(`${playerRole} 玩家：${state.players[0].points} 點`, cx, cy + 30);
     }
 
     /* ======================
