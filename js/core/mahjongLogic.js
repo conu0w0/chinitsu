@@ -40,7 +40,7 @@ export class MahjongLogic {
 
         // 3. 七對子檢查 
         // 嚴格限制：必須是「門清」狀態，也就是手牌必須滿 14 張 (無任何槓)
-        if (len === 14 && this._isSevenPairs(counts)) {
+        if (len === 14 && this._isChiitoi(counts)) {
             return true;
         }
 
@@ -154,7 +154,7 @@ export class MahjongLogic {
         return true;
     }
 
-    _isSevenPairs(counts) {
+    _isChiitoi(counts) {
         let pairs = 0;
         for (let i = 0; i <= 8; i++) {
             if (counts[i] === 2) pairs++;
