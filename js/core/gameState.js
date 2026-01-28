@@ -266,13 +266,20 @@ export class GameState {
                     // 立直 -> 進入立直宣言層
                     if (type === "RIICHI") {
                         this.phase = "RIICHI_DECLARATION";
-                        // 註：此時還未扣點，也未正式立直，等待切牌確認
+                        // 註：此時未正式立直，等待切牌確認
                         return;
                     }
 
                     // 取消 -> 鎖定為只能切牌
                     if (type === "CANCEL") {
-                        this.phase = "DISCARD_ONLY";
+                        // 立直狀態：自動摸切
+                        if (player.isReach) {
+                            const drawnTileIndex = player.tepai.length - 1;
+                            this.playerDiscard(playerIndex, drawnTileIndex);
+                        } else {
+                            // 非立直狀態：鎖定為只能切牌 (隱藏按鈕，讓玩家自己選牌切出)
+                            this.phase = "DISCARD_ONLY";
+                        }
                         return;
                     }
                     return;
