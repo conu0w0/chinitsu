@@ -171,10 +171,10 @@ export class Renderer {
         this.ctx.textBaseline = "top";
         
         this.ctx.font = "bold 28px sans-serif";
-        this.ctx.fillText(`余: ${this.gameState.yama.length}`, 20, 160);
+        this.ctx.fillText(`余：${this.gameState.yama.length}`, 20, 160);
 
         ctx.font = "24px sans-serif";
-        ctx.fillText(`玩家：${state.players[0].points}`, 20, 210);
+        ctx.fillText(`玩 家：${state.players[0].points}`, 20, 210);
         ctx.fillText(`COM：${state.players[1].points}`, 20, 240);
     }
 
