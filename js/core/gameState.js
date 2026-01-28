@@ -78,6 +78,9 @@ export class GameState {
         this.lastResult = null;
         this.parentIndex = parentIndex;
 
+        this._resetRoundContext();
+        this._resetActionContext();
+
         this.players.forEach((p, i) => {
             p.resetHand();
             p.isParent = (i === parentIndex);
@@ -478,9 +481,15 @@ export class GameState {
         const player = this.players[playerIndex];
         player.tepai.push(tile);
 
-        const afterKan = this.actionContext.isAfterKan;
+        const savedAfterKan = this.actionContext.isAfterKan;
+        const savedIppatsuActive = this.actionContext.ippatsuActive;
+        const savedIppatsuBroken = this.actionContext.ippatsuBroken;
+       
         this._resetActionContext();
-        if (afterKan) this.actionContext.isAfterKan = true; // 嶺上
+       
+        if (savedAfterKan) this.actionContext.isAfterKan = true; // 嶺上
+        this.actionContext.ippatsuActive = savedIppatsuActive; // 還原一發狀態
+        this.actionContext.ippatsuBroken = savedIppatsuBroken; // 還原一發是否中斷
 
         this.phase = "PLAYER_DECISION";
         console.log(`${player.name} 摸牌: ${playerIndex === 0 ? `${tile + 1}s` : '??'}`);
