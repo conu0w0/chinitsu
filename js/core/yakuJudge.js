@@ -19,9 +19,9 @@ export function decomposeHand(tiles, ankanTiles = []) {
             results.push({ ...sevenPairs, counts: [...originalCounts] });
         }
 
-        const nineGates = checkNineGates(countsAfterKan);
-        if (nineGates) {
-            results.push({ ...nineGates, counts: [...originalCounts] });
+        const kyuuren = checkKyuuren(countsAfterKan);
+        if (kyuuren) {
+            results.push({ ...kyuuren, counts: [...originalCounts] });
         }
     }
 
@@ -46,7 +46,7 @@ function toCounts(tiles) {
    七對子
    ====================== */
 
-function checkSevenPairs(counts) {
+function checkChiitoi(counts) {
     let pairCount = 0;
     for (let i = 0; i <= 8; i++) {
         if (counts[i] === 2) pairCount++;
@@ -55,7 +55,7 @@ function checkSevenPairs(counts) {
     if (pairCount !== 7) return null;
 
     return {
-        type: "sevenPairs",
+        type: "chiitoi",
         pair: null,
         mentsu: [],
         meta: {}
@@ -66,7 +66,7 @@ function checkSevenPairs(counts) {
    九蓮寶燈
    ====================== */
 
-function checkNineGates(counts) {
+function checkKyuuren(counts) {
     // 1112345678999 + 任一張
     if (counts[0] < 3 || counts[8] < 3) return null;
     for (let i = 1; i <= 7; i++) {
@@ -76,7 +76,7 @@ function checkNineGates(counts) {
     if (counts.reduce((a, b) => a + b, 0) !== 14) return null;
 
     return {
-        type: "nineGates",
+        type: "kyuuren",
         pair: null,
         mentsu: [],
         meta: {}
@@ -176,28 +176,6 @@ export function checkYakuman(pattern, ctx) {
     return { yakumanRank: rank, yakus };
 }
 
-function checkNineGatesYakuman(pattern) {
-    return pattern.type === "nineGates"
-        ? { name: "九蓮寶燈", rank: 1 }
-        : null;
-}
-
-/**
- * 純正九蓮寶燈（九面聽）
- * 依照日麻定義：
- * - 和牌前必須是 9 面聽
- */
-function checkPureNineGates(pattern, ctx) {
-    if (pattern.type !== "nineGates") return null;
-    if (!ctx.waits) return null;
-
-    return ctx.waits.size === 9
-        ? { name: "純正九蓮寶燈", rank: 2 }
-        : null;
-}
-
-/* === 其他役滿（原樣保留） === */
-
 function checkTenhou(_, ctx) {
     return ctx.tenhou ? { name: "天和", rank: 1 } : null;
 }
@@ -210,7 +188,88 @@ function checkRenhou(_, ctx) {
     return ctx.renhou ? { name: "人和", rank: 1 } : null;
 }
 
-function checkFourConcealedTriplesTanki(pattern, ctx) {
+function checkIshigamiSannen(_, ctx) {
+    if (!ctx.doubleRiichi) return null;
+
+    if (ctx.haitei || ctx.houtei) {
+        return { name: "石上三年", rank: 1 };
+    }
+
+    return null;
+}
+
+function checkPureChuuren(pattern) {
+    if (pattern.type !== "kyuuren") return null;
+
+    const c = pattern.counts;
+
+    if (c[0] !== 3) return null;
+    if (c[8] !== 3) return null;
+
+    for (let i = 1; i <= 7; i++) {
+        if (c[i] !== 1) return null;
+    }
+
+    return { name: "純正九蓮寶燈", rank: 2 };
+}
+
+function checkChuurenpoutou(pattern) {
+    return pattern.type === "kyuuren"
+        ? { name: "九蓮寶燈", rank: 1 }
+        : null;
+}
+
+function checkRyuuiisou(pattern) {
+    // 綠一色只檢查牌組，不看 ctx
+    const GREEN_TILES = new Set([1, 2, 3, 5, 7]); // 2,3,4,6,8 索
+
+    // 檢查整個牌型的 counts
+    for (let i = 0; i <= 8; i++) {
+        if (pattern.counts[i] > 0 && !GREEN_TILES.has(i)) {
+            return null;
+        }
+    }
+
+    return { name: "綠一色", rank: 1 };
+}
+
+function checkDaichikurin(pattern) {
+    if (pattern.type !== "sevenPairs") return null;
+
+    const total = pattern.counts.reduce((a, b) => a + b, 0);
+    if (total !== 14) return null;
+
+    for (let i = 1; i <= 7; i++) {   // index 1~7 = 2s~8s
+        if (pattern.counts[i] !== 2) return null;
+    }
+   
+    if (pattern.counts[0] !== 0) return null;
+    if (pattern.counts[8] !== 0) return null;
+
+    return { name: "大竹林", rank: 1 };
+}
+
+function checkGoldenGateBridge(pattern) {
+    // 只可能是一般型
+    if (pattern.type !== "standard") return null;
+
+    // 必須剛好 4 組順子
+    const shuntsu = pattern.mentsu.filter(m => m.type === "shuntsu");
+    if (shuntsu.length !== 4) return null;
+
+    // 抓出每組順子的起始牌
+    const starts = shuntsu.map(m => m.tiles[0]).sort((a, b) => a - b);
+
+    // 必須完全等於 [0, 2, 4, 6]
+    const required = [0, 2, 4, 6];
+    for (let i = 0; i < 4; i++) {
+        if (starts[i] !== required[i]) return null;
+    }
+
+    return { name: "金門橋", rank: 1 };
+}
+
+function checkSuuankouTanki(pattern, ctx) {
     if (pattern.type !== "standard") return null;
    
     const k = pattern.mentsu.filter(m => m.type === "koutsu").length;
@@ -221,7 +280,7 @@ function checkFourConcealedTriplesTanki(pattern, ctx) {
         : null;
 }
 
-function checkFourConcealedTriples(pattern, ctx) {
+function checkSuuankou(pattern, ctx) {
     if (pattern.type !== "standard") return null;
    
     const k = pattern.mentsu.filter(m => m.type === "koutsu").length;
@@ -233,7 +292,7 @@ function checkFourConcealedTriples(pattern, ctx) {
     return null;
 }
 
-function checkFourKans(pattern) {
+function checkSuukantsu(pattern) {
     const k = pattern.mentsu.filter(m => m.type === "ankan").length;
     return k === 4 ? { name: "四槓子", rank: 1 } : null;
 }
@@ -242,18 +301,19 @@ const YAKUMAN_GROUPS = [
     [checkTenhou],
     [checkChiihou],
     [checkRenhou],
-    [checkPureNineGates, checkNineGatesYakuman],
-    [checkFourConcealedTriplesTanki, checkFourConcealedTriples],
-    [checkFourKans]
+    [checkIshigamiSannen],
+    [checkKyuurenKyuumenMachi, checkChuurenpoutou],
+    [checkRyuuiisou],
+    [checkDaichikurin],
+    [checkGoldenGateBridge],
+    [checkSuuankouTanki, checkSuuankou],
+    [checkSuukantsu],
+    
 ];
 
 /* ======================
    其餘役種、符數
    ====================== */
-
-/**
- * 普通役種
- */
 
 export function checkNormalYakus(pattern, ctx) {
     const yakus = [];
@@ -464,8 +524,8 @@ function checkSankantsu(pattern) {
     return k === 3 ? { name: "三槓子", han: 2 } : null;
 }
 
-function checkChiitoitsu(pattern) {
-    return pattern.type === "sevenPairs"
+function checkChiitoi(pattern) {
+    return pattern.type === "chiitoi"
         ? { name: "七對子", han: 2 }
         : null;
 }
@@ -525,7 +585,7 @@ const EXTRA_YAKUS = [
     checkIttsuu,
     checkSanankou,
     checkSankantsu,
-    checkChiitoitsu,
+    checkChiitoi,
     checkJunchan
 ];
 
