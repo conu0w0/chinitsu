@@ -108,7 +108,7 @@ class MahjongGame {
         this.input = new InputHandler(this.canvas, this.state, this.renderer);
 
         // 初始化第一局
-        this.state.initKyoku(0);
+        this.state.startGame();
 
         this.loop();
         
