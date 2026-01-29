@@ -212,11 +212,18 @@ export class GameState {
         });
 
         // 建立牌山：索子 1s~9s 各 4 張 (共 36 張)
-        this.yama = [];
-        for (let tile = 0; tile <= 8; tile++) {
-            for (let i = 0; i < 4; i++) this.yama.push(tile) ;
+        const cheat = window.TEST_CONFIG;
+       
+        if (cheat && cheat.enabled) {
+            this._createRiggedYama(cheat.playerHand, cheat.comHand, cheat.nextDraws);
+        } else {
+            // 正常隨機
+            this.yama = [];
+            for (let tile = 0; tile <= 8; tile++) {
+                for (let i = 0; i < 4; i++) this.yama.push(tile);
+            }
+            this._shuffle(this.yama);
         }
-        this._shuffle(this.yama);
 
         // 1. 發牌 (13張)
         this.phase = "DEALING";
