@@ -735,7 +735,7 @@ export class Renderer {
 
                 // 4. 副標題：幾翻幾符
                 if (!isYakuman) {
-                    ctx.font = "32px ${this.fontFamily}`;
+                    ctx.font = `32px ${this.fontFamily}`;
                     ctx.fillStyle = "#fffacd"; 
                     ctx.fillText(`${han}飜 ${fu}符  ${scoreTotal}`, CX, H * 0.44);
                 } 
@@ -835,7 +835,7 @@ export class Renderer {
 
         // 文字標示
         this.ctx.fillStyle = highlightColor;
-        this.ctx.font = `bold 18px ${this.fontFamily}`;
+        this.ctx.font = `bold 18px ;
         this.ctx.textAlign = "center";
         
         // 根據是否在手裡，顯示不同文字
@@ -882,12 +882,12 @@ export class Renderer {
         const ctx = this.ctx;
         
         // 標題
-        ctx.font = `24px ${this.fontFamily}`;
+        ctx.font = `24px ;
         ctx.fillStyle = "#aaaaaa";
         ctx.fillText(labelText, centerX, startY);
 
         if (!waitTiles || waitTiles.length === 0) {
-            ctx.font = `20px ${this.fontFamily}`;
+            ctx.font = `20px ;
             ctx.fillStyle = "#888";
             ctx.fillText("未聽牌", centerX, startY + 40);
             return;
