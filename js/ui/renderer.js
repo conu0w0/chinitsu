@@ -849,3 +849,4 @@ export class Renderer {
             startX += tileW + gap;
         });
     }
+}
