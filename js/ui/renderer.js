@@ -690,7 +690,7 @@ export class Renderer {
             // 1. 標題：本局結束
             ctx.fillStyle = "#ffffff";
             ctx.font = "bold 64px sans-serif";
-            ctx.fillText("本局結束", CX, H * 0.28); 
+            ctx.fillText("本局結束", CX, H * 0.15); 
 
             if (result.score) {
                 const han = result.best.han;
@@ -699,29 +699,34 @@ export class Renderer {
 
                 // === 自動計算稱號 (滿貫~役滿) ===
                 // 先判斷是否為「累計役滿」(13翻以上)
-                if (han >= 13) {
-                    limitName = "累計役滿";
-                } 
+                if (han >= 13)      limitName = "累計役滿"; 
                 else if (han >= 11) limitName = "三倍滿";
                 else if (han >= 8)  limitName = "倍滿";
                 else if (han >= 6)  limitName = "跳滿";
                 const titleName = result.score.display || limitName;
                 const finalTitle = titleName ? titleName : `${result.score.total}`;
 
+                const backendDisplay = result.score.display || "";
+                let finalTitle = "";
+
+                if (backendDisplay.includes("役滿")) {
+                    finalTitle = backendDisplay;
+                } else if (limitName) {
+                    finalTitle = limitName;
+                } else {
+                    finalTitle = backendDisplay || `${scoreTotal}`;
+                }
+
                 // 2. 繪製分數主標題
                 ctx.font = "bold 80px sans-serif";
                 ctx.fillStyle = "#ffcc00"; // 金色
-                ctx.fillText(finalTitle, CX, H * 0.35);
+                ctx.fillText(finalTitle, CX, H * 0.25);
                 
-                // === 判斷是否隱藏 飜/符 (役滿不顯示) ===
-                // 只要標題裡包含 "役滿" 兩個字，就當作是役滿
-                const isYakuman = finalTitle.includes("役滿");
-
                 if (!isYakuman) {
                     // 3. 副標題：幾翻幾符 (只有非役滿才顯示)
                     ctx.font = "32px sans-serif";
                     ctx.fillStyle = "#fffacd"; // 檸檬綢色
-                    ctx.fillText(`${han}飜 ${fu}符  ${result.score.total}`, CX, H * 0.42);
+                    ctx.fillText(`${han}飜 ${fu}符  ${result.score.total}`, CX, H * 0.34);
                 } 
 
                 // 4. 身分與方式 (位置微調)
