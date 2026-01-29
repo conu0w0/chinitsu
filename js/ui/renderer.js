@@ -9,6 +9,8 @@ export class Renderer {
         this.ctx = canvas.getContext("2d");
         this.gameState = gameState;
         this.assets = assets;
+
+        this.fontFamily = "'M PLUS Rounded 1c', 'Microsoft JhengHei', sans-serif";
         
         // UI 按鈕區域
         this.uiButtons = [];   
@@ -225,17 +227,17 @@ export class Renderer {
         ctx.textBaseline = "middle";
 
         // 上行：COM 資訊
-        ctx.font = "bold 20px sans-serif";
+        ctx.font = `bold 20px ${this.fontFamily}`;
         ctx.fillStyle = "#ffffff";
         ctx.fillText(`${p1Role} COM：${p1Score}`, cx, cy - 35);
 
         // 中行：餘牌 (黃色高亮)
-        ctx.font = "bold 24px sans-serif";
+        ctx.font = `bold 24px ${this.fontFamily}`;
         ctx.fillStyle = "#ffcc00"; 
         ctx.fillText(`余：${yamaCount}`, cx, cy + 2);
 
         // 下行：玩家資訊
-        ctx.font = "bold 20px sans-serif";
+        ctx.font = `bold 20px ${this.fontFamily}`;
         ctx.fillStyle = "#ffffff";
         ctx.fillText(`${p0Role} 玩家：${p0Score}`, cx, cy + 40);
     }
@@ -455,7 +457,7 @@ export class Renderer {
             
             if (!faceDown) {
                 ctx.fillStyle = "#000";
-                ctx.font = "20px sans-serif";
+                ctx.font = `20px ${this.fontFamily}`;
                 ctx.fillText(tileVal, x + 10, y + 40);
             }
         }
@@ -589,7 +591,7 @@ export class Renderer {
             this.drawTile(tileIcon, tileX, tileY, tileW, tileH);
         } else {
             ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 20px sans-serif";
+            ctx.font = `bold 20px ${this.fontFamily}`;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText(text, x + w / 2, y + h / 2);
@@ -619,13 +621,13 @@ export class Renderer {
         if (result.type === "chombo") {
             // 1. 標題
             ctx.fillStyle = "#ff6666";
-            ctx.font = "bold 64px sans-serif";
+            ctx.font = `bold 64px ${this.fontFamily}`;
             ctx.fillText("錯和", CX, H * 0.30);
 
             // 2. 原因
             const reasonText = result.reason || "錯和 / 違規"; 
             ctx.fillStyle = "#ffaaaa"; 
-            ctx.font = "bold 32px sans-serif";
+            ctx.font = `bold 32px ${this.fontFamily}`;
             ctx.fillText(`【 ${reasonText} 】`, CX, H * 0.38);
 
             // 3. 抓取犯規者
@@ -633,7 +635,7 @@ export class Renderer {
             const culprit = this.gameState.players[culpritIndex];
 
             // 4. 顯示身分與罰分
-            ctx.font = "40px sans-serif";
+            ctx.font = `40px ${this.fontFamily}`;
             ctx.fillStyle = "#ffffff";
             const roleText = (culpritIndex === this.gameState.parentIndex) ? "親" : "子";
             const who = (culpritIndex === 0) ? "玩家" : "COM";
@@ -666,7 +668,7 @@ export class Renderer {
 
             // --- 2. 中間 文字區域 ---
             ctx.fillStyle = "#aaddff"; 
-            ctx.font = "bold 64px sans-serif";
+            ctx.font = `bold 64px ${this.fontFamily}`;
             ctx.fillText("荒牌流局", CX, H * 0.50);
 
             // --- 3. 下方 玩家區域 ---
@@ -681,7 +683,7 @@ export class Renderer {
         else {
             // 1. 標題：本局結束
             ctx.fillStyle = "#ffffff";
-            ctx.font = "bold 64px sans-serif";
+            ctx.font = `bold 64px ${this.fontFamily}`;
             ctx.fillText("本局結束", CX, H * 0.18); 
 
             if (result.score) {
@@ -720,12 +722,12 @@ export class Renderer {
                 const winnerName = (winnerIdx === 0) ? "玩家" : "COM";
                 const winMethod = (result.winType === "tsumo") ? "自摸" : "榮和";
                 
-                ctx.font = "bold 42px sans-serif";
+                ctx.font = `bold 42px ${this.fontFamily}`;
                 ctx.fillStyle = "#ffffff";
                 ctx.fillText(`[${roleText}] ${winnerName} ${winMethod}`, CX, H * 0.28);
                 
                 // 3. 分數大標題
-                ctx.font = "bold 80px sans-serif";
+                ctx.font = `bold 80px ${this.fontFamily}`;
                 ctx.fillStyle = "#ffcc00"; 
                 ctx.fillText(finalTitle, CX, H * 0.36);
                 
@@ -733,7 +735,7 @@ export class Renderer {
 
                 // 4. 副標題：幾翻幾符
                 if (!isYakuman) {
-                    ctx.font = "32px sans-serif";
+                    ctx.font = "32px ${this.fontFamily}`;
                     ctx.fillStyle = "#fffacd"; 
                     ctx.fillText(`${han}飜 ${fu}符  ${scoreTotal}`, CX, H * 0.44);
                 } 
@@ -741,7 +743,7 @@ export class Renderer {
                 // 5. 役種列表
                 if (result.score.yakus && result.score.yakus.length > 0) {
                     let y = H * 0.52; 
-                    ctx.font = "30px sans-serif";
+                    ctx.font = `30px ${this.fontFamily}`;
                     ctx.fillStyle = "#dddddd";
                     
                     result.score.yakus.forEach(yaku => {
@@ -756,7 +758,7 @@ export class Renderer {
         }
 
         // 底部提示
-        ctx.font = "24px sans-serif";
+        ctx.font = `24px ${this.fontFamily}`;
         ctx.fillStyle = "#888888";
         ctx.fillText("— 點擊任意處重新開始 —", CX, H * 0.9);
     }
@@ -833,7 +835,7 @@ export class Renderer {
 
         // 文字標示
         this.ctx.fillStyle = highlightColor;
-        this.ctx.font = "bold 18px sans-serif";
+        this.ctx.font = `bold 18px ${this.fontFamily}`;
         this.ctx.textAlign = "center";
         
         // 根據是否在手裡，顯示不同文字
@@ -880,12 +882,12 @@ export class Renderer {
         const ctx = this.ctx;
         
         // 標題
-        ctx.font = "24px sans-serif";
+        ctx.font = `24px ${this.fontFamily}`;
         ctx.fillStyle = "#aaaaaa";
         ctx.fillText(labelText, centerX, startY);
 
         if (!waitTiles || waitTiles.length === 0) {
-            ctx.font = "20px sans-serif";
+            ctx.font = `20px ${this.fontFamily}`;
             ctx.fillStyle = "#888";
             ctx.fillText("未聽牌", centerX, startY + 40);
             return;
