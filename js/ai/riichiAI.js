@@ -9,7 +9,7 @@ export function checkRiichi(player, gameState) {
     if (player.isReach) return false;
     if (player.fulu.length > 0) return false;
 
-    const bestDiscard = getBestDiscard(gameState, player.playerIndex);
+    const bestDiscard = getBestDiscard(gameState, player.id);
 
     const tempHand = [...player.tepai];
     tempHand.splice(bestDiscard.tileIndex, 1);
