@@ -59,6 +59,25 @@ export class Renderer {
             comRiver: { x: riverX, y: comRiverY, cols: 6 },
             comMeld: { x: W * 0.05, y: H * 0.15 + (76 - 56) }
         }
+
+        const YAKU_ORDER = [
+            // === 役滿 / 地方役 ===
+            "天和", "地和", "人和", 
+            "四暗刻", "四暗刻單騎", 
+            "綠一色", "大竹林", 
+            "四槓子", "金門橋", 
+            "九蓮寶燈", "純正九蓮寶燈", 
+            "石上三年",
+            
+            // === 常規役種 ===
+            "立直", "兩立直", "一發", "門前清自摸和", 
+            "燕返", "槓振", "嶺上開花", 
+            "海底摸月", "河底撈魚", 
+            "斷么九", "一盃口", "平和", 
+            "一氣通貫", "三槓子",  
+            "對對和", "三暗刻", "七對子",
+            "純全帶么九", "二盃口", "清一色"
+        ];
     }
 
     /* ======================
@@ -770,27 +789,71 @@ export class Renderer {
 
                 // 5. 役種列表 (從 H * 0.54 開始)
                 if (result.score.yakus && result.score.yakus.length > 0) {
-                    let y = H * 0.54; 
+                    
+                    // A. 排序邏輯：依照 YAKU_ORDER 重新排隊
+                    // 複製一份陣列以免改到原始資料
+                    let sortedYakus = [...result.score.yakus]; 
+                    
+                    sortedYakus.sort((a, b) => {
+                        let indexA = YAKU_ORDER.indexOf(a);
+                        let indexB = YAKU_ORDER.indexOf(b);
+
+                        // 如果役種不在表單內 (例如: 寶牌 Dora)，就給它一個很大的數字排在最後
+                        if (indexA === -1) indexA = 999;
+                        if (indexB === -1) indexB = 999;
+
+                        return indexA - indexB;
+                    });
+
+                    // === B. 繪製參數 ===
+                    const startY = H * 0.54;   
+                    const lineHeight = 45;     
+                    const colWidth = 300;      
+                    const itemsPerCol = 4;
+                    
+                    // 計算總欄數與起始 X (保持整體置中)
+                    const totalCols = Math.ceil(sortedYakus.length / itemsPerCol);
+                    const totalBlockWidth = (totalCols * colWidth);
+                    const startX = CX - (totalBlockWidth / 2) + (colWidth / 2); 
+                    
                     ctx.font = `30px ${this.fontFamily}`;
                     ctx.fillStyle = "#dddddd";
                     
-                    result.score.yakus.forEach(yaku => {
-                        ctx.fillText(yaku, CX, y);
-                        y += 45; 
+                    // 暫時切換成靠左對齊，這樣多欄排列時比較整齊
+                    // 如果你的 colWidth 夠寬，想要置中也可以不用這行
+                    // ctx.textAlign = "left"; 
+
+                    sortedYakus.forEach((yaku, i) => {
+                        // N字型排序算法
+                        const row = i % itemsPerCol;             // 0,1,2,3
+                        const col = Math.floor(i / itemsPerCol); // 0,0,0,0, 1,1...
+
+                        // 計算座標
+                        // 如果有用 ctx.textAlign = "left"，x 座標要減去 colWidth/2 才會準
+                        // 這裡假設維持 center 對齊：
+                        const x = startX + (col * colWidth) - (colWidth * 0.15); // 微調 x 讓文字視覺居中
+                        const y = startY + (row * lineHeight);
+
+                        ctx.fillText(yaku, x, y);
                     });
+
+                    ctx.textAlign = "center"; // 畫完改回來
+
+                    // 6. 繪製手牌：固定畫在 4 行文字的下方 (避免蓋到文字)
+                    const rowsUsed = (sortedYakus.length > 4) ? 4 : sortedYakus.length; 
+                    const handY = startY + (rowsUsed * lineHeight) + 30;
                     
-                    // 6. 繪製手牌 (在列表結束後)
-                    this._drawResultHand(result, CX, y + 40);
+                    this._drawResultHand(result, CX, handY);
                 }
+                
+                // 底部提示
+                ctx.font = `24px ${this.fontFamily}`;
+                ctx.fillStyle = "#888888";
+                ctx.fillText("— 點擊任意處重新開始 —", CX, H * 0.9);
             }
         }
-
-        // 底部提示
-        ctx.font = `24px ${this.fontFamily}`;
-        ctx.fillStyle = "#888888";
-        ctx.fillText("— 點擊任意處重新開始 —", CX, H * 0.9);
     }
-
+    
     // === Helper 1: 繪製結算用手牌 (支援 誤自摸/誤榮和/一般和牌) ===
     _drawResultHand(result, centerX, startY, isChombo = false) {
         // 1. 抓取主角
