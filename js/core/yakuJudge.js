@@ -227,10 +227,11 @@ function checkIshigamiSannen(_, ctx) {
     return null;
 }
 
-function checkKyuurenKyuumenMachi(pattern) {
+function checkKyuurenKyuumenMachi(pattern, ctx) {
     if (pattern.type !== "kyuuren") return null;
 
     const c = [...pattern.counts];
+    const winningTile = ctx.winTile;
 
     if (winningTile !== undefined && winningTile !== null) {
         c[winningTile]--;
