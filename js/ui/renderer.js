@@ -760,9 +760,11 @@ export class Renderer {
                 const isYakuman = finalTitle.includes("役滿");
 
                 // 4. 副標題：幾翻幾符 (H * 0.46)
-                if (!isYakuman) {
-                    ctx.font = `32px ${this.fontFamily}`;
-                    ctx.fillStyle = "#fffacd"; 
+                if (isYakuman) {
+                    // 役滿：只顯示分數 (不需要翻數/符數)
+                    ctx.fillText(`${scoreTotal} 點`, CX, H * 0.46);
+                } else {
+                    // 一般和牌：顯示 翻數 + 符數 + 分數
                     ctx.fillText(`${han}飜 ${fu}符  ${scoreTotal} 點`, CX, H * 0.46);
                 } 
 
