@@ -72,6 +72,130 @@ export class GameState {
         this._resetActionContext();
     }
 
+    /**
+     * 終極堆牌術：同時控制 玩家, COM, 和 牌山順序
+     */
+    _createRiggedYama(pHand, cHand, nextDraws) {
+        console.log("啟動碼牌模式...");
+
+        // 1. 建立完整的牌庫 (36張)
+        let pool = [];
+        for (let t = 0; t <= 8; t++) {
+            for (let i = 0; i < 4; i++) pool.push(t);
+        }
+
+        // 輔助函式：從 pool 裡面安全移除牌
+        const takeFromPool = (tiles) => {
+            const result = [];
+            for (let t of tiles) {
+                const idx = pool.indexOf(t);
+                if (idx !== -1) {
+                    pool.splice(idx, 1);
+                    result.push(t);
+                } else {
+                    console.warn(`⚠️ 牌不夠用了！無法提供: ${t+1}s，改用隨機牌代替`);
+                    // 如果指定的牌沒了，就從剩下的 pool 隨便拿一張補，避免當機
+                    if (pool.length > 0) {
+                        const randomIdx = Math.floor(Math.random() * pool.length);
+                        result.push(pool.splice(randomIdx, 1)[0]);
+                    }
+                }
+            }
+            return result;
+        };
+
+        // 2. 鎖定並扣除玩家指定的牌 (如果有的話)
+        let finalPHand = [];
+        if (pHand && pHand.length === 13) {
+            finalPHand = takeFromPool(pHand);
+        } else {
+            // 沒指定或長度不對，就隨機抽
+            for(let i=0; i<13; i++) {
+                const idx = Math.floor(Math.random() * pool.length);
+                finalPHand.push(pool.splice(idx, 1)[0]);
+            }
+        }
+
+        // 3. 鎖定並扣除 COM 指定的牌
+        let finalCHand = [];
+        if (cHand && cHand.length === 13) {
+            finalCHand = takeFromPool(cHand);
+        } else {
+            // 沒指定就隨機抽
+             for(let i=0; i<13; i++) {
+                const idx = Math.floor(Math.random() * pool.length);
+                finalCHand.push(pool.splice(idx, 1)[0]);
+            }
+        }
+
+        // 4. 鎖定接下來要摸的牌 (nextDraws)
+        let finalNextDraws = [];
+        if (nextDraws && nextDraws.length > 0) {
+            finalNextDraws = takeFromPool(nextDraws);
+        }
+
+        // 5. 剩下的牌洗亂，當作未來的未知牌山
+        this._shuffle(pool);
+
+        // 6. === 開始組裝 Yama ===
+        // 結構：[洗亂的剩餘牌] + [摸牌預定區(反轉)] + [發牌區(交錯)] -> 尾端(Pop端)
+
+        // A. 處理摸牌預定區 (Next Draws)
+        // 因為 pop() 是從後面拿，所以要先把 nextDraws「反轉」後 push 進去
+        // 這樣 pop() 第一次才會拿到 nextDraws 的第一張
+        // 但是要注意：pool 是放在最底部的。
+        
+        // 目前 stack: [ ...pool ]
+        
+        // 我們要讓 nextDraws 接在發牌結束後的「最上面」。
+        // 所以順序是：
+        // Bottom -> [Pool] -> [NextDraws Reverse] -> [StartHands Reverse Interleave] -> Top
+        
+        let constructedYama = [...pool];
+        
+        // 放入預定摸牌 (反轉，因為 pop 是從尾巴拿)
+        // 舉例：nextDraws = [1, 2]。想要先摸 1。
+        // yama 應該是 [..., 2, 1]。pop() -> 1, pop() -> 2。
+        if (finalNextDraws.length > 0) {
+             // 複製一份並反轉
+             const reversedDraws = [...finalNextDraws].reverse();
+             constructedYama.push(...reversedDraws);
+        }
+
+        // B. 處理起手配牌 (倒序模擬)
+        // 配牌順序：
+        // Round 1: P(4) -> C(4)
+        // ...
+        // Round 4: P(1) -> C(1)
+        
+        // 為了讓 pop() 正確，Yama 尾端必須是：
+        // [..., R1_C, R1_P] (最尾巴)
+        
+        const pBatches = [
+            finalPHand.slice(0, 4),
+            finalPHand.slice(4, 8),
+            finalPHand.slice(8, 12),
+            finalPHand.slice(12, 13)
+        ];
+        const cBatches = [
+            finalCHand.slice(0, 4),
+            finalCHand.slice(4, 8),
+            finalCHand.slice(8, 12),
+            finalCHand.slice(12, 13)
+        ];
+
+        // 倒著塞入 (從 Round 4 到 Round 1)
+        for (let i = 3; i >= 0; i--) {
+            // 先塞 COM (因為它比玩家晚摸，所以在 Array 中要比較裡面/前面)
+            constructedYama.push(...cBatches[i]);
+            // 再塞 Player (最晚塞入 = 最早被 Pop)
+            constructedYama.push(...pBatches[i]);
+        }
+
+        this.yama = constructedYama;
+        console.log("碼牌完成！牌山長度:", this.yama.length);
+    }
+
     /* ======================
        初始化一局
        ====================== */
