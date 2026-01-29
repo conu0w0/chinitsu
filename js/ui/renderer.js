@@ -669,13 +669,13 @@ export class Renderer {
 
             // 5. 拆解聽牌列表 (如果有)
             if (culprit) {
-                const waits = this.gameState.logic.getWaitTiles(culprit.tepai);
+                // 這裡傳入 culprit.fulu，讓邏輯知道已經完成了幾組
+                const waits = this.gameState.logic.getWaitTiles(culprit.tepai, culprit.fulu);
                 const isTenpai = waits.length > 0;
                 
                 const label = isTenpai ? "聽牌" : "未聽牌";
                 this._drawWaitList(waits, CX, H * 0.65, label);
 
-                // 6. 畫出犯規手牌
                 this._drawResultHand(result, CX, H * 0.78, true);
             }
         }
@@ -683,7 +683,7 @@ export class Renderer {
         else if (result.type === "ryuukyoku") {
             // --- 1. 上方 COM 區域 ---
             const com = this.gameState.players[1];
-            const comWaits = this.gameState.logic.getWaitTiles(com.tepai);
+            const comWaits = this.gameState.logic.getWaitTiles(com.tepai, com.fulu);
             const comIsTenpai = comWaits.length > 0;
 
             this._drawStaticHand(com, CX, H * 0.15, !comIsTenpai); 
@@ -696,7 +696,7 @@ export class Renderer {
 
             // --- 3. 下方 玩家區域 ---
             const player = this.gameState.players[0];
-            const playerWaits = this.gameState.logic.getWaitTiles(player.tepai);
+            const playerWaits = this.gameState.logic.getWaitTiles(player.tepai, player.fulu);
             const playerIsTenpai = playerWaits.length > 0;
 
             this._drawWaitList(playerWaits, CX, H * 0.65, playerIsTenpai ? "玩家 聽牌" : "玩家 未聽");
