@@ -1,11 +1,12 @@
 /**
  * gameState.js
- * 遊戲狀態管理器 (Updated with UI Layering Logic)
+ * 遊戲狀態管理器
  */
 
 import { MahjongLogic } from './mahjongLogic.js';
 import { decomposeHand, selectBestPattern, calculateFu } from "./yakuJudge.js";
 import { Scoring } from "./scoring.js";
+import { decideComAction } from './ai/ai.js';
 
 /* ======================
    Player
@@ -766,31 +767,15 @@ export class GameState {
     /* ======================
        COM 邏輯
        ====================== */
-
-    _handleComTurn() {
-        const com = this.players[1];
-        // 簡單 AI：隨機切
-        const idx = Math.floor(Math.random() * com.tepai.length);
-        const tile = com.tepai.splice(idx, 1)[0];
-        com.river.push({
-            tile,
-            isRiichi: false
-        });
-
-        this.lastDiscard = {
-            tile,
-            fromPlayer: 1
-        };
-        this.phase = "REACTION_DECISION";
-        console.log("COM 切牌：", `${tile + 1}s`);
-    }
-
-    _handleComResponse() {
-        // COM 總是 Pass
-        this.applyAction(1, {
-            type: 'CANCEL'
-        });
-    }
+   _handleComTurn() {
+      const action = decideComAction(this, 1);
+      
+      if (action.type === 'DISCARD') {
+         this.playerDiscard(1, action.tileIndex);
+      } else {
+         this.applyAction(1, action);
+      }
+   }
 
     /* ======================
        Helpers & Utility
