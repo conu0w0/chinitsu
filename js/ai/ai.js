@@ -39,13 +39,13 @@ export function decideComAction(gameState, playerIndex) {
         }
 
         // C. 立直檢查
-        if (checkRiichi(player, gameState)) {
-            console.log("🤖 COM: 立直！嗷嗚嗷嗚～");
-          
+        if (checkRiichi(player, gameState)) {          
             const isFirstTurn = player.river.length === 0 && gameState.players.every(p => p.fulu.length === 0);
             
             if (isFirstTurn) {
                 console.log("🤖 COM: 兩立直！怕了吧～ ✨");
+            } else {
+                console.log("🤖 COM: 立直！嗷嗚嗷嗚～");
             }
             return { type: 'RIICHI' };
         }
