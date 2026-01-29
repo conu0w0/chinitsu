@@ -617,28 +617,52 @@ export class Renderer {
 
         // === A. 犯規 (Chombo) ===
         if (result.type === "chombo") {
+            // 1. 標題
             ctx.fillStyle = "#ff6666";
             ctx.font = "bold 64px sans-serif";
-            ctx.fillText("犯規", CX, H * 0.35);
+            ctx.fillText("犯規 (Chombo)", CX, H * 0.30);
 
-            const reasonText = result.reason || "錯和 / 違規";
-            ctx.fillStyle = "#ffaaaa"; // 用淺紅色區分
+            // 2. 原因
+            const reasonText = result.reason || "錯和 / 違規"; 
+            ctx.fillStyle = "#ffaaaa"; 
             ctx.font = "bold 32px sans-serif";
-            ctx.fillText(`【 ${reasonText} 】`, CX, H * 0.42);
+            ctx.fillText(`【 ${reasonText} 】`, CX, H * 0.38);
 
+            // 3. 找出是誰犯規
+            // 嘗試抓 winnerIndex，如果沒有，就用 turn (當前回合者) 或 0
+            let culpritIndex = result.winnerIndex;
+            if (culpritIndex === undefined) {
+                // 如果是誤自摸，通常是當前回合的人
+                culpritIndex = this.gameState.turn || 0; 
+            }
+            const culprit = this.gameState.players[culpritIndex];
+
+            // 4. 顯示身分與罰分
             ctx.font = "40px sans-serif";
             ctx.fillStyle = "#ffffff";
+            const roleText = (culpritIndex === this.gameState.parentIndex) ? "親" : "子";
+            const who = (culpritIndex === 0) ? "玩家" : "COM";
+            
+            ctx.fillText(`[${roleText}] ${who} 罰符`, CX, H * 0.46);
+            
+            ctx.fillStyle = "#ff4444"; 
+            ctx.fillText(`-${result.score.total} 點`, CX, H * 0.54);
 
-            let offenderIndex;
-            offenderIndex = (result.winnerIndex === 0) ? 1 : 0;
-            const roleText = result.isParent ? "親" : "子";
-            const who = (offenderIndex === 0) ? "玩家" : "COM"; // 這裡指犯規的人
+            // === 拆解聽牌列表 ===
+            if (culprit) {
+                const waits = this.gameState.logic.getWaitTiles(culprit.tepai);
+                const isTenpai = waits.length > 0;
+                const label = isTenpai ? `聽牌`: "未聽牌";
 
-            ctx.fillStyle = "#ff4444";            
-            ctx.fillText(`[${roleText}] ${who} 罰符 ${result.score.total} 點`, CX, H * 0.58);
+                // 畫在手牌上方 (0.65 左右)
+                this._drawWaitList(waits, CX, H * 0.65, label);
 
-            this._drawResultHand(result, CX, H * 0.76, true);
-        } 
+                // 5. 畫出犯規時的手牌 (0.78 左右)
+                // 這裡我們強制把 culpritIndex 塞回 result 給 _drawResultHand 用，確保不會 undefined
+                const safeResult = { ...result, winnerIndex: culpritIndex };
+                this._drawResultHand(safeResult, CX, H * 0.78, true);
+            }
+        }
         // === B. 流局 (Ryuukyoku) ===
         else if (result.type === "ryuukyoku") {
             // --- 1. 上方 COM 區域 ---
@@ -747,22 +771,31 @@ export class Renderer {
         ctx.fillText("— 點擊任意處重新開始 —", CX, H * 0.9);
     }
 
-    // === Helper 1: 繪製結算用手牌 (和牌/犯規模式：13+1張) ===
-    // 請將此方法加在 drawResult 方法之後，_drawStaticHand 之前
+    // === Helper 1: 繪製結算用手牌 (和牌/犯規模式) ===
     _drawResultHand(result, centerX, startY, isChombo = false) {
-        const winner = this.gameState.players[result.winnerIndex];
+        // ★ 1. 安全獲取主角 (犯規者或和牌者)
+        // 如果 result.winnerIndex 不存在，預設為 0 (玩家)，防止崩潰
+        const idx = (result.winnerIndex !== undefined) ? result.winnerIndex : 0;
+        const winner = this.gameState.players[idx];
+
+        if (!winner) return; // 如果真的抓不到人，就甚麼都不畫
+
+        // ★ 2. 判斷是否要把最後一張牌獨立出來 (13+1)
+        // 自摸(tsumo) 或 犯規且手牌有 14 張(誤自摸) 時，要切分
+        const handLen = winner.tepai.length;
         const isTsumo = (result.winType === "tsumo");
-        
-        // 複製手牌，避免修改原始數據
+        // 如果是犯規，且手牌模數是 2 (代表剛摸牌 14張)，就當作自摸型式展示
+        const isChomboDraw = isChombo && (handLen % 3 === 2);
+
+        // 複製手牌
         let standingTiles = [...winner.tepai];
         let winTile = -1;
 
-        if (isTsumo) {
-            // 自摸：手牌包含和了牌，拿最後一張出來
+        if (isTsumo || isChomboDraw) {
+            // 從手牌拿最後一張出來當作「特寫牌」
             winTile = standingTiles.pop(); 
         } else {
-            // 榮和：目標牌是別人打出的 (lastDiscard)
-            // 如果是犯規榮和，可能 lastDiscard 為空，這裡做防呆
+            // 榮和 或 誤榮和：目標牌是別人打出的
             winTile = this.gameState.lastDiscard ? this.gameState.lastDiscard.tile : 0;
         }
 
@@ -772,15 +805,15 @@ export class Renderer {
         const gap = 2;
         const sectionGap = 25; 
 
-        // 1. 計算總寬度
+        // 計算總寬度
         let totalWidth = standingTiles.length * (tileW + gap);
         if (melds.length > 0) {
             totalWidth += sectionGap;
             melds.forEach(m => totalWidth += this._calculateMeldWidth(m, tileW) + 10);
         }
-        totalWidth += sectionGap + tileW; // 最後加上和了牌
+        totalWidth += sectionGap + tileW; // 加上最後那張特寫牌
 
-        // 2. 開始繪製
+        // 開始繪製
         let currentX = centerX - (totalWidth / 2);
 
         // A. 立牌
@@ -798,9 +831,10 @@ export class Renderer {
             });
         }
 
-        // C. 和了牌 / 犯規牌
+        // C. 特寫牌 (和了牌 / 犯規牌)
         currentX += sectionGap;
-        // 如果是犯規，用紅色高亮；如果是贏了，用金色
+        
+        // 犯規用紅色，和牌用金色
         const highlightColor = isChombo ? "#ff4444" : "#ffcc00"; 
         
         this.drawTile(winTile, currentX, startY, tileW, tileH);
@@ -814,7 +848,7 @@ export class Renderer {
         this.ctx.fillStyle = highlightColor;
         this.ctx.font = "bold 18px sans-serif";
         this.ctx.textAlign = "center";
-        const label = isChombo ? "錯和" : "和了";
+        const label = isChombo ? "犯規" : "和了";
         this.ctx.fillText(label, currentX + tileW/2, startY + tileH + 25);
     }
 
