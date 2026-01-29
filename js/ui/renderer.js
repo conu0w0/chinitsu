@@ -597,15 +597,17 @@ export class Renderer {
     }
 
     /* ======================
-       7. 結算畫面
+       7. 結算畫面 (修改版)
        ====================== */
     drawResult(result) {
         if (!result) return;
         
-        this.ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+        // 畫半透明背景
+        this.ctx.fillStyle = "rgba(0, 0, 0, 0.9)";
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
         this.ctx.textAlign = "center";
 
+        // === 1. 犯規 (Chombo) ===
         if (result.type === "chombo") {
             this.ctx.fillStyle = "#ff6666";
             this.ctx.font = "bold 56px sans-serif";
@@ -614,6 +616,7 @@ export class Renderer {
             const roleText = result.isParent ? "親" : "子";
             this.ctx.fillText(`${roleText} 罰符 ${result.score.total} 點`, 512, 440);
         } 
+        // === 2. 流局 (Ryuukyoku) ===
         else if (result.type === "ryuukyoku") {
             this.ctx.fillStyle = "#ffffff";
             this.ctx.font = "bold 64px sans-serif";
@@ -622,36 +625,117 @@ export class Renderer {
             this.ctx.fillStyle = "#cccccc";
             this.ctx.fillText("本局無人和牌", 512, 470);
         } 
+        // === 3. 和牌 (Win) ===
         else {
             this.ctx.fillStyle = "#ffffff";
             this.ctx.font = "bold 60px sans-serif";
-            let title = "對局終了";
-            this.ctx.fillText(title, 512, 300);
+            this.ctx.fillText("對局終了", 512, 150); // 標題往上移
 
             if (result.score) {
-                this.ctx.font = "40px sans-serif";
+                // 分數資訊
+                this.ctx.font = "bold 50px sans-serif";
                 this.ctx.fillStyle = "#ffcc00";
                 const detail = result.score.display || `${result.best.han}飜 ${result.fu}符`;
-                this.ctx.fillText(detail, 512, 400);
+                this.ctx.fillText(detail, 512, 240);
 
                 const roleText = result.isParent ? "親" : "子";
                 const winText = result.winType === "tsumo" ? "自摸" : "榮和";
                 this.ctx.fillStyle = "#ffffff";
-                this.ctx.font = "30px sans-serif";
-                this.ctx.fillText(`${roleText} ${winText} ${result.score.total} 點`, 512, 480);
+                this.ctx.font = "36px sans-serif";
+                this.ctx.fillText(`${roleText} ${winText} ${result.score.total} 點`, 512, 300);
                 
+                // 役種列表
                 if (result.score.yakus && result.score.yakus.length > 0) {
-                    let y = 550;
-                    this.ctx.font = "24px sans-serif";
+                    let y = 360;
+                    this.ctx.font = "28px sans-serif";
+                    this.ctx.fillStyle = "#ddd";
                     result.score.yakus.forEach(yaku => {
                         this.ctx.fillText(yaku, 512, y);
-                        y += 35;
+                        y += 40;
                     });
+                    
+                    // ★ 繪製手牌 (在役種列表下方)
+                    this._drawResultHand(result, 512, y + 40);
                 }
             }
         }
+
+        // 底部提示
         this.ctx.font = "20px sans-serif";
-        this.ctx.fillStyle = "#aaa";
-        this.ctx.fillText("點擊任意處重新開始", 512, 800);
+        this.ctx.fillStyle = "#666";
+        this.ctx.fillText("點擊任意處重新開始", 512, 900);
+    }
+
+    // === 新增：繪製結算手牌 ===
+    _drawResultHand(result, centerX, startY) {
+        const winner = this.gameState.players[result.winnerIndex];
+        const isTsumo = (result.winType === "tsumo");
+        
+        // 1. 準備手牌數據
+        // 如果是自摸，手牌包含和了牌，要拿出來
+        // 如果是榮和，手牌不含和了牌，和了牌在 lastDiscard
+        
+        let standingTiles = [...winner.tepai];
+        let winTile = -1;
+
+        if (isTsumo) {
+            winTile = standingTiles.pop(); // 拿最後一張當和了牌
+        } else {
+            // 從 lastDiscard 拿 (如果沒有則 fallback 到 0)
+            winTile = this.gameState.lastDiscard ? this.gameState.lastDiscard.tile : 0;
+        }
+
+        const melds = winner.fulu || [];
+
+        // 2. 計算總寬度 (為了居中)
+        const tileW = this.tileWidth;
+        const tileH = this.tileHeight;
+        const gap = 2;
+        const sectionGap = 20; // 立牌、副露、和了牌之間的距離
+
+        let totalWidth = 0;
+
+        // 立牌寬度
+        totalWidth += standingTiles.length * (tileW + gap);
+        
+        // 副露寬度
+        if (melds.length > 0) {
+            totalWidth += sectionGap;
+            melds.forEach(m => {
+                totalWidth += this._calculateMeldWidth(m, tileW) + 10;
+            });
+        }
+
+        // 和了牌寬度
+        totalWidth += sectionGap + tileW;
+
+        // 3. 開始繪製
+        // 計算起始 X
+        let currentX = centerX - (totalWidth / 2);
+
+        // A. 畫立牌
+        standingTiles.forEach(t => {
+            this.drawTile(t, currentX, startY, tileW, tileH);
+            currentX += tileW + gap;
+        });
+
+        // B. 畫副露 (如果有)
+        if (melds.length > 0) {
+            currentX += sectionGap;
+            melds.forEach(m => {
+                const w = this._drawSingleMeld(m, currentX, startY, tileW, tileH);
+                currentX += w + 10;
+            });
+        }
+
+        // C. 畫和了牌 (稍微分開一點，並且高亮)
+        currentX += sectionGap;
+        this.drawTile(winTile, currentX, startY, tileW, tileH, { highlight: false });
+        
+        // 加個文字標示
+        this.ctx.fillStyle = "#ffcc00";
+        this.ctx.font = "16px sans-serif";
+        this.ctx.textAlign = "center";
+        this.ctx.fillText("和了", currentX + tileW/2, startY + tileH + 20);
     }
 }
