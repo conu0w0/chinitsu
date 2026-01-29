@@ -418,7 +418,7 @@ export class GameState {
 
         // === 2. 對手打牌後的決策 (榮和) ===
         if (this.phase === "REACTION_DECISION" && this.lastDiscard) {
-            actions.canRon = true;
+            actions.canRon = (this.lastDiscard.fromPlayer !== playerIndex);
             actions.canCancel = true;
         }
 
@@ -585,7 +585,7 @@ export class GameState {
 
         // 4. 一發狀態處理
         if (this.actionContext.ippatsuActive && player.isReach && !this.actionContext.pendingRiichi) {
-             this.actionContext.ippatsuActive = false;
+             player.ippatsuActive = false;
         }
 
         // 5. 清理與重置上下文
@@ -674,8 +674,6 @@ export class GameState {
 
         const tile = this.yama.pop();
         const player = this.players[playerIndex];
-
-        if (player.ippatsuActive) { player.ippatsuActive = false };
         player.tepai.push(tile);
 
         const savedAfterKan = this.actionContext.isAfterKan;
@@ -724,17 +722,10 @@ export class GameState {
             return;
         }
 
-        player.fulu.push({
-            type: "ankan",
-            tile
-        });
+        player.fulu.push({ type: "ankan", tile });
+       
+        this._breakAllIppatsu();
         player.tepai.sort((a, b) => a - b);
-
-        // 一發中斷
-        if (this.actionContext.ippatsuActive) {
-            this.actionContext.ippatsuActive = false;
-            this.actionContext.ippatsuBroken = true;
-        }
 
         this.actionContext.isAfterKan = true;
         this.actionContext.lastActionWasKan = true;
