@@ -672,10 +672,10 @@ export class Renderer {
             
         // === C. 和牌 (Win) ===
         else {
-            // 1. 標題：和了
+            // 1. 標題：本局結束
             ctx.fillStyle = "#ffffff";
             ctx.font = "bold 64px sans-serif";
-            ctx.fillText("和了！", CX, H * 0.15); 
+            ctx.fillText("本局結束！", CX, H * 0.15); 
 
             if (result.score) {
                 const han = result.best.han;
@@ -690,9 +690,8 @@ export class Renderer {
                 else if (han >= 11) limitName = "三倍滿";
                 else if (han >= 8)  limitName = "倍滿";
                 else if (han >= 6)  limitName = "跳滿";
-                const finalTitle = (result.score.display || limitName) 
-                                    ? `${result.score.display || limitName}  ${result.score.total}`
-                                    : `${result.score.total}`;
+                const titleName = result.score.display || limitName;
+                const finalTitle = titleName ? titleName : `${result.score.total}`;
 
                 // 2. 繪製分數主標題
                 ctx.font = "bold 80px sans-serif";
@@ -709,6 +708,9 @@ export class Renderer {
                     ctx.fillStyle = "#fffacd"; // 檸檬綢色
                     ctx.fillText(`${han}飜 ${fu}符  ${result.score.total}`, CX, H * 0.35);
                 } else {
+                    ctx.font = "32px sans-serif";
+                    ctx.fillStyle = "#fffacd"; // 檸檬綢色
+                    ctx.fillText(`${result.score.total}`, CX, H * 0.35);
                     // 如果是役滿，這裡可以留白，或是寫個 "Congratulations!" 之類的，目前先留白
                 }
 
