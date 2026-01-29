@@ -814,14 +814,37 @@ export class GameState {
        COM 邏輯
        ====================== */
    _handleComTurn() {
-      const action = decideComAction(this, 1);
-      
-      if (action.type === 'DISCARD') {
-         this.playerDiscard(1, action.tileIndex);
-      } else {
-         this.applyAction(1, action);
-      }
-   }
+        // 1. 取得 AI 的決策
+        const action = decideComAction(this, 1);
+
+        if (action.type === 'DISCARD') {
+            // 一般切牌
+            this.playerDiscard(1, action.tileIndex);
+        } else {
+            // 2. 執行特殊動作 (RIICHI, ANKAN 等)
+            this.applyAction(1, action);
+
+            if (this.phase === 'RIICHI_DECLARATION') {
+                const discardAction = decideComAction(this, 1);
+                
+                if (discardAction.type === 'DISCARD') {
+                    console.log(`🤖 COM 立直後切牌: ${ discardAction.tileIndex + 1 }s`);
+                    
+                    // 加一點點延遲，讓「立直」的動畫或音效先跑出來，再切牌
+                    setTimeout(() => {
+                        this.playerDiscard(1, discardAction.tileIndex);
+                    }, 500);
+                }
+            }
+
+            else if (this.phase === 'PLAYER_DECISION' && this.turn === 1) {
+                console.log("🤖 COM 暗槓後再次思考...");
+                setTimeout(() => {
+                    this._handleComTurn(); // 遞迴呼叫自己，處理下一手
+                }, 500);
+            }
+        }
+    }
 
    _handleComResponse() {
       const action = decideComAction(this, 1);
