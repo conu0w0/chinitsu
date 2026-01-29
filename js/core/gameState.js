@@ -584,9 +584,7 @@ export class GameState {
         });
 
         // 4. 一發狀態處理
-        if (this.actionContext.ippatsuActive && player.isReach && !this.actionContext.pendingRiichi) {
-             player.ippatsuActive = false;
-        }
+        if (player.isReach && player.ippatsuActive && !isRiichiDeclarationDiscard) { player.ippatsuActive = false };
 
         // 5. 清理與重置上下文
         this.actionContext.isKanburiCandidate = this.actionContext.lastActionWasKan;
