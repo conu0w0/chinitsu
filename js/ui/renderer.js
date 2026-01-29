@@ -766,12 +766,9 @@ export class Renderer {
                 
                 ctx.font = `bold 42px ${this.fontFamily}`;
                 ctx.fillStyle = "#ffffff";
-                // 這裡拿掉 "點" 字，因為 "自摸 點" 語法怪怪的，通常是 "自摸 12000點"
-                // 但分數已經在下面大標題了，所以這裡顯示動作就好
                 ctx.fillText(`[${roleText}] ${winnerName} ${winMethod}`, CX, H * 0.28);
                 
                 // 3. 分數大標題 (H * 0.38)
-                // 稍微往下挪一點點 (0.36 -> 0.38) 避免跟上面的字太近
                 ctx.font = `bold 80px ${this.fontFamily}`;
                 ctx.fillStyle = "#ffcc00"; 
                 ctx.fillText(finalTitle, CX, H * 0.38);
@@ -799,41 +796,35 @@ export class Renderer {
                     sortedYakus.sort((a, b) => {
                         let indexA = this.YAKU_ORDER.indexOf(a);
                         let indexB = this.YAKU_ORDER.indexOf(b);
-
-                        // 如果役種不在表單內 (例如: 寶牌 Dora)，就給它一個很大的數字排在最後
                         if (indexA === -1) indexA = 999;
                         if (indexB === -1) indexB = 999;
-
                         return indexA - indexB;
                     });
 
                     // === B. 繪製參數 ===
                     const startY = H * 0.54;   
                     const lineHeight = 45;     
-                    const colWidth = 300;      
+                    const colWidth = 250;      
                     const itemsPerCol = 4;
                     
-                    // 計算總欄數與起始 X (保持整體置中)
-                    const totalCols = Math.ceil(sortedYakus.length / itemsPerCol);
-                    const totalBlockWidth = (totalCols * colWidth);
-                    const startX = CX - (totalBlockWidth / 2) + (colWidth / 2); 
+                    // 計算總欄數
+                    const numCols = Math.ceil(sortedYakus.length / itemsPerCol);
+                    // 重要：計算整個區塊的總寬度
+                    const totalWidth = (numCols - 1) * colWidth; 
+                    // 起始 X 座標：讓整個區塊的中間對準畫面的 CX
+                    const firstColX = CX - (totalWidth / 2);
                     
                     ctx.font = `30px ${this.fontFamily}`;
                     ctx.fillStyle = "#dddddd";
-                    
-                    // 暫時切換成靠左對齊，這樣多欄排列時比較整齊
-                    // 如果你的 colWidth 夠寬，想要置中也可以不用這行
-                    // ctx.textAlign = "left"; 
+                    ctx.textAlign = "center";
 
                     sortedYakus.forEach((yaku, i) => {
                         // N字型排序算法
                         const row = i % itemsPerCol;             // 0,1,2,3
                         const col = Math.floor(i / itemsPerCol); // 0,0,0,0, 1,1...
 
-                        // 計算座標
-                        // 如果有用 ctx.textAlign = "left"，x 座標要減去 colWidth/2 才會準
-                        // 這裡假設維持 center 對齊：
-                        const x = startX + (col * colWidth) - (colWidth * 0.15); // 微調 x 讓文字視覺居中
+                        // x 是該欄的中心點
+                        const x = firstColX + (col * colWidth);
                         const y = startY + (row * lineHeight);
 
                         ctx.fillText(yaku, x, y);
