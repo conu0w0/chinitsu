@@ -682,12 +682,12 @@ export class Renderer {
             // 1. 標題：本局結束
             ctx.fillStyle = "#ffffff";
             ctx.font = "bold 64px sans-serif";
-            ctx.fillText("本局結束", CX, H * 0.28); 
+            ctx.fillText("本局結束", CX, H * 0.18); 
 
             if (result.score) {
                 const han = result.best ? result.best.han : 0;
                 const fu = result.fu;
-                const scoreTotal = result.score.total; // 定義 scoreTotal
+                const scoreTotal = result.score.total;
                 
                 let limitName = "";
 
@@ -699,7 +699,6 @@ export class Renderer {
                 else if (han >= 8)  limitName = "倍滿";
                 else if (han >= 6)  limitName = "跳滿";
                 else if (han >= 5)  limitName = "滿貫";
-                // 補強邏輯：不滿 5 飜，但分數達到滿貫標準 (子8000/親12000) 也算滿貫
                 else if (!isParent && scoreTotal >= 8000) limitName = "滿貫";
                 else if (isParent && scoreTotal >= 12000) limitName = "滿貫";
 
@@ -707,9 +706,6 @@ export class Renderer {
                 const backendDisplay = result.score.display || "";
                 let finalTitle = "";
 
-                // A. 如果 backendDisplay 包含 "役滿"，絕對優先顯示
-                // B. 否則，如果有計算出 limitName (跳滿、倍滿...)，優先顯示 limitName
-                // C. 最後才顯示 backendDisplay (若為空則顯示數字)
                 if (backendDisplay.includes("役滿")) {
                     finalTitle = backendDisplay;
                 } else if (limitName) {
@@ -717,22 +713,8 @@ export class Renderer {
                 } else {
                     finalTitle = backendDisplay || `${scoreTotal}`;
                 }
-                
-                // 2. 繪製分數主標題 (金色)
-                ctx.font = "bold 80px sans-serif";
-                ctx.fillStyle = "#ffcc00"; 
-                ctx.fillText(finalTitle, CX, H * 0.35);
-                
-                const isYakuman = finalTitle.includes("役滿");
 
-                if (!isYakuman) {
-                    // 3. 副標題：幾翻幾符 (只有非役滿才顯示)
-                    ctx.font = "32px sans-serif";
-                    ctx.fillStyle = "#fffacd"; 
-                    ctx.fillText(`${han}飜 ${fu}符  ${scoreTotal}`, CX, H * 0.42);
-                } 
-
-                // 4. 身分與方式
+                // 2. 身分與方式
                 const winnerIdx = (result.winnerIndex !== undefined) ? result.winnerIndex : 0;
                 const roleText = isParent ? "親" : "子";
                 const winnerName = (winnerIdx === 0) ? "玩家" : "COM";
@@ -740,21 +722,35 @@ export class Renderer {
                 
                 ctx.font = "bold 42px sans-serif";
                 ctx.fillStyle = "#ffffff";
-                ctx.fillText(`[${roleText}] ${winnerName} ${winMethod} ${scoreTotal}`, CX, H * 0.50);
+                ctx.fillText(`[${roleText}] ${winnerName} ${winMethod}`, CX, H * 0.28);
+                
+                // 3. 分數大標題
+                ctx.font = "bold 80px sans-serif";
+                ctx.fillStyle = "#ffcc00"; 
+                ctx.fillText(finalTitle, CX, H * 0.36);
+                
+                const isYakuman = finalTitle.includes("役滿");
+
+                // 4. 副標題：幾翻幾符
+                if (!isYakuman) {
+                    ctx.font = "32px sans-serif";
+                    ctx.fillStyle = "#fffacd"; 
+                    ctx.fillText(`${han}飜 ${fu}符  ${scoreTotal}`, CX, H * 0.44);
+                } 
 
                 // 5. 役種列表
                 if (result.score.yakus && result.score.yakus.length > 0) {
-                    let y = H * 0.52;
+                    let y = H * 0.52; 
                     ctx.font = "30px sans-serif";
                     ctx.fillStyle = "#dddddd";
                     
                     result.score.yakus.forEach(yaku => {
                         ctx.fillText(yaku, CX, y);
-                        y += 40; 
+                        y += 45; // 行距稍微加大一點 (原本40)
                     });
                     
-                    // 6. 繪製手牌
-                    this._drawResultHand(result, CX, y + 30);
+                    // 6. 繪製手牌 (在役種列表結束後，再往下空 40px)
+                    this._drawResultHand(result, CX, y + 40);
                 }
             }
         }
