@@ -356,7 +356,7 @@ export class GameState {
         }
 
         // === 1. 自己回合的決策 (Root 層) ===
-        if (this.phase === "PLAYER_DECISION" && playerIndex === 0) {
+        if (this.phase === "PLAYER_DECISION" && this.turn === playerIndex) {
             // 自摸判定
             actions.canTsumo = true;
 
@@ -775,6 +775,11 @@ export class GameState {
       } else {
          this.applyAction(1, action);
       }
+   }
+
+   _handleComResponse() {
+      const action = decideComAction(this, 1);
+      this.applyAction(1, action);
    }
 
     /* ======================
