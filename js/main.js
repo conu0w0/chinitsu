@@ -74,6 +74,18 @@ class MahjongGame {
 
     async loadAssets() {
         console.log("正在加載資源...");
+        
+        try {
+            console.log("正在載入字體 'M PLUS Rounded 1c'...");
+            // 這裡的字串格式是 "font-weight font-size font-family"
+            // 只要載入成功，Promise 就會 resolve，我們就 await 它
+            await document.fonts.load("bold 24px 'M PLUS Rounded 1c'");
+            await document.fonts.load("24px 'M PLUS Rounded 1c'");
+            console.log("字體載入完畢！");
+        } catch (err) {
+            console.warn("字體載入失敗（可能網路問題），將使用備用字體。", err);
+        }
+        
         const loadImage = (src) => new Promise((resolve) => {
             const img = new Image();
             img.onload = () => resolve(img);
