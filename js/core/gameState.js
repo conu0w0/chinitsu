@@ -368,6 +368,10 @@ export class GameState {
        
        // 摸完後才進入決策階段
        this.phase = "PLAYER_DECISION";
+
+       if (this.turn === 1) {
+          setTimeout(() => this._handleComTurn(), 600);
+       }
     }
 
     /* ======================
