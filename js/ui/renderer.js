@@ -835,7 +835,7 @@ export class Renderer {
 
         // 文字標示
         this.ctx.fillStyle = highlightColor;
-        this.ctx.font = `bold 18px ;
+        this.ctx.font = `bold 18px ${this.fontFamily}`;
         this.ctx.textAlign = "center";
         
         // 根據是否在手裡，顯示不同文字
@@ -882,7 +882,7 @@ export class Renderer {
         const ctx = this.ctx;
         
         // 標題
-        ctx.font = `24px ;
+        ctx.font = `24px ${this.fontFamily}`;
         ctx.fillStyle = "#aaaaaa";
         ctx.fillText(labelText, centerX, startY);
 
