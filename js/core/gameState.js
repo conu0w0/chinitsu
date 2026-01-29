@@ -195,20 +195,17 @@ export class GameState {
        初始化一局
        ====================== */
     startGame() {
-        console.log("=== 遊戲開始 ===");
-        // 隨機決定起莊 (0 或 1)
-        this.parentIndex = Math.floor(Math.random() * 2);
-        console.log(`起莊決定：${this.parentIndex === 0 ? "玩家" : "COM"}`);
-        
-        this.initKyoku();
+       console.log("=== 遊戲開始 ===");
+       
+       this.parentIndex = Math.floor(Math.random() * 2);
+       console.log(`起莊決定：${this.parentIndex === 0 ? "玩家" : "COM"}`);
+       
+       this._initKyokuInternal();
     }
-    
-    initKyoku(parentIndex = null) {
-        this.lastResult = null;
-        if (parentIndex !== null) {
-            this.parentIndex = parentIndex;
-        }
 
+    _initKyokuInternal() {
+        this.lastResult = null;
+       
         this._resetRoundContext();
         this._resetActionContext();
 
@@ -251,46 +248,35 @@ export class GameState {
     }
 
     nextKyoku() {
-        if (!this.lastResult) {
-            this.initKyoku(); // 如果沒有上局結果，直接重開
-            return;
-        }
+       if (!this.lastResult) {      
+          this._initKyokuInternal();
+          return;
+       }
+       
+       const result = this.lastResult;
+       let shouldRotate = false;
+       
+       // 1. 胡牌 (Ron / Tsumo)
+       if (result.type === "win") {
+          shouldRotate = (result.winnerIndex !== this.parentIndex);
+          console.log(shouldRotate ? "子家胡牌 -> 輪莊" : "親家胡牌 -> 連莊");
+       }
+       // 2. 流局 (Ryuukyoku)
+       else if (result.type === "ryuukyoku") {
+          const parentPlayer = this.players[this.parentIndex];
+          shouldRotate = !parentPlayer.isTenpai;
+          console.log(parentPlayer.isTenpai ? "親家聽牌 -> 連莊" : "親家不聽 -> 輪莊");
+       }
+       // 3. 犯規 (Chombo)
+       else if (result.type === "chombo") {
+          shouldRotate = (result.offenderIndex === this.parentIndex);
+          console.log(shouldRotate ? "親家犯規 -> 輪莊" : "子家犯規 -> 連莊");
+       }
+       // 執行輪莊
+       if (shouldRotate) { this.parentIndex = (this.parentIndex + 1) % 2 };
 
-        const result = this.lastResult;
-        let shouldRotate = false;
-
-        // 1. 胡牌 (Ron/Tsumo)
-        if (result.type === "win") {
-            // 親家胡牌 -> 連莊 (shouldRotate = false)
-            // 子家胡牌 -> 輪莊 (shouldRotate = true)
-            shouldRotate = (result.winnerIndex !== this.parentIndex);
-            console.log(shouldRotate ? "子家胡牌 -> 輪莊" : "親家胡牌 -> 連莊");
-        }
-        // 2. 流局 (Ryuukyoku)
-        else if (result.type === "ryuukyoku") {
-            // 檢查親家是否聽牌
-            const parentPlayer = this.players[this.parentIndex];
-            
-            // 親家聽牌 -> 連莊
-            // 親家不聽 -> 輪莊
-            shouldRotate = !parentPlayer.isTenpai;
-            console.log(parentPlayer.isTenpai ? "親家聽牌 -> 連莊" : "親家不聽 -> 輪莊");
-        }
-        // 3. 犯規 (Chombo)
-        else if (result.type === "chombo") {
-            // 親家犯規 -> 輪莊
-            // 子家犯規 -> 連莊 (不流莊)
-            shouldRotate = (result.offenderIndex === this.parentIndex);
-            console.log(shouldRotate ? "親家犯規 -> 輪莊" : "子家犯規 -> 連莊");
-        }
-
-        // 執行輪莊
-        if (shouldRotate) {
-            this.parentIndex = (this.parentIndex + 1) % 2;
-        }
-
-        // 開始新的一局
-        this.initKyoku();
+       // 開始新的一局
+      this._initKyokuInternal();
     }
    
     // 新增在 GameState 類別裡
