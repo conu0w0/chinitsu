@@ -597,7 +597,7 @@ export class Renderer {
     }
     
     /* ======================
-       7. 結算畫面
+       7. 結算畫面 (修正版)
        ====================== */
     drawResult(result) {
         if (!result) return;
@@ -608,7 +608,7 @@ export class Renderer {
         const CX = W / 2; // 畫布中心 X
 
         // 1. 畫半透明背景
-        ctx.fillStyle = "rgba(0, 0, 0, 0.92)"; // 稍微黑一點，讓字更清楚
+        ctx.fillStyle = "rgba(0, 0, 0, 0.92)"; 
         ctx.fillRect(0, 0, W, H);
         
         // 設定文字基準線為中間，水平置中
@@ -622,13 +622,13 @@ export class Renderer {
             ctx.font = "bold 64px sans-serif";
             ctx.fillText("犯規 (Chombo)", CX, H * 0.30);
 
-            // 2. 原因 (直接讀取新的 result.reason)
+            // 2. 原因
             const reasonText = result.reason || "錯和 / 違規"; 
             ctx.fillStyle = "#ffaaaa"; 
             ctx.font = "bold 32px sans-serif";
             ctx.fillText(`【 ${reasonText} 】`, CX, H * 0.38);
 
-            // 3. 抓取犯規者 (現在可以直接信任 winnerIndex)
+            // 3. 抓取犯規者
             const culpritIndex = (result.winnerIndex !== undefined) ? result.winnerIndex : 0;
             const culprit = this.gameState.players[culpritIndex];
 
@@ -642,7 +642,7 @@ export class Renderer {
             ctx.fillStyle = "#ff4444"; 
             ctx.fillText(`-${result.score.total} 點`, CX, H * 0.54);
 
-            // 5. 拆解聽牌列表 (即使是誤榮和，也可以看看他是不是真的聽這張)
+            // 5. 拆解聽牌列表
             if (culprit) {
                 const waits = this.gameState.logic.getWaitTiles(culprit.tepai);
                 const isTenpai = waits.length > 0;
@@ -658,14 +658,10 @@ export class Renderer {
         else if (result.type === "ryuukyoku") {
             // --- 1. 上方 COM 區域 ---
             const com = this.gameState.players[1];
-            // 計算 COM 聽牌
             const comWaits = this.gameState.logic.getWaitTiles(com.tepai);
-            const comIsTenpai = comWaits.length > 0; // 判斷是否聽牌
+            const comIsTenpai = comWaits.length > 0;
 
-            // 畫 COM 手牌 
             this._drawStaticHand(com, CX, H * 0.15, !comIsTenpai); 
-            
-            // 畫 COM 聽牌資訊
             this._drawWaitList(comWaits, CX, H * 0.28, comIsTenpai ? "COM 聽牌" : "COM 未聽");
 
             // --- 2. 中間 文字區域 ---
@@ -676,39 +672,44 @@ export class Renderer {
             // --- 3. 下方 玩家區域 ---
             const player = this.gameState.players[0];
             const playerWaits = this.gameState.logic.getWaitTiles(player.tepai);
-            const playerIsTenpai = playerWaits.length > 0; // 判斷是否聽牌
+            const playerIsTenpai = playerWaits.length > 0;
 
-            // 畫 玩家 聽牌資訊
             this._drawWaitList(playerWaits, CX, H * 0.65, playerIsTenpai ? "玩家 聽牌" : "玩家 未聽");
-            
-            // 畫 玩家 手牌
             this._drawStaticHand(player, CX, H * 0.80, !playerIsTenpai);
         }
-            
         // === C. 和牌 (Agari) ===
         else {
             // 1. 標題：本局結束
             ctx.fillStyle = "#ffffff";
             ctx.font = "bold 64px sans-serif";
-            ctx.fillText("本局結束", CX, H * 0.15); 
+            ctx.fillText("本局結束", CX, H * 0.28); 
 
             if (result.score) {
-                const han = result.best.han;
+                const han = result.best ? result.best.han : 0;
                 const fu = result.fu;
+                const scoreTotal = result.score.total; // 定義 scoreTotal
+                
                 let limitName = "";
 
                 // === 自動計算稱號 (滿貫~役滿) ===
-                // 先判斷是否為「累計役滿」(13翻以上)
-                if (han >= 13)      limitName = "累計役滿"; 
+                const isParent = (result.winnerIndex === this.gameState.parentIndex);
+                
+                if (han >= 13)      limitName = "累計役滿";
                 else if (han >= 11) limitName = "三倍滿";
                 else if (han >= 8)  limitName = "倍滿";
                 else if (han >= 6)  limitName = "跳滿";
-                const titleName = result.score.display || limitName;
-                const finalTitle = titleName ? titleName : `${result.score.total}`;
+                else if (han >= 5)  limitName = "滿貫";
+                // 補強邏輯：不滿 5 飜，但分數達到滿貫標準 (子8000/親12000) 也算滿貫
+                else if (!isParent && scoreTotal >= 8000) limitName = "滿貫";
+                else if (isParent && scoreTotal >= 12000) limitName = "滿貫";
 
+                // === 決定標題優先順序 ===
                 const backendDisplay = result.score.display || "";
                 let finalTitle = "";
 
+                // A. 如果 backendDisplay 包含 "役滿"，絕對優先顯示
+                // B. 否則，如果有計算出 limitName (跳滿、倍滿...)，優先顯示 limitName
+                // C. 最後才顯示 backendDisplay (若為空則顯示數字)
                 if (backendDisplay.includes("役滿")) {
                     finalTitle = backendDisplay;
                 } else if (limitName) {
@@ -716,28 +717,30 @@ export class Renderer {
                 } else {
                     finalTitle = backendDisplay || `${scoreTotal}`;
                 }
-
-                // 2. 繪製分數主標題
-                ctx.font = "bold 80px sans-serif";
-                ctx.fillStyle = "#ffcc00"; // 金色
-                ctx.fillText(finalTitle, CX, H * 0.25);
                 
+                // 2. 繪製分數主標題 (金色)
+                ctx.font = "bold 80px sans-serif";
+                ctx.fillStyle = "#ffcc00"; 
+                ctx.fillText(finalTitle, CX, H * 0.35);
+                
+                const isYakuman = finalTitle.includes("役滿");
+
                 if (!isYakuman) {
                     // 3. 副標題：幾翻幾符 (只有非役滿才顯示)
                     ctx.font = "32px sans-serif";
-                    ctx.fillStyle = "#fffacd"; // 檸檬綢色
-                    ctx.fillText(`${han}飜 ${fu}符  ${result.score.total}`, CX, H * 0.34);
+                    ctx.fillStyle = "#fffacd"; 
+                    ctx.fillText(`${han}飜 ${fu}符  ${scoreTotal}`, CX, H * 0.42);
                 } 
 
-                // 4. 身分與方式 (位置微調)
-                const roleText = result.isParent ? "親" : "子";
-                const winnerName = (result.winnerIndex === 0) ? "玩家" : "COM";
+                // 4. 身分與方式
+                const winnerIdx = (result.winnerIndex !== undefined) ? result.winnerIndex : 0;
+                const roleText = isParent ? "親" : "子";
+                const winnerName = (winnerIdx === 0) ? "玩家" : "COM";
                 const winMethod = (result.winType === "tsumo") ? "自摸" : "榮和";
                 
                 ctx.font = "bold 42px sans-serif";
                 ctx.fillStyle = "#ffffff";
-                // 如果是役滿，因為少了翻符行，這行可以稍微往上提一點，或保持原位 (這裡保持原位 0.43)
-                ctx.fillText(`[${roleText}] ${winnerName} ${winMethod} ${result.score.total}`, CX, H * 0.50);
+                ctx.fillText(`[${roleText}] ${winnerName} ${winMethod} ${scoreTotal}`, CX, H * 0.50);
 
                 // 5. 役種列表
                 if (result.score.yakus && result.score.yakus.length > 0) {
