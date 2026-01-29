@@ -9,7 +9,20 @@ import { getBestDiscard } from './discardAI.js';
 export function decideComAction(gameState, playerIndex) {
     const player = gameState.players[playerIndex];
     const logic = gameState.logic;
-    
+
+    if (gameState.phase === "REACTION_DECISION") {
+        const legalActions = gameState.getLegalActions(playerIndex);
+
+        // 1. 如果能榮和，絕不放過！
+        if (legalActions.canRon) {
+            return { type: 'RON' };
+        }
+
+        // 2. 如果不能榮和，就跳過 (CANCEL)
+        return { type: 'CANCEL' };
+    }
+
+
     // 1. 檢查【自摸】
     const currentAnkanCount = player.fulu.filter(f => f.type === 'ankan').length;
     if (logic.isWinningHand(player.tepai, currentAnkanCount)) {
