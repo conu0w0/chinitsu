@@ -203,9 +203,11 @@ export class GameState {
         this.initKyoku();
     }
     
-    initKyoku(parentIndex = 0) {
+    initKyoku(parentIndex = null) {
         this.lastResult = null;
-        this.parentIndex = parentIndex;
+        if (parentIndex !== null) {
+            this.parentIndex = parentIndex;
+        }
 
         this._resetRoundContext();
         this._resetActionContext();
