@@ -58,8 +58,9 @@ export class Renderer {
             comHand: { x: W * 0.82, y: H * 0.15 },            
             comRiver: { x: riverX, y: comRiverY, cols: 6 },
             comMeld: { x: W * 0.05, y: H * 0.15 + (76 - 56) }
-        }
-        this.const YAKU_ORDER = [
+        };
+        
+        this.YAKU_ORDER = [
             // === 役滿 / 地方役 ===
             "天和", "地和", "人和", 
             "四暗刻", "四暗刻單騎", 
