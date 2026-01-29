@@ -59,8 +59,7 @@ export class Renderer {
             comRiver: { x: riverX, y: comRiverY, cols: 6 },
             comMeld: { x: W * 0.05, y: H * 0.15 + (76 - 56) }
         }
-
-        const YAKU_ORDER = [
+        this.const YAKU_ORDER = [
             // === 役滿 / 地方役 ===
             "天和", "地和", "人和", 
             "四暗刻", "四暗刻單騎", 
@@ -781,9 +780,11 @@ export class Renderer {
                 // 4. 副標題：幾翻幾符 (H * 0.46)
                 if (isYakuman) {
                     // 役滿：只顯示分數 (不需要翻數/符數)
+                    ctx.font = `bold 42px ${this.fontFamily}`;
                     ctx.fillText(`${scoreTotal} 點`, CX, H * 0.46);
                 } else {
                     // 一般和牌：顯示 翻數 + 符數 + 分數
+                    ctx.font = `bold 42px ${this.fontFamily}`;
                     ctx.fillText(`${han}飜 ${fu}符  ${scoreTotal} 點`, CX, H * 0.46);
                 } 
 
@@ -795,8 +796,8 @@ export class Renderer {
                     let sortedYakus = [...result.score.yakus]; 
                     
                     sortedYakus.sort((a, b) => {
-                        let indexA = YAKU_ORDER.indexOf(a);
-                        let indexB = YAKU_ORDER.indexOf(b);
+                        let indexA = this.YAKU_ORDER.indexOf(a);
+                        let indexB = this.YAKU_ORDER.indexOf(b);
 
                         // 如果役種不在表單內 (例如: 寶牌 Dora)，就給它一個很大的數字排在最後
                         if (indexA === -1) indexA = 999;
