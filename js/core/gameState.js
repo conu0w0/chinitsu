@@ -6,7 +6,7 @@
 import { MahjongLogic } from './mahjongLogic.js';
 import { decomposeHand, selectBestPattern, calculateFu } from "./yakuJudge.js";
 import { Scoring } from "./scoring.js";
-import { decideComAction } from './ai/ai.js';
+import { decideComAction } from '../ai/ai.js';
 
 /* ======================
    Player
@@ -25,12 +25,11 @@ export class Player {
         this.fulu = [];
         this.river = [];
         this.isReach = false;
-        this.isDoubleReach = false;
-        this.isParent = false;
-
-        // Riichi related
         this.riichiWaitSet = null;
         this.riichiFuriten = false;
+        this.isDoubleReach = false;
+        this.isParent = false;
+        this.isTenpai = false;
     }
 }
 
@@ -58,12 +57,7 @@ export class GameState {
         // REACTION_DECISION (回應層) | ROUND_END
         this.phase = "INIT";
 
-        this.dealState = {
-            round: 0,          // 第幾輪發牌（0~3 = 四張輪，4 = 單張輪）
-            currentPlayer: 0,  // 0 = 親, 1 = 子
-            tilesLeftInBatch: 0,
-        };
-
+        this.dealState = { round: 0, currentPlayer: 0, tilesLeftInBatch: 0 };
         this.lastDiscard = null;
         this.lastResult = null;
         this.roundContext = {};
@@ -200,6 +194,15 @@ export class GameState {
     /* ======================
        初始化一局
        ====================== */
+    startGame() {
+        console.log("=== 遊戲開始 ===");
+        // 隨機決定起莊 (0 或 1)
+        this.parentIndex = Math.floor(Math.random() * 2);
+        console.log(`起莊決定：${this.parentIndex === 0 ? "玩家" : "COM"}`);
+        
+        this.initKyoku();
+    }
+    
     initKyoku(parentIndex = 0) {
         this.lastResult = null;
         this.parentIndex = parentIndex;
@@ -243,6 +246,49 @@ export class GameState {
         setTimeout(() => {
             this._autoDeal();
         }, 400); 
+    }
+
+    nextKyoku() {
+        if (!this.lastResult) {
+            this.initKyoku(); // 如果沒有上局結果，直接重開
+            return;
+        }
+
+        const result = this.lastResult;
+        let shouldRotate = false;
+
+        // 1. 胡牌 (Ron/Tsumo)
+        if (result.type === "win") {
+            // 親家胡牌 -> 連莊 (shouldRotate = false)
+            // 子家胡牌 -> 輪莊 (shouldRotate = true)
+            shouldRotate = (result.winnerIndex !== this.parentIndex);
+            console.log(shouldRotate ? "子家胡牌 -> 輪莊" : "親家胡牌 -> 連莊");
+        }
+        // 2. 流局 (Ryuukyoku)
+        else if (result.type === "ryuukyoku") {
+            // 檢查親家是否聽牌
+            const parentPlayer = this.players[this.parentIndex];
+            
+            // 親家聽牌 -> 連莊
+            // 親家不聽 -> 輪莊
+            shouldRotate = !parentPlayer.isTenpai;
+            console.log(parentPlayer.isTenpai ? "親家聽牌 -> 連莊" : "親家不聽 -> 輪莊");
+        }
+        // 3. 犯規 (Chombo)
+        else if (result.type === "chombo") {
+            // 親家犯規 -> 輪莊
+            // 子家犯規 -> 連莊 (不流莊)
+            shouldRotate = (result.offenderIndex === this.parentIndex);
+            console.log(shouldRotate ? "親家犯規 -> 輪莊" : "子家犯規 -> 連莊");
+        }
+
+        // 執行輪莊
+        if (shouldRotate) {
+            this.parentIndex = (this.parentIndex + 1) % 2;
+        }
+
+        // 開始新的一局
+        this.initKyoku();
     }
    
     // 新增在 GameState 類別裡
@@ -790,6 +836,29 @@ export class GameState {
         this.phase = "ROUND_END";
         this.lastResult = { type: "ryuukyoku" };
         console.log("=== 流局 ===");
+
+        // 1. 判定所有玩家是否聽牌
+        const tenpaiInfo = [];
+        this.players.forEach((p, idx) => {
+            // 檢查是否聽牌：如果現在切掉任何一張牌(或是不切)能聽，就算聽牌
+            // 由於流局時手牌是滿的(13張或14張)，我們直接檢查 getWaitTiles
+            // 注意：這裡簡化，直接檢查現有手牌是否為聽牌形
+            const waits = this.logic.getWaitTiles(p.tepai);
+            p.isTenpai = (waits.size > 0);
+            
+            tenpaiInfo.push({
+                index: idx,
+                isTenpai: p.isTenpai,
+                hand: p.tepai
+            });
+        });
+
+        this.lastResult = { 
+            type: "ryuukyoku",
+            tenpaiInfo: tenpaiInfo
+        };
+       
+        this.phase = "ROUND_END";
         this._resetActionContext();
         this._resetRoundContext();
     }
@@ -822,7 +891,8 @@ export class GameState {
                 total: penalty
             }
         };
-        console.warn("犯規發生", reason);
+        console.warn(`(${offender.isParent ? "親" : "子"}) 犯規：${reason}`);
+        this.phase = "ROUND_END";
     }
 
     _getAnkanCount(player) {
@@ -858,6 +928,8 @@ export class GameState {
         loser.points -= pts;
 
         this.lastResult = {
+            type: "win",
+            winnerIndex: playerIndex,
             best,
             fu,
             score: {
@@ -867,6 +939,8 @@ export class GameState {
             winType: ctx.winType,
             isParent: ctx.isParent 
         };
+       
+        this.phase = "ROUND_END";
     }
 
     _resetActionContext() {
