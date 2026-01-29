@@ -715,6 +715,78 @@ export class Renderer {
         ctx.fillText("— 點擊任意處重新開始 —", CX, H * 0.9);
     }
 
+    // === Helper 1: 繪製結算用手牌 (和牌/犯規模式：13+1張) ===
+    // 請將此方法加在 drawResult 方法之後，_drawStaticHand 之前
+    _drawResultHand(result, centerX, startY, isChombo = false) {
+        const winner = this.gameState.players[result.winnerIndex];
+        const isTsumo = (result.winType === "tsumo");
+        
+        // 複製手牌，避免修改原始數據
+        let standingTiles = [...winner.tepai];
+        let winTile = -1;
+
+        if (isTsumo) {
+            // 自摸：手牌包含和了牌，拿最後一張出來
+            winTile = standingTiles.pop(); 
+        } else {
+            // 榮和：目標牌是別人打出的 (lastDiscard)
+            // 如果是犯規榮和，可能 lastDiscard 為空，這裡做防呆
+            winTile = this.gameState.lastDiscard ? this.gameState.lastDiscard.tile : 0;
+        }
+
+        const melds = winner.fulu || [];
+        const tileW = this.tileWidth;
+        const tileH = this.tileHeight;
+        const gap = 2;
+        const sectionGap = 25; 
+
+        // 1. 計算總寬度
+        let totalWidth = standingTiles.length * (tileW + gap);
+        if (melds.length > 0) {
+            totalWidth += sectionGap;
+            melds.forEach(m => totalWidth += this._calculateMeldWidth(m, tileW) + 10);
+        }
+        totalWidth += sectionGap + tileW; // 最後加上和了牌
+
+        // 2. 開始繪製
+        let currentX = centerX - (totalWidth / 2);
+
+        // A. 立牌
+        standingTiles.forEach(t => {
+            this.drawTile(t, currentX, startY, tileW, tileH);
+            currentX += tileW + gap;
+        });
+
+        // B. 副露
+        if (melds.length > 0) {
+            currentX += sectionGap;
+            melds.forEach(m => {
+                const w = this._drawSingleMeld(m, currentX, startY, tileW, tileH);
+                currentX += w + 10;
+            });
+        }
+
+        // C. 和了牌 / 犯規牌
+        currentX += sectionGap;
+        // 如果是犯規，用紅色高亮；如果是贏了，用金色
+        const highlightColor = isChombo ? "#ff4444" : "#ffcc00"; 
+        
+        this.drawTile(winTile, currentX, startY, tileW, tileH);
+        
+        // 畫框框
+        this.ctx.lineWidth = 4;
+        this.ctx.strokeStyle = highlightColor;
+        this.ctx.strokeRect(currentX, startY, tileW, tileH);
+
+        // 文字標示
+        this.ctx.fillStyle = highlightColor;
+        this.ctx.font = "bold 18px sans-serif";
+        this.ctx.textAlign = "center";
+        const label = isChombo ? "錯和" : "和了";
+        this.ctx.fillText(label, currentX + tileW/2, startY + tileH + 25);
+    }
+
+    // === Helper 2: 繪製靜態手牌 (流局模式：純粹展示目前手牌) ===
     _drawStaticHand(player, centerX, startY, faceDown = false) {
         const tiles = player.tepai;
         const melds = player.fulu || [];
