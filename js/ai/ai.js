@@ -19,14 +19,12 @@ export function decideComAction(gameState, playerIndex) {
         return { type: 'CANCEL' };
     }
 
-    // === 2. ★ 修正重點：立直宣言階段 ===
-    // 如果現在已經是「正在立直宣言中」，AI 只需要回傳切哪張牌就好
-    // 不需要再去檢查自摸、暗槓或再次檢查立直
+    // === 2. 立直宣言階段：只要決定切哪張 ===
     if (gameState.phase === "RIICHI_DECLARATION") {
-        const bestDiscard = getBestDiscard(player.tepai);
+        const bestDiscard = getBestDiscard(gameState, playerIndex);
         return {
             type: 'DISCARD',
-            tileIndex: bestDiscard.index
+            tileIndex: bestDiscard.tileIndex
         };
     }
 
@@ -38,19 +36,17 @@ export function decideComAction(gameState, playerIndex) {
         return { type: 'TSUMO' };
     }
 
-    // B. 檢查【暗槓】    
+    // B. 檢查【暗槓】
     const waitSet = player.isReach ? player.riichiWaitSet : null;
     const ankanTiles = logic.getAnkanTiles(player.tepai, currentAnkanCount, waitSet);
-
     if (ankanTiles.length > 0) {
-        return { 
-            type: 'ANKAN', 
-            tile: ankanTiles[0] 
+        return {
+            type: 'ANKAN',
+            tile: ankanTiles[0]
         };
     }
 
     // C. 檢查【立直後狀態】(強制摸切)
-    // 這是指「已經立直成功」之後的回合
     if (player.isReach) {
         return {
             type: 'DISCARD',
@@ -59,16 +55,14 @@ export function decideComAction(gameState, playerIndex) {
     }
 
     // D. 檢查【是否要立直】
-    // 這是指「還沒立直」時的判斷
     if (checkRiichi(player, gameState)) {
         return { type: 'RIICHI' };
     }
 
-    // E. 普通狀態：計算最佳切牌
-    const bestDiscard = getBestDiscard(player.tepai);
-
+    // E. 普通狀態：計算最佳切牌（進攻/防守整合版）
+    const bestDiscard = getBestDiscard(gameState, playerIndex);
     return {
         type: 'DISCARD',
-        tileIndex: bestDiscard.index
+        tileIndex: bestDiscard.tileIndex
     };
 }
