@@ -1006,7 +1006,7 @@ export class GameState {
             tiles: winType === "tsumo" ? [...player.tepai] : [...player.tepai, winTile],
             ...this.roundContext,
             waits,
-            ippatsu: (this.actionContext.ippatsuActive && !this.actionContext.ippatsuBroken),
+            ippatsu: (player.ippatsuActive && !player.ippatsuBroken),
             tsubame: (winType === 'ron' && this.lastDiscard && this.lastDiscard.isRiichiDeclaration),
             rinshan: this.actionContext.isAfterKan,
             kanburi: (winType === 'ron' && this.actionContext.isKanburiCandidate),
