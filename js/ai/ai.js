@@ -22,7 +22,6 @@ export function decideComAction(gameState, playerIndex) {
         return { type: 'CANCEL' };
     }
 
-
     // 1. 檢查【自摸】
     const currentAnkanCount = player.fulu.filter(f => f.type === 'ankan').length;
     if (logic.isWinningHand(player.tepai, currentAnkanCount)) {
