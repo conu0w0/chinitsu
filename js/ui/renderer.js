@@ -628,13 +628,23 @@ export class Renderer {
             ctx.font = "bold 32px sans-serif";
             ctx.fillText(`【 ${reasonText} 】`, CX, H * 0.38);
 
-            // 3. 找出是誰犯規
-            // 嘗試抓 winnerIndex，如果沒有，就用 turn (當前回合者) 或 0
+            // === ★ 3. 智慧偵測：到底是誰犯規？ ★ ===
             let culpritIndex = result.winnerIndex;
+
+            // 如果後端沒說誰犯規，我們自己依據手牌數量判斷！
+            // (通常犯規的人手牌會是 14 張，或者剛摸牌的狀態)
             if (culpritIndex === undefined) {
-                // 如果是誤自摸，通常是當前回合的人
-                culpritIndex = this.gameState.turn || 0; 
+                const p0Len = this.gameState.players[0].tepai.length;
+                const p1Len = this.gameState.players[1].tepai.length;
+
+                // 誰的手牌模 3 餘 2 (代表 14, 11, 8...張)，就是剛摸牌的人(誤自摸嫌疑犯)
+                if (p0Len % 3 === 2) {
+                    culpritIndex = 0; // 玩家
+                } else if (p1Len % 3 === 2) {
+                    culpritIndex = 1; // COM
+                }
             }
+
             const culprit = this.gameState.players[culpritIndex];
 
             // 4. 顯示身分與罰分
@@ -643,22 +653,22 @@ export class Renderer {
             const roleText = (culpritIndex === this.gameState.parentIndex) ? "親" : "子";
             const who = (culpritIndex === 0) ? "玩家" : "COM";
             
-            ctx.fillText(`[${roleText}] ${who} 罰符`, CX, H * 0.46);
+            ctx.fillText(`[${roleText}] ${who} 罰符 ${result.score.total}`, CX, H * 0.50);
             
             ctx.fillStyle = "#ff4444"; 
-            ctx.fillText(`-${result.score.total} 點`, CX, H * 0.54);
+            ctx.fillText(``, CX, H * 0.54);
 
             // === 拆解聽牌列表 ===
             if (culprit) {
+                // 算出這個犯規的人原本聽什麼
                 const waits = this.gameState.logic.getWaitTiles(culprit.tepai);
                 const isTenpai = waits.length > 0;
-                const label = isTenpai ? `聽牌`: "未聽牌";
+                const label = isTenpai ? "聽牌" : "未聽牌";
 
-                // 畫在手牌上方 (0.65 左右)
+                // 畫在手牌上方
                 this._drawWaitList(waits, CX, H * 0.65, label);
 
-                // 5. 畫出犯規時的手牌 (0.78 左右)
-                // 這裡我們強制把 culpritIndex 塞回 result 給 _drawResultHand 用，確保不會 undefined
+                // 5. 畫出犯規時的手牌
                 const safeResult = { ...result, winnerIndex: culpritIndex };
                 this._drawResultHand(safeResult, CX, H * 0.78, true);
             }
@@ -694,12 +704,12 @@ export class Renderer {
             this._drawStaticHand(player, CX, H * 0.80, !playerIsTenpai);
         }
             
-        // === C. 和牌 (Win) ===
+        // === C. 和牌 (Agari) ===
         else {
             // 1. 標題：本局結束
             ctx.fillStyle = "#ffffff";
             ctx.font = "bold 64px sans-serif";
-            ctx.fillText("本局結束！", CX, H * 0.15); 
+            ctx.fillText("本局結束", CX, H * 0.15); 
 
             if (result.score) {
                 const han = result.best.han;
@@ -731,12 +741,7 @@ export class Renderer {
                     ctx.font = "32px sans-serif";
                     ctx.fillStyle = "#fffacd"; // 檸檬綢色
                     ctx.fillText(`${han}飜 ${fu}符  ${result.score.total}`, CX, H * 0.35);
-                } else {
-                    ctx.font = "32px sans-serif";
-                    ctx.fillStyle = "#fffacd"; // 檸檬綢色
-                    ctx.fillText(`${result.score.total}`, CX, H * 0.35);
-                    // 如果是役滿，這裡可以留白，或是寫個 "Congratulations!" 之類的，目前先留白
-                }
+                } 
 
                 // 4. 身分與方式 (位置微調)
                 const roleText = result.isParent ? "親" : "子";
@@ -746,7 +751,7 @@ export class Renderer {
                 ctx.font = "bold 42px sans-serif";
                 ctx.fillStyle = "#ffffff";
                 // 如果是役滿，因為少了翻符行，這行可以稍微往上提一點，或保持原位 (這裡保持原位 0.43)
-                ctx.fillText(`[${roleText}] ${winnerName} ${winMethod}`, CX, H * 0.43);
+                ctx.fillText(`[${roleText}] ${winnerName} ${winMethod} ${result.score.total}`, CX, H * 0.43);
 
                 // 5. 役種列表
                 if (result.score.yakus && result.score.yakus.length > 0) {
