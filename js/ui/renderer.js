@@ -619,16 +619,25 @@ export class Renderer {
         if (result.type === "chombo") {
             ctx.fillStyle = "#ff6666";
             ctx.font = "bold 64px sans-serif";
-            ctx.fillText("犯規 (Chombo)", CX, H * 0.4);
+            ctx.fillText("犯規", CX, H * 0.35);
+
+            const reasonText = result.reason || "錯和 / 違規";
+            ctx.fillStyle = "#ffaaaa"; // 用淺紅色區分
+            ctx.font = "bold 32px sans-serif";
+            ctx.fillText(`【 ${reasonText} 】`, CX, H * 0.42);
 
             ctx.font = "40px sans-serif";
             ctx.fillStyle = "#ffffff";
+
+            let offenderIndex;
+            offenderIndex = (result.winnerIndex === 0) ? 1 : 0;
             const roleText = result.isParent ? "親" : "子";
-            const who = (result.winnerIndex === 0) ? "玩家" : "COM"; // 這裡指犯規的人
-            
-            // 顯示：[親] 玩家 罰符 
-            ctx.fillText(`[${roleText}] ${who} 罰符`, CX, H * 0.5);
-            ctx.fillText(`-${result.score.total} 點`, CX, H * 0.6);
+            const who = (offenderIndex === 0) ? "玩家" : "COM"; // 這裡指犯規的人
+
+            ctx.fillStyle = "#ff4444";            
+            ctx.fillText(`[${roleText}] ${who} 罰符 ${result.score.total} 點`, CX, H * 0.58);
+
+            this._drawResultHand(result, CX, H * 0.76, true);
         } 
         // === B. 流局 (Ryuukyoku) ===
         else if (result.type === "ryuukyoku") {
@@ -663,35 +672,57 @@ export class Renderer {
             
         // === C. 和牌 (Win) ===
         else {
-            // 1. 標題：對局終了
+            // 1. 標題：和了
             ctx.fillStyle = "#ffffff";
             ctx.font = "bold 64px sans-serif";
             ctx.fillText("和了！", CX, H * 0.15); 
 
             if (result.score) {
-                // 2. 分數詳情 (例如：滿貫 8000 點)
+                const han = result.best.han;
+                const fu = result.fu;
+                let limitName = "";
+
+                // === 自動計算稱號 (滿貫~役滿) ===
+                // 先判斷是否為「累計役滿」(13翻以上)
+                if (han >= 13) {
+                    limitName = "累計役滿";
+                } 
+                else if (han >= 11) limitName = "三倍滿";
+                else if (han >= 8)  limitName = "倍滿";
+                else if (han >= 6)  limitName = "跳滿";
+                const finalTitle = (result.score.display || limitName) 
+                                    ? `${result.score.display || limitName}  ${result.score.total}`
+                                    : `${result.score.total}`;
+
+                // 2. 繪製分數主標題
                 ctx.font = "bold 80px sans-serif";
                 ctx.fillStyle = "#ffcc00"; // 金色
+                ctx.fillText(finalTitle, CX, H * 0.28);
                 
-                // 如果有點數顯示名稱(滿貫等)就用，沒有就顯示總分
-                const scoreTitle = result.score.display || `${result.score.total}`;
-                ctx.fillText(scoreTitle, CX, H * 0.28);
-                
-                // 副標題：幾翻幾符
-                ctx.font = "32px sans-serif";
-                ctx.fillStyle = "#fffacd"; // 檸檬綢色
-                ctx.fillText(`${result.best.han}飜 ${result.fu}符  (+${result.score.total}點)`, CX, H * 0.35);
+                // === 判斷是否隱藏 飜/符 (役滿不顯示) ===
+                // 只要標題裡包含 "役滿" 兩個字，就當作是役滿
+                const isYakuman = finalTitle.includes("役滿");
 
-                // 3. 身分與方式
+                if (!isYakuman) {
+                    // 3. 副標題：幾翻幾符 (只有非役滿才顯示)
+                    ctx.font = "32px sans-serif";
+                    ctx.fillStyle = "#fffacd"; // 檸檬綢色
+                    ctx.fillText(`${han}飜 ${fu}符  ${result.score.total}`, CX, H * 0.35);
+                } else {
+                    // 如果是役滿，這裡可以留白，或是寫個 "Congratulations!" 之類的，目前先留白
+                }
+
+                // 4. 身分與方式 (位置微調)
                 const roleText = result.isParent ? "親" : "子";
                 const winnerName = (result.winnerIndex === 0) ? "玩家" : "COM";
                 const winMethod = (result.winType === "tsumo") ? "自摸" : "榮和";
                 
                 ctx.font = "bold 42px sans-serif";
                 ctx.fillStyle = "#ffffff";
+                // 如果是役滿，因為少了翻符行，這行可以稍微往上提一點，或保持原位 (這裡保持原位 0.43)
                 ctx.fillText(`[${roleText}] ${winnerName} ${winMethod}`, CX, H * 0.43);
 
-                // 4. 役種列表 (往下排列)
+                // 5. 役種列表
                 if (result.score.yakus && result.score.yakus.length > 0) {
                     let y = H * 0.52;
                     ctx.font = "30px sans-serif";
@@ -699,11 +730,10 @@ export class Renderer {
                     
                     result.score.yakus.forEach(yaku => {
                         ctx.fillText(yaku, CX, y);
-                        y += 40; // 行距
+                        y += 40; 
                     });
                     
-                    // 5. 繪製手牌 (在役種下方)
-                    // 這裡呼叫你原本寫好的 _drawResultHand，只需要傳入正確的 Y 座標
+                    // 6. 繪製手牌
                     this._drawResultHand(result, CX, y + 30);
                 }
             }
