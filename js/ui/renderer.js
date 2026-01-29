@@ -633,6 +633,9 @@ export class Renderer {
             // 3. 抓取犯規者
             const culpritIndex = (result.winnerIndex !== undefined) ? result.winnerIndex : 0;
             const culprit = this.gameState.players[culpritIndex];
+            const isParent = (culpritIndex === this.gameState.parentIndex);
+            const roleText = isParent ? "親" : "子";
+            const who = (culpritIndex === 0) ? "玩家" : "COM";
 
             // 4. 顯示身分與罰分
             const textPart = `[${roleText}] ${who} 罰符 `; // 文字部分 (後面加個空白)
