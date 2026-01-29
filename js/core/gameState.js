@@ -25,6 +25,7 @@ export class Player {
         this.fulu = [];
         this.river = [];
         this.isReach = false;
+        this.justKan = false;
         this.isDoubleReach = false;
         this.ippatsuActive = false;
         this.ippatsuBroken = false;
@@ -570,7 +571,7 @@ export class GameState {
             }
         }
 
-        // === 3. 執行切牌 ===
+        // 3. 執行切牌
         const tile = player.tepai.splice(tileIndex, 1)[0];
         player.tepai.sort((a, b) => a - b);
 
@@ -584,15 +585,15 @@ export class GameState {
         if (player.isReach && player.ippatsuActive && !isRiichiDeclarationDiscard) { player.ippatsuActive = false };
 
         // 5. 清理與重置上下文
-        this.actionContext.isKanburiCandidate = this.actionContext.lastActionWasKan;
-        this.actionContext.lastActionWasKan = false;
+        this.actionContext.isKanburiCandidate = player.justKan;
+        player.justKan = false;
         this.actionContext.isAfterKan = false;
 
         // 6. 設定最後打出的牌
         this.lastDiscard = {
             tile,
             fromPlayer: playerIndex,
-            isRiichiDeclaration: this.actionContext.pendingRiichi 
+            isRiichiDeclaration: isRiichiDeclarationDiscard
         };
 
         this.phase = "REACTION_DECISION";
@@ -723,10 +724,10 @@ export class GameState {
         player.tepai.sort((a, b) => a - b);
 
         this.actionContext.isAfterKan = true;
-        this.actionContext.lastActionWasKan = true;
-
+       
         const who = (playerIndex === 0) ? "玩家" : "COM";
         console.log(`${who} 暗槓 ${tile + 1}s`);
+        player.justKan = true;
 
         // 槓完後直接回到 Root (因為摸了嶺上牌，又是一次新的 Decision)
         this.phase = "PLAYER_DECISION";
@@ -963,7 +964,6 @@ export class GameState {
     _resetActionContext() {
         this.actionContext = {
             isAfterKan: false,
-            lastActionWasKan: false,
             pendingRiichi: false,
             pendingDoubleRiichi: false,
             pendingRiichiPlayer: null,
