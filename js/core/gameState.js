@@ -554,7 +554,7 @@ export class GameState {
         const player = this.players[playerIndex];
 
         // 1. 檢查：如果是在立直宣言狀態下切牌，則確認立直
-        let isRiichiDeclarationDiscard = false;
+        let DeclarationDiscard = false;
 
         if (this.phase === "RIICHI_DECLARATION") {
             isRiichiDeclarationDiscard = true;
@@ -580,7 +580,7 @@ export class GameState {
         // 這是給 UI 畫牌河用的 (標記這張牌要橫著擺)
         player.river.push({
             tile,
-            isRiichi: this.actionContext.pendingRiichi 
+            isRiichi: isRiichiDeclarationDiscard 
         });
 
         // 4. 一發狀態處理
