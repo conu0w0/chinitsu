@@ -822,7 +822,8 @@ export class GameState {
                 const discardAction = decideComAction(this, 1);
                 
                 if (discardAction.type === 'DISCARD') {
-                    console.log(`🤖 COM 立直後切牌: ${ discardAction.tileIndex + 1 }s`);
+                    const tileValue = this.players[1].tepai[discardAction.tileIndex];
+                    console.log(`🤖 COM 立直後切牌: ${ tileValue + 1 }s`);
                     
                     // 加一點點延遲，讓「立直」的動畫或音效先跑出來，再切牌
                     setTimeout(() => {
