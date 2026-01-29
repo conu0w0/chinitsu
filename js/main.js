@@ -38,7 +38,7 @@ window.setTest = function(pTilesStr, cTilesStr = "random", drawStr = "") {
 
     // 更新 Config
     window.TEST_CONFIG = {
-        enabled: true,
+        enabled: false,
         playerHand: parse(pTilesStr),
         comHand: parse(cTilesStr),
         nextDraws: parse(drawStr)
