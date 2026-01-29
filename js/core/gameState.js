@@ -543,7 +543,6 @@ export class GameState {
         }
 
         // 5. 清理與重置上下文
-        this.actionContext.lastActionWasRiichi = false; 
         this.actionContext.isKanburiCandidate = this.actionContext.lastActionWasKan;
         this.actionContext.lastActionWasKan = false;
         this.actionContext.isAfterKan = false;
@@ -887,7 +886,6 @@ export class GameState {
             pendingRiichi: false,
             pendingDoubleRiichi: false,
             pendingRiichiPlayer: null,
-            lastActionWasRiichi: false,
             ippatsuActive: false,
             ippatsuBroken: false,
             isKanburiCandidate: false
