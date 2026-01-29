@@ -554,10 +554,9 @@ export class GameState {
         const player = this.players[playerIndex];
 
         // 1. 檢查：如果是在立直宣言狀態下切牌，則確認立直
-        let DeclarationDiscard = false;
+        const isRiichiDeclarationDiscard = (this.phase === "RIICHI_DECLARATION");
 
-        if (this.phase === "RIICHI_DECLARATION") {
-            const isRiichiDeclarationDiscard = true;
+        if (isRiichiDeclarationDiscard) {
             this.phase = "PLAYER_DECISION";
             this._handleRiichi(playerIndex);
         }
