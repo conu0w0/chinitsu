@@ -214,7 +214,7 @@ export class GameState {
 
         this.players.forEach((p, i) => {
             p.resetHand();
-            p.isParent = (i === parentIndex);
+            p.isParent = (i === this.parentIndex);
         });
 
         // 建立牌山：索子 1s~9s 各 4 張 (共 36 張)
@@ -235,7 +235,7 @@ export class GameState {
         this.phase = "DEALING";
         this.dealState = {
             round: 0,
-            currentPlayer: parentIndex,
+            currentPlayer: this.parentIndex,
             tilesLeftInBatch: 4
         };
 
