@@ -269,10 +269,10 @@ export class GameState {
           shouldRotate = !parentPlayer.isTenpai;
           console.log(parentPlayer.isTenpai ? "親家聽牌 -> 連莊" : "親家不聽 -> 輪莊");
        }
-       // 3. 犯規 (Chombo)
+       // 3. 錯和 (Chombo)
        else if (result.type === "chombo") {
           shouldRotate = (result.offenderIndex === this.parentIndex);
-          console.log(shouldRotate ? "親家犯規 -> 輪莊" : "子家犯規 -> 連莊");
+          console.log(shouldRotate ? "親家錯和 -> 輪莊" : "子家錯和 -> 連莊");
        }
        // 執行輪莊
        if (shouldRotate) { this.parentIndex = (this.parentIndex + 1) % 2 };
@@ -899,14 +899,16 @@ export class GameState {
 
         this.lastResult = {
             type: "chombo",
+            winnerIndex: playerIndex, 
+            reason: reason,
             offenderIndex: playerIndex,
             isParent: offender.isParent,
             score: {
-                display: `犯規：${reason}`,
+                display: `錯和：${reason}`,
                 total: penalty
             }
         };
-        console.warn(`(${offender.isParent ? "親" : "子"}) 犯規：${reason}`);
+        console.warn(`(${offender.isParent ? "親" : "子"}) 錯和：${reason}`);
         this.phase = "ROUND_END";
     }
 
