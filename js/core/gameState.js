@@ -417,7 +417,7 @@ export class GameState {
         }
 
         // === 2. 對手打牌後的決策 (榮和) ===
-        if (this.phase === "REACTION_DECISION" && this.lastDiscard && playerIndex === 0) {
+        if (this.phase === "REACTION_DECISION" && this.lastDiscard) {
             actions.canRon = true;
             actions.canCancel = true;
         }
