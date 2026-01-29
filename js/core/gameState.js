@@ -452,6 +452,11 @@ export class GameState {
                         return;
                     }
 
+                    if (type === "ANKAN") {
+                        this._handleAnkan(playerIndex, action.tile);
+                        return;
+                    }
+
                     // 嘗試暗槓 -> 進入邏輯判斷
                     if (type === "TRY_ANKAN") {
                         const ankanTiles = this.logic.getAnkanTiles(
