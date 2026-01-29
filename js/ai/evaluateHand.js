@@ -1,128 +1,268 @@
 /**
- * js/ai/evaluateHand.js
- * 手牌評估模組：使用回溯法 (Backtracking) 計算手牌結構分
- * 這是 AI 的「直覺」，分數越高代表手牌越好
+ * ai/evaluateHand.js
+ * 丟牌評估：進攻(手牌效率) + 防守(危險度) → 最終分數
+ * 索子 only：tile 0~8 對應 1s~9s
  */
 
-/**
- * 評估手牌結構分數
- * @param {Array<number>} tiles 手牌陣列 (例如 [0, 0, 1, 2, ...])，純數字陣列
- * @returns {number} 結構分
- */
+/* =========================
+   參數組（可微調）
+   ========================= */
+const DEFENSE = {
+  base: 10,
+  genbutsuDanger: 0.2,      // 現物幾乎安全
+  sujiDanger: 3.0,          // 筋：有降但不是 0
+  kabeScale: 1.0,           // 壁減危險倍率
+  tileBias: [-1.0, 0.5, 1.2, 1.6, 1.8, 1.6, 1.2, 0.5, -1.0], // 中張偏危險
+  vsRiichiMultiplier: 1.45, // 對手立直：整體更危險
+  min: 0
+};
+
+const MIX = {
+  attackWeight: 1.0,
+  defenseWeight: 1.4,
+  defenseWeightVsRiichi: 2.4,
+  tenpaiAttackBonus: 0.25
+};
+
+const ATTACK = {
+  tenpaiBonus: 80,
+  waitCountWeight: 10,
+  structureWeight: 1.0
+};
+
+/* =========================
+   對外：評估所有可丟牌
+   ========================= */
+export function evaluateDiscards(gameState, playerIndex, opponentIndex) {
+  const player = gameState.players[playerIndex];
+  const defenseCtx = buildDefenseContext(gameState, playerIndex, opponentIndex);
+
+  const candidates = [];
+  for (let i = 0; i < player.tepai.length; i++) {
+    const tile = player.tepai[i];
+
+    // 模擬丟掉這張
+    const simulated = player.tepai.slice();
+    simulated.splice(i, 1);
+
+    const attackScore = evaluateAttack(gameState, simulated, playerIndex);
+    const danger = evaluateDanger(tile, defenseCtx);
+    const finalScore = mixScore(attackScore, danger, defenseCtx);
+
+    candidates.push({
+      tileIndex: i,
+      tile,
+      attackScore,
+      danger,
+      finalScore
+    });
+  }
+
+  candidates.sort((a, b) => b.finalScore - a.finalScore);
+  return { best: candidates[0], candidates };
+}
+
+/* =========================
+   進攻：手牌效率
+   ========================= */
+function evaluateAttack(gameState, tilesAfterDiscard, playerIndex) {
+  // 1) 結構分（你的回溯法）
+  const structure = evaluateHandStructure(tilesAfterDiscard) * ATTACK.structureWeight;
+
+  // 2) 等待數/聽牌（有效牌數）
+  const waits = gameState.logic.getWaitTiles(tilesAfterDiscard);
+  const waitCount = waits ? waits.size : 0;
+  const isTenpai = waitCount > 0;
+
+  return structure
+    + (isTenpai ? ATTACK.tenpaiBonus : 0)
+    + waitCount * ATTACK.waitCountWeight;
+}
+
+/* =========================
+   防守：危險度
+   ========================= */
+function evaluateDanger(tile, ctx) {
+  const { remaining, genbutsuSet, sujiSet, opponentRiichi } = ctx;
+
+  // 現物 = 超安全
+  if (genbutsuSet.has(tile)) return DEFENSE.genbutsuDanger;
+
+  let danger = DEFENSE.base;
+
+  // 筋：降低
+  if (sujiSet.has(tile)) danger = Math.min(danger, DEFENSE.sujiDanger);
+
+  // 中張偏危險
+  danger += (DEFENSE.tileBias[tile] ?? 0);
+
+  // 壁（完全壁/半壁）
+  danger -= kabeReduction(tile, remaining) * DEFENSE.kabeScale;
+
+  // 對手立直：整體放大
+  if (opponentRiichi) danger *= DEFENSE.vsRiichiMultiplier;
+
+  return Math.max(DEFENSE.min, danger);
+}
+
+/* =========================
+   混分：attack - danger*權重
+   ========================= */
+function mixScore(attackScore, danger, ctx) {
+  const wD = ctx.opponentRiichi ? MIX.defenseWeightVsRiichi : MIX.defenseWeight;
+  const tenpaiBonus = ctx.selfTenpai ? MIX.tenpaiAttackBonus : 0;
+
+  return (attackScore * MIX.attackWeight * (1 + tenpaiBonus)) - (danger * wD);
+}
+
+/* =========================
+   防守上下文：現物/筋/剩枚/壁
+   ========================= */
+function buildDefenseContext(gameState, playerIndex, opponentIndex) {
+  const player = gameState.players[playerIndex];
+  const opponent = gameState.players[opponentIndex];
+
+  // 現物（對手丟過）
+  const genbutsuSet = new Set(opponent.river.map(r => r.tile));
+
+  // 筋（對手丟 t → t±3）
+  const sujiSet = new Set();
+  for (const r of opponent.river) {
+    const t = r.tile;
+    if (t - 3 >= 0) sujiSet.add(t - 3);
+    if (t + 3 <= 8) sujiSet.add(t + 3);
+  }
+
+  // visible：AI 看得到的牌（自己手牌、雙方河、雙方槓）
+  const visible = Array(9).fill(0);
+
+  for (const t of player.tepai) visible[t]++;
+
+  for (const p of gameState.players) {
+    for (const r of p.river) visible[r.tile]++;
+  }
+
+  // 你的 fulu 目前只有 ankan；暗槓視為 4 張可見（你也可改成只+0，看你 UI 設計）
+  for (const p of gameState.players) {
+    for (const f of p.fulu) {
+      if (f.type === "ankan") visible[f.tile] += 4;
+    }
+  }
+
+  const remaining = visible.map(v => Math.max(0, 4 - v));
+
+  // 自己是否聽牌（用來稍微偏攻）
+  const selfWaits = gameState.logic.getWaitTiles(player.tepai);
+  const selfTenpai = selfWaits && selfWaits.size > 0;
+
+  return {
+    remaining,
+    genbutsuSet,
+    sujiSet,
+    opponentRiichi: opponent.isReach,
+    selfTenpai
+  };
+}
+
+/* =========================
+   壁（完全壁/半壁）
+   - remaining[x]==0：完全壁
+   - remaining[x]==1：半壁
+   影響：鄰近牌更安全
+   ========================= */
+function kabeReduction(tile, remaining) {
+  let reduce = 0;
+
+  for (let wallTile = 0; wallTile <= 8; wallTile++) {
+    const rem = remaining[wallTile];
+    const isFull = rem === 0;
+    const isHalf = rem === 1;
+
+    if (!isFull && !isHalf) continue;
+
+    const d1 = isFull ? 4 : 2; // 距離1
+    const d2 = isFull ? 2 : 1; // 距離2
+
+    const dist = Math.abs(tile - wallTile);
+    if (dist === 1) reduce += d1;
+    if (dist === 2) reduce += d2;
+  }
+
+  return reduce;
+}
+
+/* =========================================================
+   你原本的：evaluateHandStructure（回溯拆解）
+   ========================================================= */
 export function evaluateHandStructure(tiles) {
-    // 1. 轉換成計數陣列 (0~8 各有幾張)
-    const counts = Array(9).fill(0);
-    for (const t of tiles) {
-        if (t >= 0 && t <= 8) {
-            counts[t]++;
-        }
-    }
-
-    // 2. 開始遞迴搜尋最佳組合 (面子, 搭子, 對子)
-    // 參數：(計數器, 面子數, 搭子數, 對子數)
-    const result = searchGroups(counts, 0, 0, 0);
-
-    // 3. 計算並回傳分數
-    return calcScore(result);
+  const counts = Array(9).fill(0);
+  for (const t of tiles) {
+    if (t >= 0 && t <= 8) counts[t]++;
+  }
+  const result = searchGroups(counts, 0, 0, 0);
+  return calcStructureScore(result);
 }
 
-/**
- * 遞迴搜尋：嘗試各種拆解方式 (刻子、順子、雀頭、搭子)
- */
 function searchGroups(counts, mentsu, tatsu, pair) {
-    let bestResult = { mentsu, tatsu, pair };
-    
-    // 找第一張還存在的牌 (Index 0~8)
-    let i = -1;
-    for (let k = 0; k < 9; k++) {
-        if (counts[k] > 0) {
-            i = k;
-            break;
-        }
-    }
+  let bestResult = { mentsu, tatsu, pair };
 
-    // 基底條件：牌都看完了 (counts 全空)
-    if (i === -1) {
-        return bestResult;
-    }
+  let i = -1;
+  for (let k = 0; k < 9; k++) {
+    if (counts[k] > 0) { i = k; break; }
+  }
+  if (i === -1) return bestResult;
 
-    // === 嘗試 1: 刻子 (i, i, i) ===
-    if (counts[i] >= 3) {
-        counts[i] -= 3;
-        const res = searchGroups(counts, mentsu + 1, tatsu, pair);
-        if (calcScore(res) > calcScore(bestResult)) bestResult = res;
-        counts[i] += 3; // Backtrack (還原狀態)
-    }
+  if (counts[i] >= 3) {
+    counts[i] -= 3;
+    const res = searchGroups(counts, mentsu + 1, tatsu, pair);
+    if (calcStructureScore(res) > calcStructureScore(bestResult)) bestResult = res;
+    counts[i] += 3;
+  }
 
-    // === 嘗試 2: 順子 (i, i+1, i+2) ===
-    // 只有 0~6 才有可能當順子開頭
-    if (i <= 6 && counts[i+1] > 0 && counts[i+2] > 0) {
-        counts[i]--; counts[i+1]--; counts[i+2]--;
-        const res = searchGroups(counts, mentsu + 1, tatsu, pair);
-        if (calcScore(res) > calcScore(bestResult)) bestResult = res;
-        counts[i]++; counts[i+1]++; counts[i+2]++;
-    }
+  if (i <= 6 && counts[i+1] > 0 && counts[i+2] > 0) {
+    counts[i]--; counts[i+1]--; counts[i+2]--;
+    const res = searchGroups(counts, mentsu + 1, tatsu, pair);
+    if (calcStructureScore(res) > calcStructureScore(bestResult)) bestResult = res;
+    counts[i]++; counts[i+1]++; counts[i+2]++;
+  }
 
-    // === 嘗試 3: 雀頭/對子 (i, i) ===
-    if (counts[i] >= 2) {
-        counts[i] -= 2;
-        // 如果還沒有雀頭 (pair=0)，這組對子價值很高
-        // 如果已經有雀頭，這組就只能算普通對子(通常不會發生在最佳解，但為了計算完整性)
-        const res = searchGroups(counts, mentsu, tatsu, pair + 1);
-        if (calcScore(res) > calcScore(bestResult)) bestResult = res;
-        counts[i] += 2;
-    }
+  if (counts[i] >= 2) {
+    counts[i] -= 2;
+    const res = searchGroups(counts, mentsu, tatsu, pair + 1);
+    if (calcStructureScore(res) > calcStructureScore(bestResult)) bestResult = res;
+    counts[i] += 2;
+  }
 
-    // === 嘗試 4: 兩面/邊張搭子 (i, i+1) ===
-    if (i <= 7 && counts[i+1] > 0) {
-        counts[i]--; counts[i+1]--;
-        const res = searchGroups(counts, mentsu, tatsu + 1, pair);
-        if (calcScore(res) > calcScore(bestResult)) bestResult = res;
-        counts[i]++; counts[i+1]++;
-    }
+  if (i <= 7 && counts[i+1] > 0) {
+    counts[i]--; counts[i+1]--;
+    const res = searchGroups(counts, mentsu, tatsu + 1, pair);
+    if (calcStructureScore(res) > calcStructureScore(bestResult)) bestResult = res;
+    counts[i]++; counts[i+1]++;
+  }
 
-    // === 嘗試 5: 嵌張搭子 (i, i+2) ===
-    if (i <= 6 && counts[i+2] > 0) {
-        counts[i]--; counts[i+2]--;
-        const res = searchGroups(counts, mentsu, tatsu + 1, pair);
-        if (calcScore(res) > calcScore(bestResult)) bestResult = res;
-        counts[i]++; counts[i+2]++;
-    }
+  if (i <= 6 && counts[i+2] > 0) {
+    counts[i]--; counts[i+2]--;
+    const res = searchGroups(counts, mentsu, tatsu + 1, pair);
+    if (calcStructureScore(res) > calcStructureScore(bestResult)) bestResult = res;
+    counts[i]++; counts[i+2]++;
+  }
 
-    // === 嘗試 6: 放棄這張牌 (視為孤張) ===
-    // 直接處理下一張
-    counts[i]--;
-    const res = searchGroups(counts, mentsu, tatsu, pair);
-    if (calcScore(res) > calcScore(bestResult)) bestResult = res;
-    counts[i]++;
+  counts[i]--;
+  const res = searchGroups(counts, mentsu, tatsu, pair);
+  if (calcStructureScore(res) > calcStructureScore(bestResult)) bestResult = res;
+  counts[i]++;
 
-    return bestResult;
+  return bestResult;
 }
 
-/**
- * 計算分數
- * 根據拆解出來的面子數、雀頭數、搭子數給分
- */
-function calcScore(r) {
-    let m = r.mentsu;
-    let p = r.pair;
-    let t = r.tatsu;
+function calcStructureScore(r) {
+  let m = r.mentsu;
+  let p = r.pair;
+  let t = r.tatsu;
 
-    // 修正邏輯：標準麻將結構限制 (4面子 + 1雀頭)
-    // 我們要計算「有效率」的結構，多餘的搭子沒用
-    
-    if (m > 4) m = 4;        // 最多4組面子
-    
-    // 如果面子滿了，就不需要搭子了
-    // 如果面子沒滿，搭子最多只能補足剩下的面子空缺
-    if (m + t > 4) t = 4 - m; 
-    
-    if (p > 1) p = 1;        // 雀頭只要一組
+  if (m > 4) m = 4;
+  if (m + t > 4) t = 4 - m;
+  if (p > 1) p = 1;
 
-    // 分數權重 (根據清一色特性調整)
-    // 面子: 120 (完成的最高分)
-    // 雀頭: 40  (必須要有)
-    // 搭子: 20  (未來潛力)
-    // 孤張: 0
-    return (m * 120) + (p * 40) + (t * 20);
+  return (m * 120) + (p * 40) + (t * 20);
 }
