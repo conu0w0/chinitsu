@@ -618,7 +618,7 @@ export class Renderer {
     }
     
     /* ======================
-       7. 結算畫面 (最終排版確認版)
+       7. 結算畫面
        ====================== */
     drawResult(result) {
         if (!result) return;
@@ -636,7 +636,7 @@ export class Renderer {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
 
-        // === A. 犯規 (Chombo) ===
+        // === A. 錯和 (Chombo) ===
         if (result.type === "chombo") {
             // 1. 標題
             ctx.fillStyle = "#ff6666";
@@ -649,7 +649,7 @@ export class Renderer {
             ctx.font = `bold 32px ${this.fontFamily}`;
             ctx.fillText(`【 ${reasonText} 】`, CX, H * 0.33);
 
-            // 3. 抓取犯規者
+            // 3. 抓取錯和者
             const culpritIndex = (result.winnerIndex !== undefined) ? result.winnerIndex : 0;
             const culprit = this.gameState.players[culpritIndex];
             const isParent = (culpritIndex === this.gameState.parentIndex);
@@ -688,15 +688,15 @@ export class Renderer {
 
             // 5. 拆解聽牌列表 (如果有)
             if (culprit) {
-                // 這裡傳入 culprit.fulu，讓邏輯知道已經完成了幾組
-                const waits = this.gameState.logic.getWaitTiles(culprit.tepai, culprit.fulu);
+                let tepaiForLogic = [...culprit.tepai];
+                if (tepaiForLogic.length % 3 === 2) { tepaiForLogic.pop) }; 
+                const waits = this.gameState.logic.getWaitTiles(tepaiForLogic, culprit.fulu);
                 const isTenpai = waits.length > 0;
-                
-                const label = isTenpai ? "聽牌" : "未聽牌";
-                this._drawWaitList(waits, CX, H * 0.65, label);
 
-                this._drawResultHand(result, CX, H * 0.78, true);
+                const label = isTenpai ? "聽牌" : "未聽牌";
             }
+            // 6. 繪製手牌 (最後一張會被 _drawResultHand 抓去當特寫)
+            this._drawWaitList(waits, CX, H * 0.65, label);
         }
         // === B. 流局 (Ryuukyoku) ===
         else if (result.type === "ryuukyoku") {
