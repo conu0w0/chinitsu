@@ -232,7 +232,7 @@ export class Renderer {
         // 中行：餘牌 (黃色高亮)
         ctx.font = "bold 24px sans-serif";
         ctx.fillStyle = "#ffcc00"; 
-        ctx.fillText(`余：${yamaCount} 張`, cx, cy + 2);
+        ctx.fillText(`余：${yamaCount}`, cx, cy + 2);
 
         // 下行：玩家資訊
         ctx.font = "bold 20px sans-serif";
