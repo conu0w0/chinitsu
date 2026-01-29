@@ -599,7 +599,7 @@ export class Renderer {
     }
     
     /* ======================
-       7. 結算畫面 (修正版)
+       7. 結算畫面 (最終排版確認版)
        ====================== */
     drawResult(result) {
         if (!result) return;
@@ -622,29 +622,49 @@ export class Renderer {
             // 1. 標題
             ctx.fillStyle = "#ff6666";
             ctx.font = `bold 64px ${this.fontFamily}`;
-            ctx.fillText("錯和", CX, H * 0.30);
+            ctx.fillText("錯和", CX, H * 0.25);
 
             // 2. 原因
             const reasonText = result.reason || "錯和 / 違規"; 
             ctx.fillStyle = "#ffaaaa"; 
             ctx.font = `bold 32px ${this.fontFamily}`;
-            ctx.fillText(`【 ${reasonText} 】`, CX, H * 0.38);
+            ctx.fillText(`【 ${reasonText} 】`, CX, H * 0.33);
 
             // 3. 抓取犯規者
             const culpritIndex = (result.winnerIndex !== undefined) ? result.winnerIndex : 0;
             const culprit = this.gameState.players[culpritIndex];
 
             // 4. 顯示身分與罰分
-            ctx.font = `40px ${this.fontFamily}`;
-            ctx.fillStyle = "#ffffff";
-            const roleText = (culpritIndex === this.gameState.parentIndex) ? "親" : "子";
-            const who = (culpritIndex === 0) ? "玩家" : "COM";
-            
-            ctx.fillText(`[${roleText}] ${who} 罰符 ${result.score.total}`, CX, H * 0.52);
-            ctx.fillStyle = "#ff4444"; 
-            ctx.fillText(`- `, CX, H * 0.54);
+            const textPart = `[${roleText}] ${who} 罰符 `; // 文字部分 (後面加個空白)
+            const numPart = `-${result.score.total} 點`;      // 數字部分
 
-            // 5. 拆解聽牌列表
+            // 設定統一的大字體
+            ctx.font = `bold 50px ${this.fontFamily}`;
+
+            // ★ 計算寬度來手動置中
+            const textWidth = ctx.measureText(textPart).width;
+            const numWidth = ctx.measureText(numPart).width;
+            const totalWidth = textWidth + numWidth;
+
+            // 計算起始 X 座標 (讓整串字看起來是在正中間)
+            let drawX = CX - (totalWidth / 2);
+            const drawY = H * 0.48; // 高度設在原本兩行的中間
+
+            // 暫時切換成靠左對齊，這樣才能依序接龍畫下去
+            ctx.textAlign = "left";
+
+            // 畫左邊 (白色文字)
+            ctx.fillStyle = "#ffffff";
+            ctx.fillText(textPart, drawX, drawY);
+
+            // 畫右邊 (紅色數字，接在文字寬度之後)
+            ctx.fillStyle = "#ff4444"; 
+            ctx.fillText(numPart, drawX + textWidth, drawY);
+
+            // 畫完記得切回置中，才不會影響後面的程式！
+            ctx.textAlign = "center";
+
+            // 5. 拆解聽牌列表 (如果有)
             if (culprit) {
                 const waits = this.gameState.logic.getWaitTiles(culprit.tepai);
                 const isTenpai = waits.length > 0;
@@ -681,7 +701,7 @@ export class Renderer {
         }
         // === C. 和牌 (Agari) ===
         else {
-            // 1. 標題：本局結束
+            // 1. 標題：本局結束 (H * 0.18)
             ctx.fillStyle = "#ffffff";
             ctx.font = `bold 64px ${this.fontFamily}`;
             ctx.fillText("本局結束", CX, H * 0.18); 
@@ -716,7 +736,7 @@ export class Renderer {
                     finalTitle = backendDisplay || `${scoreTotal}`;
                 }
 
-                // 2. 身分與方式
+                // 2. 身分與方式 (依照你的要求：放在分數上面 H * 0.28)
                 const winnerIdx = (result.winnerIndex !== undefined) ? result.winnerIndex : 0;
                 const roleText = isParent ? "親" : "子";
                 const winnerName = (winnerIdx === 0) ? "玩家" : "COM";
@@ -724,34 +744,37 @@ export class Renderer {
                 
                 ctx.font = `bold 42px ${this.fontFamily}`;
                 ctx.fillStyle = "#ffffff";
+                // 這裡拿掉 "點" 字，因為 "自摸 點" 語法怪怪的，通常是 "自摸 12000點"
+                // 但分數已經在下面大標題了，所以這裡顯示動作就好
                 ctx.fillText(`[${roleText}] ${winnerName} ${winMethod}`, CX, H * 0.28);
                 
-                // 3. 分數大標題
+                // 3. 分數大標題 (H * 0.38)
+                // 稍微往下挪一點點 (0.36 -> 0.38) 避免跟上面的字太近
                 ctx.font = `bold 80px ${this.fontFamily}`;
                 ctx.fillStyle = "#ffcc00"; 
-                ctx.fillText(finalTitle, CX, H * 0.36);
+                ctx.fillText(finalTitle, CX, H * 0.38);
                 
                 const isYakuman = finalTitle.includes("役滿");
 
-                // 4. 副標題：幾翻幾符
+                // 4. 副標題：幾翻幾符 (H * 0.46)
                 if (!isYakuman) {
                     ctx.font = `32px ${this.fontFamily}`;
                     ctx.fillStyle = "#fffacd"; 
-                    ctx.fillText(`${han}飜 ${fu}符  ${scoreTotal}`, CX, H * 0.44);
+                    ctx.fillText(`${han}飜 ${fu}符  ${scoreTotal} 點`, CX, H * 0.46);
                 } 
 
-                // 5. 役種列表
+                // 5. 役種列表 (從 H * 0.54 開始)
                 if (result.score.yakus && result.score.yakus.length > 0) {
-                    let y = H * 0.52; 
+                    let y = H * 0.54; 
                     ctx.font = `30px ${this.fontFamily}`;
                     ctx.fillStyle = "#dddddd";
                     
                     result.score.yakus.forEach(yaku => {
                         ctx.fillText(yaku, CX, y);
-                        y += 45; // 行距稍微加大一點 (原本40)
+                        y += 45; 
                     });
                     
-                    // 6. 繪製手牌 (在役種列表結束後，再往下空 40px)
+                    // 6. 繪製手牌 (在列表結束後)
                     this._drawResultHand(result, CX, y + 40);
                 }
             }
