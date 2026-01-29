@@ -557,10 +557,8 @@ export class GameState {
         let DeclarationDiscard = false;
 
         if (this.phase === "RIICHI_DECLARATION") {
-            isRiichiDeclarationDiscard = true;
+            const isRiichiDeclarationDiscard = true;
             this.phase = "PLAYER_DECISION";
-
-            // 執行立直扣點與標記 (先標記 actionContext，出牌後才正式生效)
             this._handleRiichi(playerIndex);
         }
 
