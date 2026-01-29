@@ -887,7 +887,7 @@ export class Renderer {
         ctx.fillText(labelText, centerX, startY);
 
         if (!waitTiles || waitTiles.length === 0) {
-            ctx.font = `20px ;
+            ctx.font = `20px ${this.fontFamily}`;
             ctx.fillStyle = "#888";
             ctx.fillText("未聽牌", centerX, startY + 40);
             return;
