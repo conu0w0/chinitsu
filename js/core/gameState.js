@@ -25,9 +25,11 @@ export class Player {
         this.fulu = [];
         this.river = [];
         this.isReach = false;
+        this.isDoubleReach = false;
+        this.ippatsuActive = false;
+        this.ippatsuBroken = false;
         this.riichiWaitSet = null;
         this.riichiFuriten = false;
-        this.isDoubleReach = false;
         this.isParent = false;
         this.isTenpai = false;
     }
@@ -622,11 +624,10 @@ export class GameState {
            }
 
            p.riichiWaitSet = this.logic.getWaitTiles(p.tepai);
-
-           this.actionContext.ippatsuActive = true;
-           this.actionContext.ippatsuBroken = false;
-
            console.log(p.isDoubleReach ? "兩立直成立！" : "立直成立");
+          
+           p.ippatsuActive = true;
+           p.ippatsuBroken = false;
 
            // 清理狀態
            this.actionContext.pendingRiichi = false;
@@ -634,6 +635,17 @@ export class GameState {
            this.actionContext.pendingRiichiPlayer = null;   
        }
    }
+
+   _breakAllIppatsu() {
+      this.players.forEach(p => {
+         if (p.ippatsuActive) {
+            p.ippatsuActive = false;
+            p.ippatsuBroken = true;
+         }
+      });
+   }
+
+   
     // 回合推進
     _advanceAfterResponse() {
         this._finalizePendingRiichi();
@@ -662,17 +674,13 @@ export class GameState {
 
         const tile = this.yama.pop();
         const player = this.players[playerIndex];
+
+        if (player.ippatsuActive) { player.ippatsuActive = false };
         player.tepai.push(tile);
 
         const savedAfterKan = this.actionContext.isAfterKan;
-        const savedIppatsuActive = this.actionContext.ippatsuActive;
-        const savedIppatsuBroken = this.actionContext.ippatsuBroken;
-       
         this._resetActionContext();
-       
         if (savedAfterKan) this.actionContext.isAfterKan = true; // 嶺上
-        this.actionContext.ippatsuActive = savedIppatsuActive; // 還原一發狀態
-        this.actionContext.ippatsuBroken = savedIppatsuBroken; // 還原一發是否中斷
 
         this.phase = "PLAYER_DECISION";
         console.log(`${player.name} 摸牌: ${playerIndex === 0 ? `${tile + 1}s` : '??'}`);
