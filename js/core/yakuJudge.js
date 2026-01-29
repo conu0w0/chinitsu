@@ -230,7 +230,11 @@ function checkIshigamiSannen(_, ctx) {
 function checkKyuurenKyuumenMachi(pattern) {
     if (pattern.type !== "kyuuren") return null;
 
-    const c = pattern.counts;
+    const c = [...pattern.counts];
+
+    if (winningTile !== undefined && winningTile !== null) {
+        c[winningTile]--;
+    }
 
     if (c[0] !== 3) return null;
     if (c[8] !== 3) return null;
