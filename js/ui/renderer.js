@@ -620,7 +620,7 @@ export class Renderer {
             // 1. 標題
             ctx.fillStyle = "#ff6666";
             ctx.font = "bold 64px sans-serif";
-            ctx.fillText("犯規 (Chombo)", CX, H * 0.30);
+            ctx.fillText("錯和", CX, H * 0.30);
 
             // 2. 原因
             const reasonText = result.reason || "錯和 / 違規"; 
@@ -638,9 +638,9 @@ export class Renderer {
             const roleText = (culpritIndex === this.gameState.parentIndex) ? "親" : "子";
             const who = (culpritIndex === 0) ? "玩家" : "COM";
             
-            ctx.fillText(`[${roleText}] ${who} 罰符`, CX, H * 0.46);
+            ctx.fillText(`[${roleText}] ${who} 罰符 ${result.score.total}`, CX, H * 0.52);
             ctx.fillStyle = "#ff4444"; 
-            ctx.fillText(`-${result.score.total} 點`, CX, H * 0.54);
+            ctx.fillText(`- `, CX, H * 0.54);
 
             // 5. 拆解聽牌列表
             if (culprit) {
