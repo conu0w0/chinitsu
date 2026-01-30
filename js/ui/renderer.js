@@ -907,7 +907,7 @@ export class Renderer {
                 const now = performance.now();
                 const lastIndex = sortedYakus.length - 1;
                 
-                this.resultYakuEndTime = now + lastInd
+                this.resultYakuEndTime = now + lastIndex * 120 + 400;
             }
         }
     }
