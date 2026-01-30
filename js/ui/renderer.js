@@ -57,7 +57,7 @@ export class Renderer {
 
             comHand: { x: W * 0.82, y: H * 0.15 },            
             comRiver: { x: riverX, y: comRiverY, cols: 6 },
-            comMeld: { x: W * 0.05, y: H * 0.15 + (76 - 56) }
+            comMeld: { x: W * 0.10, y: H * 0.15 + (76 - 56) }
         };
 
         this.RESULT_LAYOUT = {
@@ -776,7 +776,7 @@ export class Renderer {
             ctx.textAlign = "center";
 
             // 5. 繪製聽牌列表
-            this._drawWaitList(waits, CX, H * 0.65, label);      
+            this._drawWaitList(waits, CX, H * 0.60, label);      
 
             // 6. 繪製錯和手牌（紅框）
             const handY = H * 0.72;
@@ -805,7 +805,7 @@ export class Renderer {
             const playerIsTenpai = playerInfo.isTenpai;
             const playerWaits = playerInfo.waits;
 
-            this._drawWaitList(playerWaits, CX, H * 0.65, playerIsTenpai ? "玩家 聽牌" : "玩家 未聽");
+            this._drawWaitList(playerWaits, CX, H * 0.60, playerIsTenpai ? "玩家 聽牌" : "玩家 未聽");
             this._drawStaticHand(player, CX, H * 0.80, !playerIsTenpai);
         }
         // === C. 和牌 (Agari) ===
