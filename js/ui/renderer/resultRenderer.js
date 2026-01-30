@@ -494,7 +494,6 @@ export class ResultRenderer {
         
         return handLeftX;
     }
-    }
 
     /* =================================================================
        Helper: 繪製靜態手牌 (流局模式)
@@ -530,7 +529,6 @@ export class ResultRenderer {
                 currentX += w + 10;
             });
         }
-    }
 
     /* =================================================================
        Helper: 繪製聽牌列表
@@ -591,6 +589,7 @@ export class ResultRenderer {
             startX += tileW + gap;
         });
     }
+
 
     _drawDiagonalHighlight({ text, x, y, font, color, startTime }) {
     const ctx = this.ctx;
