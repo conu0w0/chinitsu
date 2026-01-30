@@ -549,7 +549,7 @@ export class Renderer {
                 ctx.fillText(anim.text, slideX, y);
                 ctx.restore();
 
-                if (t >= 1) {
+                if (this.resultYakuEndTime && now >= this.resultYakuEndTime) {
                     this.resultYakuFinished = true;
                     return false;
                 }
@@ -811,33 +811,33 @@ export class Renderer {
         // === C. 和牌 (Agari) ===
         else {
             /* ===============================
-            * 0. 版面基準座標
+            * 0. 版面基準
             * =============================== */
-            const HAND_Y       = H * 0.68;
-            const SCORE_Y      = HAND_Y - 60;
-            const YAKU_BASE_Y  = H * 0.42;
+            const HAND_Y      = H * 0.68;
+            const SCORE_Y     = HAND_Y - 60;
+            const YAKU_BASE_Y = H * 0.42;
             
             this.resultYakuBaseY = YAKU_BASE_Y;
             
             /* ===============================
-            * 1. 標題：本局結束
+            * 1. 標題
             * =============================== */
             if (t >= T.title) {
                 ctx.fillStyle = "#ffffff";
                 ctx.font = `bold 64px ${this.fontFamily}`;
+                ctx.textAlign = "center";
                 ctx.fillText("本局結束", CX, H * 0.18);
             }
             
             if (!result.score) return;
             
             /* ===============================
-            * 2. 基本結算資料
+            * 2. 基本資料
             * =============================== */
             const han        = result.best ? result.best.han : 0;
             const fu         = result.fu;
             const scoreTotal = result.score.total;
-            
-            const isParent = (result.winnerIndex === this.gameState.parentIndex);
+            const isParent   = (result.winnerIndex === this.gameState.parentIndex);
             
             /* ===============================
             * 3. 役種排序
@@ -854,7 +854,7 @@ export class Renderer {
             }
             
             /* ===============================
-            * 4. 滿貫 / 倍滿 / 役滿 判定
+            * 4. 滿貫級別
             * =============================== */
             let limitName = "";
             
@@ -865,9 +865,9 @@ export class Renderer {
             else if (han >= 5)  limitName = "滿貫";
             else if (!isParent && scoreTotal >= 8000)  limitName = "滿貫";
             else if (isParent  && scoreTotal >= 12000) limitName = "滿貫";
-            
+
             /* ===============================
-            * 5. 標題顯示優先順
+            * 5. 標題顯示文字
             * =============================== */
             const backendDisplay = result.score.display || "";
             let finalTitle = "";
@@ -880,11 +880,11 @@ export class Renderer {
                 finalTitle = backendDisplay || `${scoreTotal}`;
             }
             
-            const isYakuman       = finalTitle.includes("役滿");
-            const isAccumYakuman  = finalTitle.includes("累計役滿");
+            const isYakuman      = finalTitle.includes("役滿");
+            const isKazoeYakuman = finalTitle.includes("累計役滿");
             
             /* ===============================
-            * 6. 勝者身分與方式
+            * 6. 勝者資訊
             * =============================== */
             const winnerIdx  = result.winnerIndex ?? 0;
             const roleText   = isParent ? "親" : "子";
@@ -907,7 +907,6 @@ export class Renderer {
                 const now = performance.now();
                 const lastIndex = Math.max(sortedYakus.length - 1, 0);
                 
-                // 記錄整個役種動畫結束時間
                 this.resultYakuEndTime = now + lastIndex * 120 + 400;
                 
                 sortedYakus.forEach((yaku, i) => {
@@ -920,6 +919,91 @@ export class Renderer {
                     });
                 });
             }
+            
+            /* ===============================
+            * 8. 靜態役種（動畫結束後）
+            * =============================== */
+            if (this.resultYakuEndTime && performance.now() >= this.resultYakuEndTime) {
+                this.resultYakuFinished = true;
+            }
+            
+            if (this.resultYakuFinished) {
+                const {
+                    yakuLineHeight,
+                    yakuItemsPerCol,
+                    yakuColWidth
+                } = this.RESULT_LAYOUT;
+                
+                const yakus = sortedYakus;
+                const totalCols  = Math.ceil(yakus.length / yakuItemsPerCol);
+                const totalWidth = (Math.max(1, totalCols) - 1) * yakuColWidth;
+                const baseX = CX - totalWidth / 2;
+                
+                ctx.font = `30px ${this.fontFamily}`;
+                ctx.fillStyle = "#dddddd";
+                ctx.textAlign = "center";
+
+                yakus.forEach((yaku, i) => {
+                    const row = i % yakuItemsPerCol;
+                    const col = Math.floor(i / yakuItemsPerCol);
+                    const x = baseX + col * yakuColWidth;
+                    const y = this.resultYakuBaseY + row * yakuLineHeight;
+                    ctx.fillText(yaku, x, y);
+                });
+            }
+
+            /* ===============================
+            * 9. 手牌
+            * =============================== */
+            const handLeftX = this._drawResultHand(result, CX, HAND_Y);
+            
+            /* ===============================
+            * 10. 分數動畫
+            * =============================== */
+            if (this.resultYakuFinished && !this.resultScoreAnimated) {
+                this.resultScoreAnimated = true;
+                this.resultScoreStartTime = performance.now();
+            }
+            
+            if (this.resultScoreAnimated && !this.resultScoreFinished) {
+                const dt   = performance.now() - this.resultScoreStartTime;
+                const ease = Math.min(dt / 400, 1);
+                
+                let leftText = "";
+                if (isYakuman && !isKazoeYakuman) {
+                    leftText = `${scoreTotal} 點`;
+                } else {
+                    leftText = `${han}飜 ${fu}符 ${scoreTotal} 點`;
+                }
+                
+                ctx.save();
+                ctx.globalAlpha = ease;
+                ctx.font = `bold 42px ${this.fontFamily}`;
+                ctx.fillStyle = "#ffffff";
+                ctx.textAlign = "left";
+                ctx.fillText(leftText, handLeftX, SCORE_Y);
+                ctx.restore();
+                
+                ctx.save();
+                ctx.globalAlpha = ease;
+                ctx.font = `bold 42px ${this.fontFamily}`;
+                ctx.fillStyle = "#ffcc00";
+                ctx.textAlign = "left";
+                ctx.fillText(finalTitle, handLeftX + 360, SCORE_Y);
+                ctx.restore();
+                
+                if (ease >= 1) this.resultScoreFinished = true;
+            }
+            
+            /* ===============================
+            * 11. 底部提示
+            * =============================== */
+            if (this.resultScoreFinished && t >= T.score + 500) {
+                ctx.font = `24px ${this.fontFamily}`;
+                ctx.fillStyle = "#888888";
+                ctx.textAlign = "center";
+                ctx.fillText("— 點擊任意處重新開始 —", CX, H * 0.9);
+            }
         }
     }
     
@@ -931,10 +1015,9 @@ export class Renderer {
         if (!winner) return;
 
         // 2. 判斷手牌狀態
-        // 如果是 14 張 (3n+2)，代表牌在手裡 (自摸/誤自摸)
-        // 如果是 13 張 (3n+1)，代表牌在外面 (榮和/誤榮和)
-        const handLen = winner.tepai.length;
-        const isHandFull = (handLen % 3 === 2); 
+        const ankanCount = winner.fulu.filter(f => f.type === "ankan").length;
+        const baseLen = 13 - ankanCount * 3;
+        const isHandFull = (winner.tepai.length === baseLen + 1);
 
         // 3. 決定「特寫牌」來源
         let standingTiles = [...winner.tepai];
@@ -1061,6 +1144,7 @@ export class Renderer {
         let startX = centerX - (totalW / 2);
         const tileY = startY + 20;
 
+        const waits = [...waitTiles].sort((a, b) => a - b);
         waitTiles.forEach(tile => {
             this.drawTile(tile, startX, tileY, tileW, tileH);
             startX += tileW + gap;
