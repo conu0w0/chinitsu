@@ -15,6 +15,7 @@ export class ResultRenderer {
         this.resultYakuAnimated = false;
         this.resultYakuFinished = false;
         this.resultYakuEndTime = null;
+        this.resultAfterYakuTime = null;
         this.resultYakuBaseY = 0;
 
         // 分數動畫相關
@@ -301,13 +302,15 @@ export class ResultRenderer {
                 });
             });
         }
-
-        if (this.resultYakuEndTime && !this.resultYakuFinished) {
-            if (performance.now() >= this.resultYakuEndTime) {
+        
+        if (this.resultYakuAnimated && !this.resultYakuFinished) {
+            const hasYakuAnimation = this.r.animations.some(a => a.type === "yaku");
+            if (!hasYakuAnimation) {
                 this.resultYakuFinished = true;
+                this.resultAfterYakuTime = performance.now();
             }
         }
-
+        
         // --- 4. 靜態役種 (動畫結束後顯示) ---
         if (this.resultYakuFinished) {
             const { yakuLineHeight, yakuItemsPerCol, yakuColWidth } = this.RESULT_LAYOUT;
@@ -342,8 +345,16 @@ export class ResultRenderer {
         } else {
             scoreLeftText = `${han}飜 ${fu}符 ${scoreTotal} 點`;
         }
+        
+        const SCORE_DELAY = 300;
 
-        if (handLeftX !== null && this.resultYakuFinished && !this.resultScoreAnimated) {
+        if (
+            handLeftX !== null &&
+            this.resultYakuFinished &&
+            !this.resultScoreAnimated &&
+            this.resultAfterYakuTime &&
+            performance.now() - this.resultAfterYakuTime >= SCORE_DELAY
+        ) {
             this.resultScoreAnimated = true;
             this.resultScoreStartTime = performance.now();
         }
@@ -579,6 +590,7 @@ export class ResultRenderer {
         this.resultYakuAnimated = false;
         this.resultYakuFinished = false;
         this.resultYakuEndTime = null;
+        this.resultAfterYakuTime = null;
         this.resultScoreAnimated = false;
         this.resultScoreFinished = false;
         this.resultScoreStartTime = 0;
