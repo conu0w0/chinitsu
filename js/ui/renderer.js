@@ -5,9 +5,7 @@
 import { ResultRenderer } from "./renderer/resultRenderer.js";
 
 export class Renderer {
-    constructor(canvas, gameState, assets = {}) {
-        this.resultRenderer = new ResultRenderer(this);
-        
+    constructor(canvas, gameState, assets = {}) {        
         this.canvas = canvas;
         this.ctx = canvas.getContext("2d");
         this.gameState = gameState;
@@ -62,6 +60,8 @@ export class Renderer {
             comRiver: { x: riverX, y: comRiverY, cols: 6 },
             comMeld: { x: W * 0.10, y: H * 0.15 + (76 - 56) }
         };
+        
+        this.resultRenderer = new ResultRenderer(this);
     }
 
     /* ======================
