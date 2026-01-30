@@ -324,7 +324,7 @@ export class ResultRenderer {
         }
 
         // ===== TITLE =====
-        if (this.resultState >= RESULT_STATE.TITLE) {
+        if (this.resultState === RESULT_STATE.TITLE) {
             ctx.font = `bold 64px ${this.r.fontFamily}`;
             ctx.fillStyle = "#fff";
             ctx.textAlign = "center";
@@ -336,7 +336,7 @@ export class ResultRenderer {
         }
 
         // ===== WINNER =====
-        if (this.resultState >= RESULT_STATE.WINNER) {
+        if (this.resultState === RESULT_STATE.WINNER) {
             ctx.font = `bold 42px ${this.r.fontFamily}`;
             ctx.fillStyle = "#fff";
             ctx.textAlign = "center"; // 確保置中
@@ -374,7 +374,7 @@ export class ResultRenderer {
         }
 
         // ===== YAKU_STATIC =====
-        if (this.resultState >= RESULT_STATE.YAKU_STATIC) {
+        if (this.resultState === RESULT_STATE.YAKU_STATIC) {
             const { yakuLineHeight, yakuItemsPerCol, yakuColWidth } = this.RESULT_LAYOUT;
             const totalCols = Math.ceil(sortedYakus.length / yakuItemsPerCol);
             const totalWidth = (Math.max(1, totalCols) - 1) * yakuColWidth;
@@ -400,7 +400,7 @@ export class ResultRenderer {
         }
 
         // ===== HAND =====
-        if (this.resultState >= RESULT_STATE.HAND) {
+        if (this.resultState === RESULT_STATE.HAND) {
             if (this.resultHandLeftX === null) {
                 this.resultHandLeftX = this._drawResultHand(result, CX, HAND_Y);
             } else {
@@ -413,7 +413,7 @@ export class ResultRenderer {
         }
 
         // ===== SCORE =====
-        if (this.resultState >= RESULT_STATE.SCORE && this.resultHandLeftX !== null) {
+        if (this.resultState === RESULT_STATE.SCORE && this.resultHandLeftX !== null) {
             ctx.font = `bold 42px ${this.r.fontFamily}`;
             ctx.fillStyle = "#fff";
             ctx.textAlign = "left"; // 明確設定為靠左
@@ -430,7 +430,7 @@ export class ResultRenderer {
         }
 
         // ===== LEVEL =====
-        if (this.resultState >= RESULT_STATE.LEVEL && this.resultHandLeftX !== null) {
+        if (this.resultState === RESULT_STATE.LEVEL && this.resultHandLeftX !== null) {
             ctx.font = `bold 42px ${this.r.fontFamily}`;
             ctx.fillStyle = limitColor; // 使用快取的顏色
             ctx.textAlign = "left"; // 確保靠左
@@ -462,7 +462,7 @@ export class ResultRenderer {
         }
 
         // ===== HINT =====
-        if (this.resultState >= RESULT_STATE.HINT) {
+        if (this.resultState === RESULT_STATE.HINT) {
             ctx.font = `24px ${this.r.fontFamily}`;
             ctx.fillStyle = "#888";
             ctx.textAlign = "center";
