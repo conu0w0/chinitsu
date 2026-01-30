@@ -170,6 +170,10 @@ export class ResultRenderer {
        繪製：和牌 (Agari)
        ================================================================= */
     drawAgari(result) {
+        if (!this.resultTimelineStart) {
+            this.resultTimelineStart = performance.now();
+        }
+        
         const ctx = this.ctx;
         const W = this.r.canvas.width;
         const H = this.r.canvas.height;
@@ -429,16 +433,17 @@ export class ResultRenderer {
         const highlightColor = isChombo ? "#ff4444" : "#ffcc00";
 
         this.r.drawTile(winTile, currentX, startY, tileW, tileH);
+        const ctx = this.ctx;
 
         // 畫框框
-        this.r.ctx.lineWidth = 4;
-        this.r.ctx.strokeStyle = highlightColor;
-        this.r.ctx.strokeRect(currentX, startY, tileW, tileH);
+        this.ctx.lineWidth = 4;
+        this.ctx.strokeStyle = highlightColor;
+        this.ctx.strokeRect(currentX, startY, tileW, tileH);
 
         // 文字標示
-        this.r.ctx.fillStyle = highlightColor;
-        this.r.ctx.font = `bold 18px ${this.r.fontFamily}`;
-        this.r.ctx.textAlign = "center";
+        this.ctx.fillStyle = highlightColor;
+        this.ctx.font = `bold 18px ${this.r.fontFamily}`;
+        this.ctx.textAlign = "center";
 
         let label = isChombo ? "錯和" : "和了";
         this.r.ctx.fillText(label, currentX + tileW / 2, startY + tileH + 25);
@@ -541,6 +546,7 @@ export class ResultRenderer {
             startX += tileW + gap;
         });
     }
+    
     _resetAnimationState() {
         this.r.animations = this.r.animations.filter(a => a.type !== "yaku");
         this.resultTimelineStart = performance.now();
