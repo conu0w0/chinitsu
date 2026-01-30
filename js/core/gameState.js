@@ -886,8 +886,16 @@ export class GameState {
     }
 
     _isDiscardFuriten(player) {
-        const waits = this.logic.getWaitTiles(this._normalizeForWait(player.tepai));
-        return [...waits].some(t => player.river.some(r => r.tile === t));
+       const ankanCount = this._getAnkanCount(player);
+       
+       let tiles = [...player.tepai];
+       if (tiles.length % 3 === 2) tiles.pop();
+       
+       const targetLen = 13 - ankanCount * 3;
+       tiles.length = Math.min(tiles.length, targetLen);
+
+       const waits = this.logic.getWaitTiles(tiles);
+       return [...waits].some(t => player.river.some(r => r.tile === t));
     }
 
     _handleChombo(playerIndex, reason, options = {}) {
@@ -918,13 +926,9 @@ export class GameState {
        }
        
        if (chomboType === "wrong_agari" || chomboType === "furiten") {
-          // 正規化手牌（避免 14 張）
-          let tepaiForLogic = [...offender.tepai];
-          if (tepaiForLogic.length % 3 === 2) tepaiForLogic.pop();
-          
-          const waitsSet = this.logic.getWaitTiles(tepaiForLogic, offender.fulu);
-          waits = Array.from(waitsSet);
-          isTenpai = waits.length > 0;
+          const tenpai = this._getTenpaiForChombo(offender);
+          isTenpai = tenpai.isTenpai;
+          waits = tenpai.waits;
        }
        
        // === 4. 組 lastResult ===
@@ -1050,6 +1054,29 @@ export class GameState {
         const t = [...tepai];
         if (t.length % 3 === 2) t.pop();
         return t;
+    }
+
+    _getTenpaiForChombo(player) {
+       // 1. 只處理手牌（不管暗槓內容）
+       let tiles = [...player.tepai];
+       
+       // 2. 正規化到「非 3n+2」
+       if (tiles.length % 3 === 2) tiles.pop();
+       
+       // 3. 根據副露數修正張數（13 - 3n）
+       const ankanCount = player.fulu.filter(f => f.type === "ankan").length;
+       const targetLen = 13 - ankanCount * 3;
+
+       while (tiles.length > targetLen) tiles.pop();
+    
+       // 4. 算聽牌
+       const waitsSet = this.logic.getWaitTiles(tiles);
+       const waits = Array.from(waitsSet);
+       
+       return {
+          isTenpai: waits.length > 0,
+          waits
+       };
     }
 
     _shuffle(array) {
