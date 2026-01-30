@@ -289,13 +289,16 @@ export class ResultRenderer {
 
             this.resultYakuEndTime = now + lastIndex * 120 + 400;
 
+            const DURATION = 400;
+            const GAP = 0;
+
             sortedYakus.forEach((yaku, i) => {
                 this.r.animations.push({
                     type: "yaku",
                     text: yaku,
                     index: i,
-                    startTime: now + i * 120,
-                    duration: 400
+                    startTime: now + i * (DURATION + GAP),
+                    duration: DURATION
                 });
             });
         }
