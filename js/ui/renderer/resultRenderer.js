@@ -296,8 +296,6 @@ export class ResultRenderer {
             const DURATION = 400;
             const GAP = 0;
 
-            this.resultYakuEndTime = now + lastIndex * (DURATION + GAP) + DURATION;
-
             sortedYakus.forEach((yaku, i) => {
                 this.r.animations.push({
                     type: "yaku",
