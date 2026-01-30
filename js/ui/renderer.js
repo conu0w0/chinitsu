@@ -1001,7 +1001,7 @@ export class Renderer {
                 ctx.font = `bold 42px ${this.fontFamily}`;
                 ctx.fillStyle = "#ffcc00";
                 ctx.textAlign = "left";
-                ctx.fillText(finalTitle, handLeftX + 360, SCORE_Y);
+                ctx.fillText(finalTitle, handLeftX + 520, SCORE_Y);
                 ctx.restore();
                 
                 if (ease >= 1) this.resultScoreFinished = true;
@@ -1015,7 +1015,7 @@ export class Renderer {
                 ctx.fillText(scoreLeftText, handLeftX, SCORE_Y);
                 
                 ctx.fillStyle = "#ffcc00";
-                ctx.fillText(finalTitle, handLeftX + 360, SCORE_Y);
+                ctx.fillText(finalTitle, handLeftX + 520, SCORE_Y);
             }
             
             /* ===============================
@@ -1164,7 +1164,7 @@ export class Renderer {
         const labelHeight = 26;
         
         const boxWidth = Math.max(tilesWidth, 120) + paddingX * 2;
-        const boxHeight = labelHeight + (tilesCount > 0 ? tileH + 10 : 0) + paddingY * 2;
+        const boxHeight = labelHeight + tileH + 10 + paddingY * 2;
         
         const boxX = centerX - boxWidth / 2;
         const boxY = startY - paddingY;
