@@ -680,6 +680,10 @@ export class Renderer {
 
         // === A. 錯和 (Chombo) ===
         if (result.type === "chombo") {
+            // === 預設值（避免 ReferenceError）===
+            let waits = [];
+            let label = "未聽牌";
+            
             // 1. 標題
             ctx.fillStyle = "#ff6666";
             ctx.font = `bold 64px ${this.fontFamily}`;
@@ -705,7 +709,7 @@ export class Renderer {
             // 設定統一的大字體
             ctx.font = `bold 50px ${this.fontFamily}`;
 
-            // ★ 計算寬度來手動置中
+            // 計算寬度來手動置中
             const textWidth = ctx.measureText(textPart).width;
             const numWidth = ctx.measureText(numPart).width;
             const totalWidth = textWidth + numWidth;
@@ -866,7 +870,7 @@ export class Renderer {
                     ctx.globalAlpha = ease;
                     ctx.font = `bold 42px ${this.fontFamily}`;
                     ctx.fillStyle = "#ffffff";
-                    ctx.textAlign = "left";
+                    ctx.textAlign = "right";
                     ctx.fillText(leftScoreText, x, H * 0.46);
                     ctx.restore();
                 }
@@ -878,7 +882,7 @@ export class Renderer {
                     ctx.globalAlpha = ease;
                     ctx.font = `bold 42px ${this.fontFamily}`;
                     ctx.fillStyle = "#ffcc00";
-                    ctx.textAlign = "right";
+                    ctx.textAlign = "left";
                     ctx.fillText(finalTitle, x, H * 0.46);
                     ctx.restore();
                 }
