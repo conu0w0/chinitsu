@@ -517,10 +517,10 @@ export class Renderer {
                 const ease = t * t * (3 - 2 * t);
                 
                 const {
-                    yakuItemsPerCol: itemsPerCol,
-                    yakuColWidth: colWidth,
-                    yakuLineHeight: lineHeight,
-                    yakuStartY: startY
+                    yakuItemsPerCol,
+                    yakuColWidth,
+                    yakuLineHeight,
+                    yakuStartY
                 } = this.RESULT_LAYOUT;
                 
                 const row = anim.index % itemsPerCol;
@@ -746,7 +746,7 @@ export class Renderer {
 
             // 計算起始 X 座標 (讓整串字看起來是在正中間)
             let drawX = CX - (totalWidth / 2);
-            const drawY = H * 0.48; // 高度設在原本兩行的中間
+            const drawY = H * 0.34; // 高度設在原本兩行的中間
 
             // 暫時切換成靠左對齊，這樣才能依序接龍畫下去
             ctx.textAlign = "left";
