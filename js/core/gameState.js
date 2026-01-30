@@ -29,7 +29,7 @@ export class Player {
         this.isDoubleReach = false;
         this.ippatsuActive = false;
         this.ippatsuBroken = false;
-        this.riichiWaitSet = null;
+        this.riichiWaitSet = new Set();
         this.riichiFuriten = false;
         this.isParent = false;
         this.isTenpai = false;
@@ -619,7 +619,7 @@ export class GameState {
                p.isDoubleReach = true;
            }
 
-           p.riichiWaitSet = this.logic.getWaitTiles(p.tepai);
+           p.riichiWaitSet = this.logic.getWaitTiles(this._normalizeForWait(p.tepai));
            console.log(p.isDoubleReach ? "兩立直成立！" : "立直成立");
           
            p.ippatsuActive = true;
@@ -641,7 +641,6 @@ export class GameState {
       });
    }
 
-   
     // 回合推進
     _advanceAfterResponse() {
         this._finalizePendingRiichi();
@@ -739,7 +738,7 @@ export class GameState {
         const kanCount = this._getAnkanCount(player);
 
         if (!this.logic.isWinningHand(player.tepai, kanCount)) {
-            this._handleChombo(playerIndex, "誤自摸");
+            this._handleChombo(playerIndex, "誤自摸", { chomboType: "wrong_agari" });
             return;
         }
 
@@ -762,14 +761,14 @@ export class GameState {
         const tile = this.lastDiscard.tile;
 
         if (this._isDiscardFuriten(player) || player.riichiFuriten) {
-            this._handleChombo(playerIndex, "振聽榮和");
+            this._handleChombo(playerIndex, "振聽榮和", { chomboType: "furiten" });
             return;
         }
 
         const hand = [...player.tepai, tile];
         const kanCount = this._getAnkanCount(player);
         if (!this.logic.isWinningHand(hand, kanCount)) {
-            this._handleChombo(playerIndex, "誤榮和");
+            this._handleChombo(playerIndex, "誤榮和", { chomboType: "wrong_agari" });
             return;
         }
 
@@ -849,29 +848,36 @@ export class GameState {
        ====================== */
 
     _handleRyuukyoku() {
-        this.phase = "ROUND_END";
-        this.lastResult = { type: "ryuukyoku" };
         console.log("=== 流局 ===");
 
         // 1. 判定所有玩家是否聽牌
+        let fakeRiichiIndex = null;
         const tenpaiInfo = [];
+       
         this.players.forEach((p, idx) => {
-            // 檢查是否聽牌：如果現在切掉任何一張牌(或是不切)能聽，就算聽牌
-            // 由於流局時手牌是滿的(13張或14張)，我們直接檢查 getWaitTiles
-            // 注意：這裡簡化，直接檢查現有手牌是否為聽牌形
-            const waits = this.logic.getWaitTiles(p.tepai);
-            p.isTenpai = (waits.size > 0);
-            
-            tenpaiInfo.push({
-                index: idx,
-                isTenpai: p.isTenpai,
-                hand: p.tepai
-            });
+           const waitsSet = this.logic.getWaitTiles(this._normalizeForWait(p.tepai));
+           const waitsArr = Array.from(waitsSet);
+           const isTenpai = waitsArr.length > 0;
+           
+           if (p.isReach && !isTenpai) fakeRiichiIndex = idx;
+           p.isTenpai = isTenpai;
+           
+           tenpaiInfo.push({
+              index: idx,
+              isTenpai,
+              waits: waitsArr
+           });
         });
+
+       if (fakeRiichiIndex !== null) {
+          this._handleChombo(fakeRiichiIndex, "詐立直", { chomboType: "fake_riichi" });
+          return;
+       }
 
         this.lastResult = { 
             type: "ryuukyoku",
-            tenpaiInfo: tenpaiInfo
+            tenpaiInfo: tenpaiInfo,
+            score: null
         };
        
         this.phase = "ROUND_END";
@@ -880,39 +886,70 @@ export class GameState {
     }
 
     _isDiscardFuriten(player) {
-        const waits = this.logic.getWaitTiles(player.tepai);
+        const waits = this.logic.getWaitTiles(this._normalizeForWait(player.tepai));
         return [...waits].some(t => player.river.some(r => r.tile === t));
     }
 
-    _handleChombo(playerIndex, reason) {
-        this.phase = "ROUND_END";
+    _handleChombo(playerIndex, reason, options = {}) {
+       this.phase = "ROUND_END";
        
-        const offender = this.players[playerIndex];
-        const otherIndex = (playerIndex + 1) % 2;
-        const other = this.players[otherIndex];
-       
-        const base = 32000;
-        const multiplier = offender.isParent ? 1.5 : 1;
-        const penalty = base * multiplier;
-       
-        offender.points -= penalty;
-        other.points += penalty;
+       const offender = this.players[playerIndex];
+       const otherIndex = (playerIndex + 1) % 2;
+       const other = this.players[otherIndex];
 
-        this.lastResult = {
-            type: "chombo",
-            winnerIndex: playerIndex, 
-            reason: reason,
-            offenderIndex: playerIndex,
-            isParent: offender.isParent,
-            score: {
-                display: `錯和：${reason}`,
-                total: penalty
-            }
-        };
-        console.warn(`(${offender.isParent ? "親" : "子"}) 錯和：${reason}`);
-        this.phase = "ROUND_END";
+       // === 1. 算罰符 ===
+       const base = 32000;
+       const multiplier = offender.isParent ? 1.5 : 1;
+       const penalty = Math.floor(base * multiplier);
+       
+       offender.points -= penalty;
+       other.points += penalty;
+       
+       // === 2. 判斷錯和類型 ===
+       const chomboType = options.chomboType || "wrong_agari";
+       
+       // === 3. 聽牌判定（只有誤和才需要）===
+       let isTenpai = false;
+       let waits = [];
+
+       if (chomboType === "fake_riichi") {
+          isTenpai = false;
+          waits = [];
+       }
+       
+       if (chomboType === "wrong_agari" || chomboType === "furiten") {
+          // 正規化手牌（避免 14 張）
+          let tepaiForLogic = [...offender.tepai];
+          if (tepaiForLogic.length % 3 === 2) tepaiForLogic.pop();
+          
+          const waitsSet = this.logic.getWaitTiles(tepaiForLogic, offender.fulu);
+          waits = Array.from(waitsSet);
+          isTenpai = waits.length > 0;
+       }
+       
+       // === 4. 組 lastResult ===
+       this.lastResult = {
+          type: "chombo",
+          chomboType,
+          reason,
+          offenderIndex: playerIndex,          
+          offender: {
+             isParent: offender.isParent,
+             hand: [...offender.tepai],
+             fulu: [...offender.fulu],
+             isTenpai,
+             waits
+          },          
+          score: {
+             total: penalty
+          }
+       };
+       
+       console.warn(`[${offender.isParent ? "親" : "子"}] 錯和：${reason}`, this.lastResult);
+       this._resetActionContext();
+       this._resetRoundContext(); 
     }
-
+   
     _getAnkanCount(player) {
         return player.fulu.filter(f => f.type === "ankan").length;
     }
@@ -985,7 +1022,11 @@ export class GameState {
 
     _buildWinContext(playerIndex, winType, winTile) {
         const player = this.players[playerIndex];
-        const waits = player.isReach ? player.riichiWaitSet : this.logic.getWaitTiles(player.tepai);
+        const waitsSet = player.isReach ? 
+            player.riichiWaitSet : 
+            this.logic.getWaitTiles(this._normalizeForWait(player.tepai));
+       
+        const waits = Array.from(waitsSet || []);
         const isTenhou = this.roundContext.tenhou === true;
 
         return {
@@ -1003,6 +1044,12 @@ export class GameState {
             doubleRiichi: player.isDoubleReach,
             isParent: player.isParent,
         };
+    }
+
+    _normalizeForWait(tepai) {
+        const t = [...tepai];
+        if (t.length % 3 === 2) t.pop();
+        return t;
     }
 
     _shuffle(array) {
