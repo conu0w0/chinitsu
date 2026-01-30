@@ -101,6 +101,10 @@ export class Renderer {
 
         if (this.gameState.phase === "ROUND_END") {
             this.drawResult(this.gameState.lastResult);
+            this._renderAnimations();
+        } else {
+            this._renderAnimations();
+            this.renderUI();
         }
     }
 
