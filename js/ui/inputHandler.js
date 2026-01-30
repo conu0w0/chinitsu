@@ -33,6 +33,13 @@ export class InputHandler {
 
         // 2. 結算畫面 (ROUND_END) -> 點擊下一局 (判定輪莊)
         if (this.state.phase === "ROUND_END") {
+            
+            // 重置 Renderer 的結算動畫狀態
+            this.renderer.resultTimelineStart = 0;
+            this.renderer.resultYakuAnimated = false;
+            this.renderer.animations = [];
+            
+            // 進入下一局
             this.state.nextKyoku();
             return;
         }
