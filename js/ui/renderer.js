@@ -59,9 +59,17 @@ export class Renderer {
             comRiver: { x: riverX, y: comRiverY, cols: 6 },
             comMeld: { x: W * 0.05, y: H * 0.15 + (76 - 56) }
         };
+
+        this.RESULT_LAYOUT = {
+            yakuStartY: this.canvas.height * 0.54,
+            yakuLineHeight: 45,
+            yakuItemsPerCol: 4,
+            yakuColWidth: 250
+        };
         
         this.resultTimelineStart = 0;
-        this.resultYakuAnimated = false;        
+        this.resultYakuAnimated = false;   
+        this._lastResultRef = null;
         this.YAKU_ORDER = [
             // === 役滿 / 地方役 ===
             "天和", "地和", "人和", 
@@ -96,16 +104,13 @@ export class Renderer {
         this.drawRivers();
         this.drawHands(); 
         
-        this._renderAnimations();
-        this.renderUI();
-
         if (this.gameState.phase === "ROUND_END") {
             this.drawResult(this.gameState.lastResult);
-            this._renderAnimations();
         } else {
-            this._renderAnimations();
             this.renderUI();
         }
+        
+        this._renderAnimations();
     }
 
     // === 偵測玩家手牌變化 ===
@@ -509,40 +514,43 @@ export class Renderer {
                 if (now < anim.startTime) return true;
                 
                 const t = Math.min((now - anim.startTime) / anim.duration, 1);
-                const ease = 1 - Math.pow(1 - t, 3);
-                //const ease = t * t * (3 - 2 * t);
-
-                const itemsPerCol = 4;
-                const colWidth = 250;
-                const lineHeight = 45;
-                const startY = this.canvas.height * 0.54;
+                const ease = t * t * (3 - 2 * t);
+                
+                const {
+                    yakuItemsPerCol: itemsPerCol,
+                    yakuColWidth: colWidth,
+                    yakuLineHeight: lineHeight,
+                    yakuStartY: startY
+                } = this.RESULT_LAYOUT;
                 
                 const row = anim.index % itemsPerCol;
                 const col = Math.floor(anim.index / itemsPerCol);
                 
-                const totalCols = Math.ceil((anim.total || 0) / itemsPerCol);
-                const totalWidth = (totalCols - 1) * colWidth;
-                const baseX = (this.canvas.width / 2) - totalWidth / 2;               
-                const x = baseX + col * colWidth;
-                const y = startY + row * lineHeight;
-
-                // === 滑入效果 ===
-                const slideX = x + (1 - ease) * 40;
-                const alpha = ease;
+                const totalYakus = this.gameState.lastResult?.score?.yakus?.length || 0;
+                const totalCols = Math.ceil(totalYakus / itemsPerCol);
+                const totalWidth = (Math.max(1, totalCols) - 1) * colWidth;
+                const baseX = (this.canvas.width / 2) - totalWidth / 2;
                 
+                const x = baseX + col * colWidth;
+                const y = startY + row * yakuLineHeight;
+
+                const slideX = x + (1 - ease) * 40;
+
                 ctx.save();
-                ctx.globalAlpha = alpha;
+                ctx.globalAlpha = ease;
                 ctx.font = `30px ${this.fontFamily}`;
                 ctx.fillStyle = "#dddddd";
                 ctx.textAlign = "center";
                 ctx.fillText(anim.text, slideX, y);
                 ctx.restore();
+
                 return t < 1;
             }
             
             const t = Math.min((now - anim.startTime) / anim.duration, 1);
-            const ease = 1 - Math.pow(1 - t, 3); 
-
+            //const ease = 1 - Math.pow(1 - t, 3); 
+            const ease = t * t * (3 - 2 * t);
+            
             const currentY = anim.startY + (anim.y - anim.startY) * ease;
             const currentX = anim.startX + (anim.x - anim.startX) * ease;
 
@@ -663,6 +671,12 @@ export class Renderer {
        7. 結算畫面
        ====================== */
     drawResult(result) {
+        if (this._lastResultRef !== result) {
+            this._lastResultRef = result;
+            this.resultTimelineStart = performance.now();
+            this.resultYakuAnimated = false;
+        }
+        
         if (!this.resultTimelineStart) { this.resultTimelineStart = performance.now() };
         const t = performance.now() - this.resultTimelineStart;
         const T = { title: 0, winner: 600, yaku: 1200, score: 2200 };
@@ -685,14 +699,26 @@ export class Renderer {
         // === A. 錯和 (Chombo) ===
         if (result.type === "chombo") {
             // === 預設值（避免 ReferenceError）===
-            let waits = [];
+            const offender = result.offender;
+            const chomboType = result.chomboType;
+            
+            let waits = offender?.waits || [];
+            let isTenpai = offender?.isTenpai || false;
             let label = "未聽牌";
             
+            if (chomboType === "wrong_agari") {
+                label = isTenpai ? "聽牌（錯和）" : "未聽牌（錯和）";
+            } else if (chomboType === "furiten") {
+                label = "振聽";
+            } else if (chomboType === "fake_riichi") {
+                label = "詐立直";
+            }
+            
             // 1. 標題
-            ctx.fillStyle = "#ff6666";
+            ctx.fillStyle = "#ffffff";
             ctx.font = `bold 64px ${this.fontFamily}`;
-            ctx.fillText("錯和", CX, H * 0.25);
-
+            ctx.fillText(titleMap[chomboType] || "本局結束", CX, H * 0.25);
+            
             // 2. 原因
             const reasonText = result.reason || "錯和 / 違規"; 
             ctx.fillStyle = "#ffaaaa"; 
@@ -700,7 +726,7 @@ export class Renderer {
             ctx.fillText(`【 ${reasonText} 】`, CX, H * 0.33);
 
             // 3. 抓取錯和者
-            const culpritIndex = (result.winnerIndex !== undefined) ? result.winnerIndex : 0;
+            const culpritIndex = result.offenderIndex;
             const culprit = this.gameState.players[culpritIndex];
             const isParent = (culpritIndex === this.gameState.parentIndex);
             const roleText = isParent ? "親" : "子";
@@ -736,24 +762,21 @@ export class Renderer {
             // 畫完記得切回置中，才不會影響後面的程式！
             ctx.textAlign = "center";
 
-            // 5. 拆解聽牌列表 (如果有)
-            if (culprit) {
-                let tepaiForLogic = [...culprit.tepai];
-                if (tepaiForLogic.length % 3 === 2) { tepaiForLogic.pop() }; 
-                const waits = this.gameState.logic.getWaitTiles(tepaiForLogic, culprit.fulu);
-                const isTenpai = waits.length > 0;
+            // 5. 繪製聽牌列表
+            this._drawWaitList(waits, CX, H * 0.65, label);      
 
-                const label = isTenpai ? "聽牌" : "未聽牌";
-            }
-            // 6. 繪製手牌 (最後一張會被 _drawResultHand 抓去當特寫)
-            this._drawWaitList(waits, CX, H * 0.65, label);
+            // 6. 繪製錯和手牌（紅框）
+            const handY = H * 0.72;
+            this._drawResultHand(result, CX, handY, true);
         }
         // === B. 流局 (Ryuukyoku) ===
         else if (result.type === "ryuukyoku") {
+            
             // --- 1. 上方 COM 區域 ---
             const com = this.gameState.players[1];
-            const comWaits = this.gameState.logic.getWaitTiles(com.tepai, com.fulu);
-            const comIsTenpai = comWaits.length > 0;
+            const comInfo = result.tenpaiInfo.find(t => t.index === 1);
+            const comIsTenpai = comInfo.isTenpai;
+            const comWaits = comInfo.waits;
 
             this._drawStaticHand(com, CX, H * 0.15, !comIsTenpai); 
             this._drawWaitList(comWaits, CX, H * 0.28, comIsTenpai ? "COM 聽牌" : "COM 未聽");
@@ -765,8 +788,9 @@ export class Renderer {
 
             // --- 3. 下方 玩家區域 ---
             const player = this.gameState.players[0];
-            const playerWaits = this.gameState.logic.getWaitTiles(player.tepai, player.fulu);
-            const playerIsTenpai = playerWaits.length > 0;
+            const playerInfo = result.tenpaiInfo.find(t => t.index === 0);
+            const playerIsTenpai = playerInfo.isTenpai;
+            const playerWaits = playerInfo.waits;
 
             this._drawWaitList(playerWaits, CX, H * 0.65, playerIsTenpai ? "玩家 聽牌" : "玩家 未聽");
             this._drawStaticHand(player, CX, H * 0.80, !playerIsTenpai);
@@ -785,10 +809,8 @@ export class Renderer {
                 const scoreTotal = result.score.total;
 
                 // === 結算畫面共用版面參數 ===
-                const yakuStartY = H * 0.54;
-                const yakuLineHeight = 45;
-                const yakuMaxRows = 4;
-                
+                const { yakuStartY, yakuLineHeight, yakuItemsPerCol } = this.RESULT_LAYOUT;
+
                 let limitName = "";
 
                 // === 處理役種排序 ===
@@ -856,6 +878,33 @@ export class Renderer {
                         });
                     });
                 }
+
+                // === 靜態役種（動畫結束後常駐）===
+                if (t >= T.yaku && this.resultYakuAnimated) {
+                    const {
+                        yakuStartY,       
+                        yakuLineHeight,
+                        yakuItemsPerCol,
+                        yakuColWidth
+                    } = this.RESULT_LAYOUT;
+                    
+                    const yakus = sortedYakus;
+                    const totalCols = Math.ceil(yakus.length / yakuItemsPerCol);
+                    const totalWidth = (totalCols - 1) * yakuColWidth;
+                    const baseX = CX - totalWidth / 2;
+                    
+                    ctx.font = `30px ${this.fontFamily}`;
+                    ctx.fillStyle = "#dddddd";
+                    ctx.textAlign = "center";
+                    
+                    yakus.forEach((yaku, i) => {
+                        const row = i % yakuItemsPerCol;
+                        const col = Math.floor(i / yakuItemsPerCol);
+                        const x = baseX + col * yakuColWidth;
+                        const y = yakuStartY + row * yakuLineHeight;
+                        ctx.fillText(yaku, x, y);
+                    });
+                }
                 
                 // 4. 分數區塊
                 if (t >= T.score) {
@@ -910,7 +959,7 @@ export class Renderer {
     // === Helper 1: 繪製結算用手牌 (支援 誤自摸/誤榮和/一般和牌) ===
     _drawResultHand(result, centerX, startY, isChombo = false) {
         // 1. 抓取主角
-        const idx = (result.winnerIndex !== undefined) ? result.winnerIndex : 0;
+        const idx = (result.type === "chombo") ? result.offenderIndex : result.winnerIndex;
         const winner = this.gameState.players[idx];
         if (!winner) return;
 
@@ -929,8 +978,11 @@ export class Renderer {
             winTile = standingTiles.pop(); 
         } else {
             // 【榮和 / 誤榮和】牌是別人打的
-            // 從 lastDiscard 拿，如果沒有(極端狀況)就給個預設值
-            winTile = this.gameState.lastDiscard ? this.gameState.lastDiscard.tile : 0;
+            if (!isHandFull && this.gameState.lastDiscard) {
+                winTile = this.gameState.lastDiscard.tile;
+            } else {
+                winTile = standingTiles.pop(); // 保底
+            }
         }
 
         // 4. 計算寬度與繪製 (以下邏輯不變，負責排版)
@@ -1030,12 +1082,7 @@ export class Renderer {
         ctx.fillStyle = "#aaaaaa";
         ctx.fillText(labelText, centerX, startY);
 
-        if (!waitTiles || waitTiles.length === 0) {
-            ctx.font = `20px ${this.fontFamily}`;
-            ctx.fillStyle = "#888";
-            ctx.fillText("未聽牌", centerX, startY + 40);
-            return;
-        }
+        if (!waitTiles || waitTiles.length === 0) return;
 
         const tileW = 36; // 稍微小一點
         const tileH = 50;
