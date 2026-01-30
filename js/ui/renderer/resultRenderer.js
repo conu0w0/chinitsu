@@ -32,19 +32,19 @@ export class ResultRenderer {
 
         this.YAKU_ORDER = [
             // === 役滿 / 地方役 ===
-            "天和", "地和", "人和", 
-            "四暗刻", "四暗刻單騎", 
-            "綠一色", "大竹林", 
-            "四槓子", "金門橋", 
-            "九蓮寶燈", "純正九蓮寶燈", 
+            "天和", "地和", "人和",
+            "四暗刻", "四暗刻單騎",
+            "綠一色", "大竹林",
+            "四槓子", "金門橋",
+            "九蓮寶燈", "純正九蓮寶燈",
             "石上三年",
-            
+
             // === 常規役種 ===
-            "立直", "兩立直", "一發", "門前清自摸和", 
-            "燕返", "槓振", "嶺上開花", 
-            "海底摸月", "河底撈魚", 
-            "斷么九", "一盃口", "平和", 
-            "一氣通貫", "三槓子",  
+            "立直", "兩立直", "一發", "門前清自摸和",
+            "燕返", "槓振", "嶺上開花",
+            "海底摸月", "河底撈魚",
+            "斷么九", "一盃口", "平和",
+            "一氣通貫", "三槓子",
             "對對和", "三暗刻", "七對子",
             "純全帶么九", "二盃口", "清一色"
         ];
@@ -122,7 +122,6 @@ export class ResultRenderer {
 
         // 3. 抓取錯和者資訊
         const culpritIndex = result.offenderIndex;
-        // const culprit = this.r.gameState.players[culpritIndex]; // 若沒用到可註解
         const isParent = (culpritIndex === this.r.gameState.parentIndex);
         const roleText = isParent ? "親" : "子";
         const who = (culpritIndex === 0) ? "玩家" : "COM";
@@ -141,7 +140,7 @@ export class ResultRenderer {
 
         // 切換為靠左繪製
         ctx.textAlign = "left";
-        
+
         ctx.fillStyle = "#ffffff";
         ctx.fillText(textPart, drawX, drawY);
 
@@ -199,7 +198,7 @@ export class ResultRenderer {
         if (!this.resultTimelineStart) {
             this.resultTimelineStart = performance.now();
         }
-        
+
         const ctx = this.ctx;
         const W = this.r.canvas.width;
         const H = this.r.canvas.height;
@@ -207,7 +206,7 @@ export class ResultRenderer {
 
         // 時間軸設定
         const t = performance.now() - this.resultTimelineStart;
-        const T = { title: 0, winner: 600, yaku: 1200, score: 2200 };
+        const T = { title: 0, winner: 600 };
 
         // 版面座標基準
         const HAND_Y = H * 0.68;
@@ -276,7 +275,7 @@ export class ResultRenderer {
         }
 
         // --- 3. 役種動畫 (只觸發一次) ---
-        if (sortedYakus.length && t >= T.yaku && !this.resultYakuAnimated) {
+        if (sortedYakus.length && t >= T.winner && !this.resultYakuAnimated) {
             this.resultYakuAnimated = true;
             const now = performance.now();
             const lastIndex = Math.max(sortedYakus.length - 1, 0);
@@ -296,7 +295,7 @@ export class ResultRenderer {
                 });
             });
         }
-        
+
         if (this.resultYakuAnimated && !this.resultYakuFinished) {
             const hasYakuAnimation = this.r.animations.some(a => a.type === "yaku");
             if (!hasYakuAnimation) {
@@ -304,7 +303,7 @@ export class ResultRenderer {
                 this.resultAfterYakuTime = performance.now();
             }
         }
-        
+
         // --- 4. 靜態役種 (動畫結束後顯示) ---
         if (this.resultYakuFinished) {
             const { yakuLineHeight, yakuItemsPerCol, yakuColWidth } = this.RESULT_LAYOUT;
@@ -337,9 +336,9 @@ export class ResultRenderer {
         if (isYakuman && !isKazoeYakuman) {
             scoreLeftText = `${scoreTotal} 點`;
         } else {
-            scoreLeftText = `${han}飜 ${fu}符 ${scoreTotal} 點`;
+            scoreLeftText = `${han} 飜 ${fu} 符 ${scoreTotal} 點`;
         }
-        
+
         const SCORE_DELAY = 300;
 
         if (
@@ -356,20 +355,21 @@ export class ResultRenderer {
         if (this.resultScoreAnimated && !this.resultScoreFinished) {
             const dt = performance.now() - this.resultScoreStartTime;
             const ease = Math.min(dt / 400, 1);
+            const limitColor = this._getLimitColor({ han, isYakuman, isKazoeYakuman });
 
             ctx.save();
             ctx.globalAlpha = ease;
             ctx.font = `bold 42px ${this.r.fontFamily}`;
-            
+
             // 左側分數
             ctx.fillStyle = "#ffffff";
             ctx.textAlign = "left";
             ctx.fillText(scoreLeftText, handLeftX, SCORE_Y);
 
             // 右側級別(滿貫/役滿)
-            ctx.fillStyle = "#ffcc00";
+            ctx.fillStyle = limitColor;
             ctx.fillText(finalTitle, handLeftX + TITLE_OFFSET_X, SCORE_Y);
-            
+
             ctx.restore();
 
             if (ease >= 1) this.resultScoreFinished = true;
@@ -382,25 +382,31 @@ export class ResultRenderer {
             ctx.fillStyle = "#ffffff";
             ctx.fillText(scoreLeftText, handLeftX, SCORE_Y);
 
-            ctx.fillStyle = "#ffcc00";
+            ctx.fillStyle = this._getLimitColor({ han, isYakuman, isKazoeYakuman });
             ctx.fillText(finalTitle, handLeftX + TITLE_OFFSET_X, SCORE_Y);
-            
+
             if (this.resultScoreFinished && !this.scoreHighlightStartTime) {
                 this.scoreHighlightStartTime = performance.now();
             }
-            this._drawDiagonalHighlight({
-                text: finalTitle,
-    x: handLeftX + TITLE_OFFSET_X,
-    y: SCORE_Y,
-    font: `bold 42px ${this.r.fontFamily}`,
-    color: "#ffcc00",
-    startTime: this.scoreHighlightStartTime
-});
-
+            if (isYakuman || isKazoeYakuman){
+                this._drawDiagonalHighlight({
+                    text: finalTitle,
+                    x: handLeftX + TITLE_OFFSET_X,
+                    y: SCORE_Y,
+                    font: `bold 42px ${this.r.fontFamily}`,
+                    color: "#ffcc00",
+                    startTime: this.scoreHighlightStartTime,
+                    isSilver: isKazoeYakuman
+                });
+            }
         }
 
         // --- 7. 底部提示 ---
-        if (this.resultScoreFinished && t >= T.score + 500) {
+        const HINT_DELAY = 500;
+        if (
+            this.resultScoreFinished &&
+            performance.now() - this.resultScoreStartTime >= HINT_DELAY
+        ) {
             ctx.font = `24px ${this.r.fontFamily}`;
             ctx.fillStyle = "#888888";
             ctx.textAlign = "center";
@@ -409,7 +415,7 @@ export class ResultRenderer {
     }
 
     /* =================================================================
-       Helper: 繪製結算用手牌 (支援 誤自摸/誤榮和/一般和牌)
+       Helper 1: 繪製結算用手牌 (支援 誤自摸/誤榮和/一般和牌)
        ================================================================= */
     _drawResultHand(result, centerX, startY, isChombo = false) {
         // 1. 抓取主角
@@ -477,8 +483,7 @@ export class ResultRenderer {
         const highlightColor = isChombo ? "#ff4444" : "#ffcc00";
 
         this.r.drawTile(winTile, currentX, startY, tileW, tileH);
-        const ctx = this.ctx;
-
+        
         // 畫框框
         this.ctx.lineWidth = 4;
         this.ctx.strokeStyle = highlightColor;
@@ -491,12 +496,12 @@ export class ResultRenderer {
 
         let label = isChombo ? "錯和" : "和了";
         this.r.ctx.fillText(label, currentX + tileW / 2, startY + tileH + 25);
-        
+
         return handLeftX;
     }
 
     /* =================================================================
-       Helper: 繪製靜態手牌 (流局模式)
+       Helper 2: 繪製靜態手牌 (流局模式)
        ================================================================= */
     _drawStaticHand(player, centerX, startY, faceDown = false) {
         const tiles = player.tepai;
@@ -529,9 +534,10 @@ export class ResultRenderer {
                 currentX += w + 10;
             });
         }
+    }
 
     /* =================================================================
-       Helper: 繪製聽牌列表
+       Helper 3: 繪製聽牌列表
        ================================================================= */
     _drawWaitList(waitTiles, centerX, startY, labelText) {
         const ctx = this.ctx;
@@ -590,51 +596,89 @@ export class ResultRenderer {
         });
     }
 
+    /* =================================================================
+       Helper 4: 取得滿貫以上文字顏色
+       ================================================================= */
+    _getLimitColor({ han, isYakuman, isKazoeYakuman }) {
+        if (isYakuman && !isKazoeYakuman) return "#ffd700"; // 金
+        if (isKazoeYakuman) return "#cfd8dc";                // 銀
 
-    _drawDiagonalHighlight({ text, x, y, font, color, startTime }) {
-    const ctx = this.ctx;
-    const now = performance.now();
+        if (han >= 11) return "#c47a2c"; // 三倍滿（銅）
+        if (han >= 8) return "#ab47bc"; // 倍滿（紫）
+        if (han >= 6) return "#42a5f5"; // 跳滿（藍）
+        if (han >= 5) return "#4caf50"; // 滿貫（綠）
 
-    // === 1. 量文字大小 ===
-    ctx.save();
-    ctx.font = font;
-    const metrics = ctx.measureText(text);
-    const w = metrics.width;
-    const h = 48; // 字高估值（42px font）
+        return "#ffffff"; // 白
+    }
 
-    // === 2. 計算動畫進度（循環） ===
-    const DURATION = 1600; // 一圈 1.6 秒
-    const t = ((now - startTime) % DURATION) / DURATION;
+    /* =================================================================
+       Helper 5: 斜向高光動畫 (純 Canvas 繪製)
+       ================================================================= */
+    _drawDiagonalHighlight({ text, x, y, font, color, startTime, isSilver }) {
+        const ctx = this.ctx;
+        const now = performance.now();
 
-    // 斜線位置（從左下到右上）
-    const sweepX = x - w + (w * 2) * t;
+        // === 1. 量文字大小 ===
+        ctx.save();
+        ctx.font = font;
+        const metrics = ctx.measureText(text);
+        const w = metrics.width;
+        const h = 48; // 字高估值（42px font）
 
-    // === 3. clip：限制只畫在文字區 ===
-    ctx.beginPath();
-    ctx.rect(x, y - h / 2, w, h);
-    ctx.clip();
+        // === 2. 計算動畫進度（循環） ===
+        const DURATION = isSilver ? 2200 : 1600;
+        const t = ((now - startTime) % DURATION) / DURATION;
 
-    // === 4. 建立斜向高光漸層 ===
-    const grad = ctx.createLinearGradient(
-        sweepX, y + h,
-        sweepX + 80, y - h
-    );
+        // 斜線位置（從左下到右上）
+        const sweepX = x - w + (w * 2) * t;
 
-    grad.addColorStop(0.0, "rgba(255,255,255,0)");
-    grad.addColorStop(0.4, "rgba(255,255,255,0.0)");
-    grad.addColorStop(0.5, "rgba(255,255,255,0.45)");
-    grad.addColorStop(0.6, "rgba(255,255,255,0.0)");
-    grad.addColorStop(1.0, "rgba(255,255,255,0)");
+        // === 3. clip：限制只畫在文字區 ===
+        ctx.beginPath();
+        ctx.rect(x, y - h / 2, w, h);
+        ctx.clip();
 
-    // === 5. 用 globalCompositeOperation 疊加 ===
-    ctx.globalCompositeOperation = "lighter";
-    ctx.fillStyle = grad;
-    ctx.fillRect(x - w, y - h, w * 3, h * 3);
+        // === 4. 建立斜向高光漸層 ===
+        const grad = ctx.createLinearGradient(
+            sweepX, y + h,
+            sweepX + (isSilver ? 120 : 80), y - h
+        );
 
-    ctx.restore();
-}
+        grad.addColorStop(0.0, "rgba(255,255,255,0)");
+        grad.addColorStop(0.4, "rgba(255,255,255,0.0)");
+        grad.addColorStop(0.5, "rgba(255,255,255,0.45)");
+        grad.addColorStop(0.6, "rgba(255,255,255,0.0)");
+        grad.addColorStop(1.0, "rgba(255,255,255,0)");
 
-    
+        if (isSilver) {
+            grad.addColorStop(0.0, "rgba(200,220,255,0)");
+            grad.addColorStop(0.45,"rgba(220,235,255,0.35)");
+            grad.addColorStop(0.5, "rgba(255,255,255,0.6)");
+            grad.addColorStop(0.55,"rgba(220,235,255,0.35)");
+            grad.addColorStop(1.0, "rgba(200,220,255,0)");
+        } else {
+            grad.addColorStop(0.0, "rgba(255,200,50,0)");
+            grad.addColorStop(0.45,"rgba(255,215,100,0.4)");
+            grad.addColorStop(0.5, "rgba(255,255,180,0.8)");
+            grad.addColorStop(0.55,"rgba(255,215,100,0.4)");
+            grad.addColorStop(1.0, "rgba(255,200,50,0)");
+        }
+
+        const pulse = 1 + Math.sin(now / 300) * 0.02;
+        ctx.translate(x + w / 2, y);
+        ctx.scale(pulse, pulse);
+        ctx.translate(-(x + w / 2), -y);
+
+        // === 5. 用 globalCompositeOperation 疊加 ===
+        ctx.globalCompositeOperation = "lighter";
+        ctx.fillStyle = grad;
+        ctx.fillRect(x - w, y - h, w * 3, h * 3);
+
+        ctx.restore();
+    }
+
+    /* =================================================================
+       重置動畫狀態 (換新的一局時呼叫)
+       ================================================================= */
     _resetAnimationState() {
         this.r.animations = this.r.animations.filter(a => a.type !== "yaku");
         this.resultTimelineStart = performance.now();
