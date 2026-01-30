@@ -641,4 +641,4 @@ export class Renderer {
             ctx.fillText(text, x + w / 2, y + h / 2);
         }
     }
-    
+}
