@@ -771,8 +771,6 @@ export class Renderer {
                 ctx.font = `bold 64px ${this.fontFamily}`;
                 ctx.fillText("本局結束", CX, H * 0.18);
             }
-
-
             if (result.score) {
                 const han = result.best ? result.best.han : 0;
                 const fu = result.fu;
@@ -780,7 +778,20 @@ export class Renderer {
                 
                 let limitName = "";
 
-                // === 自動計算稱號 (滿貫~役滿) ===
+                // === 處理役種排序 ===
+                let sortedYakus = [];
+                if (result.score?.yakus && result.score.yakus.length > 0) {
+                    sortedYakus = [...result.score.yakus];
+                    sortedYakus.sort((a, b) => {
+                        let ia = this.YAKU_ORDER.indexOf(a);
+                        let ib = this.YAKU_ORDER.indexOf(b);
+                        if (ia === -1) ia = 999;
+                        if (ib === -1) ib = 999;
+                        return ia - ib;
+                    });
+                }
+
+                // === 計算 滿貫~役滿 ===
                 const isParent = (result.winnerIndex === this.gameState.parentIndex);
                 
                 if (han >= 13)      limitName = "累計役滿";
@@ -829,6 +840,7 @@ export class Renderer {
                         });
                     });
                 }
+                
                 // 4. 分數區塊
                 if (t >= T.score) {
                     const ease = Math.min((t - T.score) / 400, 1);
@@ -842,7 +854,6 @@ export class Renderer {
                     ctx.fillText(isYakuman ? `${scoreTotal} 點` : `${han}飜 ${fu}符 ${scoreTotal} 點`, x, H * 0.46);
                     ctx.restore();
                 }
-
                 if (t >= T.score) {
                     const ease = Math.min((t - T.score) / 400, 1);
                     const x = CX + 120 + (1 - ease) * 30;
@@ -855,6 +866,7 @@ export class Renderer {
                     ctx.fillText(finalTitle, x, H * 0.46);
                     ctx.restore();
                 }
+                
                 // 5. 繪製手牌
                 const rowsUsed = (sortedYakus.length > 4) ? 4 : sortedYakus.length; 
                 const handY = startY + (rowsUsed * lineHeight) + 30;
