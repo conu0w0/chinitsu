@@ -56,9 +56,9 @@ export class Renderer {
             playerRiver: { x: riverX, y: playerRiverY, cols: 6 },
             playerMeld: { x: W * 0.88, y: H * 0.80 + (76 - 56) }, 
 
-            comHand: { x: W * 0.82, y: H * 0.15 },            
+            comHand: { x: W * 0.80, y: H * 0.15 },            
             comRiver: { x: riverX, y: comRiverY, cols: 6 },
-            comMeld: { x: W * 0.10, y: H * 0.15 + (76 - 56) }
+            comMeld: { x: W * 0.15, y: H * 0.15 + (76 - 56) }
         };
         
         this.resultRenderer = new ResultRenderer(this);
