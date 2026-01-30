@@ -330,8 +330,10 @@ export class ResultRenderer {
             ctx.textAlign = "center";
             ctx.fillText("本局結束", CX, H * 0.18);
 
-            if (now - this.stateEnterTime > 600) {
-                this._enterState(RESULT_STATE.WINNER);
+            if (this.resultState === RESULT_STATE.TITLE) {
+                if (now - this.stateEnterTime > 600) {
+                    this._enterState(RESULT_STATE.WINNER);
+                }
             }
         }
 
@@ -342,8 +344,10 @@ export class ResultRenderer {
             ctx.textAlign = "center"; // 確保置中
             ctx.fillText(`[${roleText}] ${winnerName} ${winMethod}`, CX, H * 0.28);
 
-            if (now - this.stateEnterTime > 500) {
-                this._enterState(RESULT_STATE.YAKU_ANIM);
+            if (this.resultState === RESULT_STATE.WINNER) {
+                if (now - this.stateEnterTime > 500) {
+                    this._enterState(RESULT_STATE.YAKU_ANIM);
+                }
             }
         }
 
@@ -353,7 +357,7 @@ export class ResultRenderer {
                 this.resultYakuAnimated = true;
                 const baseY = H * 0.38;
                 this.resultYakuBaseY = baseY;
-
+                
                 const nowT = performance.now();
                 sortedYakus.forEach((yaku, i) => {
                     this.r.animations.push({
@@ -364,13 +368,19 @@ export class ResultRenderer {
                         duration: 400
                     });
                 });
+                
+                const lastIndex = sortedYakus.length - 1;
+                this.resultYakuEndTime = nowT + lastIndex * 400 + 400;
             }
-
-           if (sortedYakus.length === 0) {
-               this._enterState(RESULT_STATE.HAND);
-           } else if (!this.r.animations.some(a => a.type === "yaku")) {
-               this._enterState(RESULT_STATE.YAKU_STATIC);
-           }
+  
+            if (sortedYakus.length === 0) {
+                this._enterState(RESULT_STATE.HAND);
+            } else if (
+                this.resultYakuEndTime && 
+                now >= this.resultYakuEndTime
+            ) {
+                this._enterState(RESULT_STATE.YAKU_STATIC);
+            }
         }
 
         // ===== YAKU_STATIC =====
@@ -394,8 +404,10 @@ export class ResultRenderer {
                 );
             });
 
-            if (now - this.stateEnterTime > 300) {
-                this._enterState(RESULT_STATE.HAND);
+            if (this.resultState === RESULT_STATE.YAKU_STATIC) {
+                if (now - this.stateEnterTime > 300) {
+                    this._enterState(RESULT_STATE.HAND);
+                }
             }
         }
 
@@ -407,8 +419,10 @@ export class ResultRenderer {
                 this._drawResultHand(result, CX, HAND_Y);
             }
 
-            if (now - this.stateEnterTime > 300) {
-                this._enterState(RESULT_STATE.SCORE);
+            if (this.resultState === RESULT_STATE.HAND) {
+                if (now - this.stateEnterTime > 300) {
+                    this._enterState(RESULT_STATE.SCORE);
+                }
             }
         }
 
@@ -424,8 +438,11 @@ export class ResultRenderer {
 
             ctx.fillText(scoreText, this.resultHandLeftX, SCORE_Y + LEVEL_OFFSET_Y);
 
-            if (now - this.stateEnterTime > 400) {
-                this._enterState(RESULT_STATE.LEVEL);
+            
+            if (this.resultState === RESULT_STATE.SCORE) {
+                if (now - this.stateEnterTime > 300) {
+                    this._enterState(RESULT_STATE.LEVEL);
+                }
             }
         }
 
@@ -456,8 +473,10 @@ export class ResultRenderer {
                 });
             }
 
-            if (now - this.stateEnterTime > 500) {
-                this._enterState(RESULT_STATE.HINT);
+            if (this.resultState === RESULT_STATE.LEVEL) {
+                if (now - this.stateEnterTime > 500) {
+                    this._enterState(RESULT_STATE.HINT);
+                }
             }
         }
 
