@@ -496,7 +496,7 @@ export class Renderer {
                     yakuItemsPerCol,
                     yakuColWidth,
                     yakuLineHeight,
-                } = this.RESULT_LAYOUT;
+                } = this.resultRenderer.RESULT_LAYOUT;
                 
                 const row = anim.index % yakuItemsPerCol;
                 const col = Math.floor(anim.index / yakuItemsPerCol);
