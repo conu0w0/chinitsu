@@ -689,7 +689,7 @@ export class Renderer {
             // 5. 拆解聽牌列表 (如果有)
             if (culprit) {
                 let tepaiForLogic = [...culprit.tepai];
-                if (tepaiForLogic.length % 3 === 2) { tepaiForLogic.pop) }; 
+                if (tepaiForLogic.length % 3 === 2) { tepaiForLogic.pop() }; 
                 const waits = this.gameState.logic.getWaitTiles(tepaiForLogic, culprit.fulu);
                 const isTenpai = waits.length > 0;
 
