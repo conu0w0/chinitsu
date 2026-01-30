@@ -1129,22 +1129,46 @@ export class Renderer {
     _drawWaitList(waitTiles, centerX, startY, labelText) {
         const ctx = this.ctx;
         
-        // 標題
-        ctx.font = `24px ${this.fontFamily}`;
-        ctx.fillStyle = "#aaaaaa";
-        ctx.fillText(labelText, centerX, startY);
-
-        if (!waitTiles || waitTiles.length === 0) return;
-
-        const tileW = 36; // 稍微小一點
+        const tileW = 36;
         const tileH = 50;
         const gap = 10;
-        const totalW = waitTiles.length * (tileW + gap) - gap;
         
-        let startX = centerX - (totalW / 2);
-        const tileY = startY + 20;
-
-        const waits = [...waitTiles].sort((a, b) => a - b);
+        const tilesCount = waitTiles?.length || 0;
+        const tilesWidth = tilesCount > 0 ? tilesCount * (tileW + gap) - gap : 0;
+        
+        const paddingX = 20;
+        const paddingY = 14;
+        const labelHeight = 26;
+        
+        const boxWidth = Math.max(tilesWidth, 120) + paddingX * 2;
+        const boxHeight = labelHeight + (tilesCount > 0 ? tileH + 10 : 0) + paddingY * 2;
+        
+        const boxX = centerX - boxWidth / 2;
+        const boxY = startY - paddingY;
+        
+        // === 半透明底板 ===
+        ctx.save();
+        ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+        ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+        
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.25)";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
+        ctx.restore();
+        
+        // === 標題文字 ===
+        ctx.font = `bold 22px ${this.fontFamily}`;
+        ctx.fillStyle = "#dddddd";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillText(labelText, centerX, boxY + paddingY);
+        
+        if (!waitTiles || waitTiles.length === 0) return;
+        
+        // === 聽牌牌張 ===
+        let startX = centerX - tilesWidth / 2;
+        const tileY = boxY + paddingY + labelHeight + 6;
+        
         waitTiles.forEach(tile => {
             this.drawTile(tile, startX, tileY, tileW, tileH);
             startX += tileW + gap;
