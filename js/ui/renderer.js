@@ -550,7 +550,6 @@ export class Renderer {
                 ctx.restore();
 
                 if (this.resultYakuEndTime && now >= this.resultYakuEndTime) {
-                    this.resultYakuFinished = true;
                     return false;
                 }
                 return true;
@@ -776,7 +775,7 @@ export class Renderer {
             ctx.textAlign = "center";
 
             // 5. 繪製聽牌列表
-            this._drawWaitList(waits, CX, H * 0.60, label);      
+            this._drawWaitList(waits, CX, H * 0.64, label);      
 
             // 6. 繪製錯和手牌（紅框）
             const handY = H * 0.72;
@@ -805,7 +804,7 @@ export class Renderer {
             const playerIsTenpai = playerInfo.isTenpai;
             const playerWaits = playerInfo.waits;
 
-            this._drawWaitList(playerWaits, CX, H * 0.60, playerIsTenpai ? "玩家 聽牌" : "玩家 未聽");
+            this._drawWaitList(playerWaits, CX, H * 0.64, playerIsTenpai ? "玩家 聽牌" : "玩家 未聽");
             this._drawStaticHand(player, CX, H * 0.80, !playerIsTenpai);
         }
         // === C. 和牌 (Agari) ===
@@ -919,14 +918,16 @@ export class Renderer {
                     });
                 });
             }
+
+            if (this.resultYakuEndTime && !this.resultYakuFinished) {
+                if (performance.now() >= this.resultYakuEndTime) {
+                    this.resultYakuFinished = true;
+                }
+            }
             
             /* ===============================
             * 8. 靜態役種（動畫結束後）
-            * =============================== */
-            if (this.resultYakuEndTime && performance.now() >= this.resultYakuEndTime) {
-                this.resultYakuFinished = true;
-            }
-            
+            * =============================== */            
             if (this.resultYakuFinished) {
                 const {
                     yakuLineHeight,
@@ -955,7 +956,7 @@ export class Renderer {
             /* ===============================
             * 9. 手牌
             * =============================== */
-            const handLeftX = this._drawResultHand(result, CX, HAND_Y);
+            if (t >= T.title) const handLeftX = this._drawResultHand(result, CX, HAND_Y);
             
             /* ===============================
             * 10. 分數動畫
@@ -1163,11 +1164,19 @@ export class Renderer {
         ctx.textBaseline = "top";
         ctx.fillText(labelText, centerX, boxY + paddingY);
         
-        if (!waitTiles || waitTiles.length === 0) return;
-        
         // === 聽牌牌張 ===
         let startX = centerX - tilesWidth / 2;
         const tileY = boxY + paddingY + labelHeight + 6;
+
+        if (!waitTiles || waitTiles.length === 0) {
+            ctx.save();
+            ctx.globalAlpha = 0.30;
+            this.drawTile(-1, centerX - tileW / 2, tileY, tileW, tileH, {
+                faceDown: true
+            });
+            ctx.restore();
+            return;
+        }
         
         waitTiles.forEach(tile => {
             this.drawTile(tile, startX, tileY, tileW, tileH);
