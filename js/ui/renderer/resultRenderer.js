@@ -15,13 +15,37 @@ export class ResultRenderer {
         this.resultYakuAnimated = false;
         this.resultYakuFinished = false;
         this.resultYakuEndTime = null;
+        this.resultYakuBaseY = 0;
 
         // 分數動畫相關
         this.resultScoreAnimated = false;
         this.resultScoreFinished = false;
         this.resultScoreStartTime = 0;
 
-        this.resultYakuBaseY = 0;
+        this.RESULT_LAYOUT = {
+            yakuLineHeight: 45,
+            yakuItemsPerCol: 4,
+            yakuColWidth: 250
+        };
+
+        this.YAKU_ORDER = [
+            // === 役滿 / 地方役 ===
+            "天和", "地和", "人和", 
+            "四暗刻", "四暗刻單騎", 
+            "綠一色", "大竹林", 
+            "四槓子", "金門橋", 
+            "九蓮寶燈", "純正九蓮寶燈", 
+            "石上三年",
+            
+            // === 常規役種 ===
+            "立直", "兩立直", "一發", "門前清自摸和", 
+            "燕返", "槓振", "嶺上開花", 
+            "海底摸月", "河底撈魚", 
+            "斷么九", "一盃口", "平和", 
+            "一氣通貫", "三槓子",  
+            "對對和", "三暗刻", "七對子",
+            "純全帶么九", "二盃口", "清一色"
+        ];
     }
 
     /* =================================================================
@@ -211,8 +235,8 @@ export class ResultRenderer {
         let sortedYakus = [];
         if (result.score.yakus?.length) {
             sortedYakus = [...result.score.yakus].sort((a, b) => {
-                let ia = this.r.YAKU_ORDER.indexOf(a);
-                let ib = this.r.YAKU_ORDER.indexOf(b);
+                let ia = this.YAKU_ORDER.indexOf(a);
+                let ib = this.YAKU_ORDER.indexOf(b);
                 if (ia === -1) ia = 999;
                 if (ib === -1) ib = 999;
                 return ia - ib;
@@ -284,7 +308,7 @@ export class ResultRenderer {
 
         // --- 4. 靜態役種 (動畫結束後顯示) ---
         if (this.resultYakuFinished) {
-            const { yakuLineHeight, yakuItemsPerCol, yakuColWidth } = this.r.RESULT_LAYOUT;
+            const { yakuLineHeight, yakuItemsPerCol, yakuColWidth } = this.RESULT_LAYOUT;
             const yakus = sortedYakus;
             const totalCols = Math.ceil(yakus.length / yakuItemsPerCol);
             const totalWidth = (Math.max(1, totalCols) - 1) * yakuColWidth;
