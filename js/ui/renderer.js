@@ -964,6 +964,14 @@ export class Renderer {
             /* ===============================
             * 10. 分數動畫
             * =============================== */
+            let scoreLeftText = "";
+            
+            if (isYakuman && !isKazoeYakuman) {
+                scoreLeftText = `${scoreTotal} 點`;
+            } else {
+                scoreLeftText = `${han}飜 ${fu}符 ${scoreTotal} 點`;
+            }
+            
             if (handLeftX !== null && this.resultYakuFinished && !this.resultScoreAnimated) {
                 this.resultScoreAnimated = true;
                 this.resultScoreStartTime = performance.now();
@@ -997,6 +1005,17 @@ export class Renderer {
                 ctx.restore();
                 
                 if (ease >= 1) this.resultScoreFinished = true;
+            }
+
+            if (this.resultScoreFinished) {
+                ctx.font = `bold 42px ${this.fontFamily}`;
+                ctx.textAlign = "left";
+                
+                ctx.fillStyle = "#ffffff";
+                ctx.fillText(scoreLeftText, handLeftX, SCORE_Y);
+                
+                ctx.fillStyle = "#ffcc00";
+                ctx.fillText(finalTitle, handLeftX + 360, SCORE_Y);
             }
             
             /* ===============================
