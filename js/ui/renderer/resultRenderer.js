@@ -99,14 +99,14 @@ export class ResultRenderer {
 
         let waits = offender?.waits || [];
         let isTenpai = offender?.isTenpai || false;
-        let label = "未聽牌";
-
+        let label = "";
+        
         if (chomboType === "wrong_agari") {
-            label = isTenpai ? "聽牌（錯和）" : "未聽牌（錯和）";
+            label = "錯和";
         } else if (chomboType === "furiten") {
             label = "振聽";
-        } else if (chomboType === "fake_riichi") {
-            label = "詐立直";
+        } else if (!isTenpai) {
+            label = "未聽牌";
         }
 
         // 1. 標題
@@ -151,7 +151,7 @@ export class ResultRenderer {
         ctx.textAlign = "center";
 
         // 5. 繪製聽牌列表
-        this._drawWaitList(waits, CX, H * 0.64, label);
+        this._drawWaitList(waits, CX, H * 0.58, label);
 
         // 6. 繪製錯和手牌（紅框）
         const handY = H * 0.72;
@@ -206,7 +206,7 @@ export class ResultRenderer {
 
         // 時間軸設定
         const t = performance.now() - this.resultTimelineStart;
-        const T = { title: 0, winner: 600 };
+        const T = { title: 0, winner: 600 , afterWinnerPause: 900 };
 
         // 版面座標基準
         const HAND_Y = H * 0.68;
@@ -255,7 +255,7 @@ export class ResultRenderer {
         else if (isParent && scoreTotal >= 12000) limitName = "滿貫";
 
         // --- 最終顯示標題 ---
-        let finalTitle = "";
+        let finalTitle = limitName || " ";
         if (limitName) finalTitle = limitName;
 
         const isYakuman = finalTitle.includes("役滿");
@@ -275,7 +275,7 @@ export class ResultRenderer {
         }
 
         // --- 3. 役種動畫 (只觸發一次) ---
-        if (sortedYakus.length && t >= T.winner && !this.resultYakuAnimated) {
+        if (sortedYakus.length && t >= T.afterWinnerPause && !this.resultYakuAnimated) {
             this.resultYakuAnimated = true;
             const now = performance.now();
             const lastIndex = Math.max(sortedYakus.length - 1, 0);
@@ -297,8 +297,11 @@ export class ResultRenderer {
         }
 
         if (this.resultYakuAnimated && !this.resultYakuFinished) {
-            const hasYakuAnimation = this.r.animations.some(a => a.type === "yaku");
-            if (!hasYakuAnimation) {
+            if (
+                this.resultYakuAnimated &&
+                !this.resultYakuFinished &&
+                performance.now() >= this.resultYakuEndTime
+            ) {
                 this.resultYakuFinished = true;
                 this.resultAfterYakuTime = performance.now();
             }
@@ -342,7 +345,7 @@ export class ResultRenderer {
         const SCORE_DELAY = 300;
 
         if (
-            handLeftX !== null &&
+            typeof handLeftX === "number"  &&
             this.resultYakuFinished &&
             !this.resultScoreAnimated &&
             this.resultAfterYakuTime &&
