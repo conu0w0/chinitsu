@@ -61,7 +61,6 @@ export class Renderer {
         };
 
         this.RESULT_LAYOUT = {
-            yakuStartY: this.canvas.height * 0.54,
             yakuLineHeight: 45,
             yakuItemsPerCol: 4,
             yakuColWidth: 250
@@ -70,6 +69,8 @@ export class Renderer {
         this.resultTimelineStart = 0;
         this.resultYakuAnimated = false;   
         this._lastResultRef = null;
+        this.resultYakuEndTime = null;
+
         this.YAKU_ORDER = [
             // === 役滿 / 地方役 ===
             "天和", "地和", "人和", 
@@ -88,6 +89,7 @@ export class Renderer {
             "對對和", "三暗刻", "七對子",
             "純全帶么九", "二盃口", "清一色"
         ];
+        this.resultYakuBaseY = 0;
     }
 
     /* ======================
@@ -520,7 +522,6 @@ export class Renderer {
                     yakuItemsPerCol,
                     yakuColWidth,
                     yakuLineHeight,
-                    yakuStartY
                 } = this.RESULT_LAYOUT;
                 
                 const row = anim.index % yakuItemsPerCol;
@@ -532,7 +533,7 @@ export class Renderer {
                 const baseX = (this.canvas.width / 2) - totalWidth / 2;
                 
                 const x = baseX + col * yakuColWidth;
-                const y = yakuStartY + row * yakuLineHeight;
+                const y = this.resultYakuBaseY + row * yakuLineHeight;
 
                 const slideX = x + (1 - ease) * 40;
 
@@ -797,6 +798,12 @@ export class Renderer {
         }
         // === C. 和牌 (Agari) ===
         else {
+            const HAND_Y  = H * 0.68;
+            const SCORE_Y = HAND_Y - 60;
+            const YAKU_BASE_Y = SCORE_Y - 40;
+            
+            this.resultYakuBaseY = YAKU_BASE_Y;
+
             // 1. 標題：本局結束 (H * 0.18)
             if (t >= T.title) {
                 ctx.fillStyle = "#ffffff";
@@ -867,6 +874,11 @@ export class Renderer {
 
                 if (sortedYakus.length > 0 && t >= T.yaku && !this.resultYakuAnimated) {
                     this.resultYakuAnimated = true;
+
+                    const now = performance.now();
+                    const lastIndex = sortedYakus.length - 1;
+
+                    this.resultYakuEndTime = now + lastIndex * 120 + 400;                    
                     
                     sortedYakus.forEach((yaku, i) => {
                         this.animations.push({
@@ -880,9 +892,8 @@ export class Renderer {
                 }
 
                 // === 靜態役種（動畫結束後常駐）===
-                if (t >= T.yaku && this.resultYakuAnimated) {
-                    const {
-                        yakuStartY,       
+                if (this.resultYakuAnimated && performance.now() >= this.resultYakuEndTime) {
+                    const {    
                         yakuLineHeight,
                         yakuItemsPerCol,
                         yakuColWidth
@@ -901,16 +912,22 @@ export class Renderer {
                         const row = i % yakuItemsPerCol;
                         const col = Math.floor(i / yakuItemsPerCol);
                         const x = baseX + col * yakuColWidth;
-                        const y = yakuStartY + row * yakuLineHeight;
+                        const y = this.resultYakuBaseY + row * yakuLineHeight;
                         ctx.fillText(yaku, x, y);
                     });
                 }
                 
                 // 4. 分數區塊
-                if (t >= T.score) {
+                if (
+                    this.resultYakuAnimated &&
+                    this.resultYakuEndTime &&
+                    performance.now() >= this.resultYakuEndTime
+                ) {                    
                     const ease = Math.min((t - T.score) / 400, 1);
-                    const x = CX - 120 - (1 - ease) * 30;
-
+                    
+                    const xLeft  = CX - 120 - (1 - ease) * 30;
+                    const xRight = CX + 120 + (1 - ease) * 30;
+                    
                     let leftScoreText = "";
                     
                     if (isYakuman && !isAccumYakuman) {
@@ -918,32 +935,28 @@ export class Renderer {
                     } else {
                         leftScoreText = `${han}飜 ${fu}符 ${scoreTotal} 點`;
                     }
-                    
+
+                    // 左：飜符點數
                     ctx.save();
                     ctx.globalAlpha = ease;
                     ctx.font = `bold 42px ${this.fontFamily}`;
                     ctx.fillStyle = "#ffffff";
                     ctx.textAlign = "right";
-                    ctx.fillText(leftScoreText, x, H * 0.46);
+                    ctx.fillText(leftScoreText, xLeft, SCORE_Y);
                     ctx.restore();
-                }
-                if (t >= T.score) {
-                    const ease = Math.min((t - T.score) / 400, 1);
-                    const x = CX + 120 + (1 - ease) * 30;
-                    
+
+                    // 右：類別
                     ctx.save();
                     ctx.globalAlpha = ease;
                     ctx.font = `bold 42px ${this.fontFamily}`;
                     ctx.fillStyle = "#ffcc00";
                     ctx.textAlign = "left";
-                    ctx.fillText(finalTitle, x, H * 0.46);
+                    ctx.fillText(finalTitle, xRight, SCORE_Y);
                     ctx.restore();
                 }
                 
                 // 5. 繪製手牌
-                const rowsUsed = (sortedYakus.length > 4) ? 4 : sortedYakus.length; 
-                const handY = yakuStartY + (rowsUsed * yakuLineHeight) + 30;
-                this._drawResultHand(result, CX, handY);         
+                this._drawResultHand(result, CX, HAND_Y);     
                 
                 // 6. 底部提示
                 if (t >= T.score + 500) {
