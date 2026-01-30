@@ -516,7 +516,7 @@ export class Renderer {
                 const row = anim.index % itemsPerCol;
                 const col = Math.floor(anim.index / itemsPerCol);
                 
-                const totalCols = Math.ceil(this.gameState.lastResult.score.yakus.length / itemsPerCol);
+                const totalCols = Math.ceil((anim.total || 0) / itemsPerCol);
                 const totalWidth = (totalCols - 1) * colWidth;
                 const baseX = (this.canvas.width / 2) - totalWidth / 2;               
                 const x = baseX + col * colWidth;
@@ -775,6 +775,11 @@ export class Renderer {
                 const han = result.best ? result.best.han : 0;
                 const fu = result.fu;
                 const scoreTotal = result.score.total;
+
+                // === 結算畫面共用版面參數 ===
+                const yakuStartY = H * 0.54;
+                const yakuLineHeight = 45;
+                const yakuMaxRows = 4;
                 
                 let limitName = "";
 
@@ -813,6 +818,9 @@ export class Renderer {
                 } else {
                     finalTitle = backendDisplay || `${scoreTotal}`;
                 }
+                
+                const isYakuman = finalTitle.includes("役滿");
+                const isAccumYakuman = finalTitle.includes("累計役滿");
 
                 // 2. 身分與方式 (依照你的要求：放在分數上面 H * 0.28)
                 const winnerIdx = (result.winnerIndex !== undefined) ? result.winnerIndex : 0;
@@ -827,7 +835,7 @@ export class Renderer {
                     ctx.fillText(`[${roleText}] ${winnerName} ${winMethod}`, CX, H * 0.28);
                 }
 
-                if (result.score.yakus && result.score.yakus.length > 0 && t >= T.yaku && !this.resultYakuAnimated) {
+                if (sortedYakus.length > 0 && t >= T.yaku && !this.resultYakuAnimated) {
                     this.resultYakuAnimated = true;
                     
                     sortedYakus.forEach((yaku, i) => {
@@ -845,13 +853,21 @@ export class Renderer {
                 if (t >= T.score) {
                     const ease = Math.min((t - T.score) / 400, 1);
                     const x = CX - 120 - (1 - ease) * 30;
+
+                    let leftScoreText = "";
+                    
+                    if (isYakuman && !isAccumYakuman) {
+                        leftScoreText = `${scoreTotal} 點`;
+                    } else {
+                        leftScoreText = `${han}飜 ${fu}符 ${scoreTotal} 點`;
+                    }
                     
                     ctx.save();
                     ctx.globalAlpha = ease;
                     ctx.font = `bold 42px ${this.fontFamily}`;
                     ctx.fillStyle = "#ffffff";
-                    ctx.textAlign = "right";
-                    ctx.fillText(isYakuman ? `${scoreTotal} 點` : `${han}飜 ${fu}符 ${scoreTotal} 點`, x, H * 0.46);
+                    ctx.textAlign = "left";
+                    ctx.fillText(leftScoreText, x, H * 0.46);
                     ctx.restore();
                 }
                 if (t >= T.score) {
@@ -862,14 +878,14 @@ export class Renderer {
                     ctx.globalAlpha = ease;
                     ctx.font = `bold 42px ${this.fontFamily}`;
                     ctx.fillStyle = "#ffcc00";
-                    ctx.textAlign = "left";
+                    ctx.textAlign = "right";
                     ctx.fillText(finalTitle, x, H * 0.46);
                     ctx.restore();
                 }
                 
                 // 5. 繪製手牌
                 const rowsUsed = (sortedYakus.length > 4) ? 4 : sortedYakus.length; 
-                const handY = startY + (rowsUsed * lineHeight) + 30;
+                const handY = yakuStartY + (rowsUsed * yakuLineHeight) + 30;
                 this._drawResultHand(result, CX, handY);         
                 
                 // 6. 底部提示
