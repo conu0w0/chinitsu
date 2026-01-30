@@ -23,6 +23,8 @@ export class ResultRenderer {
         this.resultScoreFinished = false;
         this.resultScoreStartTime = 0;
         this.scoreHighlightStartTime = null;
+        this.resultLevelAnimated = false;
+        this.resultLevelStartTime = 0;
 
         this.RESULT_LAYOUT = {
             yakuLineHeight: 45,
@@ -48,6 +50,15 @@ export class ResultRenderer {
             "對對和", "三暗刻", "七對子",
             "純全帶么九", "二盃口", "清一色"
         ];
+
+        this.YAKUMAN_SET = new Set([
+            "天和", "地和", "人和",
+            "四暗刻", "四暗刻單騎",
+            "綠一色", "大竹林",
+            "四槓子", "金門橋",
+            "九蓮寶燈", "純正九蓮寶燈",
+            "石上三年",
+        ]);
     }
 
     /* =================================================================
@@ -118,7 +129,7 @@ export class ResultRenderer {
         const reasonText = result.reason || "錯和 / 違規";
         ctx.fillStyle = "#ffaaaa";
         ctx.font = `bold 32px ${this.r.fontFamily}`;
-        ctx.fillText(`【 ${reasonText} 】`, CX, H * 0.33);
+        ctx.fillText(`【 ${reasonText} 】`, CX, H * 0.36);
 
         // 3. 抓取錯和者資訊
         const culpritIndex = result.offenderIndex;
@@ -203,6 +214,7 @@ export class ResultRenderer {
         const W = this.r.canvas.width;
         const H = this.r.canvas.height;
         const CX = W / 2;
+        const LEVEL_OFFSET_Y = 6; // 可微調
 
         // 時間軸設定
         const t = performance.now() - this.resultTimelineStart;
@@ -243,10 +255,13 @@ export class ResultRenderer {
                 return ia - ib;
             });
         }
+        
+        const hasYakuman = sortedYakus.some(y => this.YAKUMAN_SET.has(y));
 
         // --- 滿貫級別判斷 ---
         let limitName = "";
-        if (han >= 13) limitName = "累計役滿";
+        if (hasYakuman) limitName = "役滿";
+        else if (han >= 13) limitName = "累計役滿";
         else if (han >= 11) limitName = "三倍滿";
         else if (han >= 8) limitName = "倍滿";
         else if (han >= 6) limitName = "跳滿";
@@ -255,11 +270,10 @@ export class ResultRenderer {
         else if (isParent && scoreTotal >= 12000) limitName = "滿貫";
 
         // --- 最終顯示標題 ---
-        let finalTitle = limitName || " ";
-        if (limitName) finalTitle = limitName;
+        let finalTitle = limitName;
 
-        const isYakuman = finalTitle.includes("役滿");
-        const isKazoeYakuman = finalTitle.includes("累計役滿");
+        const isYakuman = finalTitle === "役滿";
+        const isKazoeYakuman = finalTitle === "累計役滿";
 
         // --- 2. 勝者資訊 ---
         const winnerIdx = result.winnerIndex ?? 0;
@@ -279,11 +293,10 @@ export class ResultRenderer {
             this.resultYakuAnimated = true;
             const now = performance.now();
             const lastIndex = Math.max(sortedYakus.length - 1, 0);
-
-            this.resultYakuEndTime = now + lastIndex * 120 + 400;
-
             const DURATION = 400;
             const GAP = 0;
+
+            this.resultYakuEndTime = now + lastIndex * (DURATION + GAP) + DURATION;
 
             sortedYakus.forEach((yaku, i) => {
                 this.r.animations.push({
@@ -295,20 +308,17 @@ export class ResultRenderer {
                 });
             });
         }
-
-        if (this.resultYakuAnimated && !this.resultYakuFinished) {
-            if (
-                this.resultYakuAnimated &&
-                !this.resultYakuFinished &&
-                performance.now() >= this.resultYakuEndTime
-            ) {
-                this.resultYakuFinished = true;
-                this.resultAfterYakuTime = performance.now();
-            }
+        if (
+            this.resultYakuAnimated &&
+            !this.resultYakuFinished &&
+            !this.r.animations.some(a => a.type === "yaku")
+        ) {
+            this.resultYakuFinished = true;
+            this.resultAfterYakuTime = performance.now();
         }
 
         // --- 4. 靜態役種 (動畫結束後顯示) ---
-        if (this.resultYakuFinished) {
+        if (this.resultYakuFinished && !this.r.animations.some(a => a.type === "yaku")) {
             const { yakuLineHeight, yakuItemsPerCol, yakuColWidth } = this.RESULT_LAYOUT;
             const yakus = sortedYakus;
             const totalCols = Math.ceil(yakus.length / yakuItemsPerCol);
@@ -367,35 +377,38 @@ export class ResultRenderer {
             // 左側分數
             ctx.fillStyle = "#ffffff";
             ctx.textAlign = "left";
-            ctx.fillText(scoreLeftText, handLeftX, SCORE_Y);
-
-            // 右側級別(滿貫/役滿)
-            ctx.fillStyle = limitColor;
-            ctx.fillText(finalTitle, handLeftX + TITLE_OFFSET_X, SCORE_Y);
+            ctx.fillText(scoreLeftText, handLeftX, SCORE_Y + LEVEL_OFFSET_Y);
 
             ctx.restore();
 
-            if (ease >= 1) this.resultScoreFinished = true;
+            if (ease >= 1) {
+                this.resultScoreFinished = true;
+                this.resultLevelStartTime = performance.now();
+            }
         }
+        
+        const LEVEL_DELAY = 250;
 
-        if (this.resultScoreFinished) {
+        if (this.resultScoreFinished &&
+            !this.resultLevelAnimated &&
+            performance.now() - this.resultLevelStartTime >= LEVEL_DELAY
+            ) {
+            this.resultLevelAnimated = true;
+        }
+        if (typeof handLeftX === "number" && this.resultLevelAnimated) {
             ctx.font = `bold 42px ${this.r.fontFamily}`;
             ctx.textAlign = "left";
-
-            ctx.fillStyle = "#ffffff";
-            ctx.fillText(scoreLeftText, handLeftX, SCORE_Y);
-
             ctx.fillStyle = this._getLimitColor({ han, isYakuman, isKazoeYakuman });
-            ctx.fillText(finalTitle, handLeftX + TITLE_OFFSET_X, SCORE_Y);
+            ctx.fillText(finalTitle, handLeftX + TITLE_OFFSET_X, SCORE_Y + LEVEL_OFFSET_Y);
 
-            if (this.resultScoreFinished && !this.scoreHighlightStartTime) {
+            if (this.resultLevelAnimated && !this.scoreHighlightStartTime) {
                 this.scoreHighlightStartTime = performance.now();
             }
             if (isYakuman || isKazoeYakuman){
                 this._drawDiagonalHighlight({
                     text: finalTitle,
                     x: handLeftX + TITLE_OFFSET_X,
-                    y: SCORE_Y,
+                    y: SCORE_Y + LEVEL_OFFSET_Y,
                     font: `bold 42px ${this.r.fontFamily}`,
                     color: "#ffcc00",
                     startTime: this.scoreHighlightStartTime,
@@ -604,14 +617,12 @@ export class ResultRenderer {
        ================================================================= */
     _getLimitColor({ han, isYakuman, isKazoeYakuman }) {
         if (isYakuman && !isKazoeYakuman) return "#ffd700"; // 金
-        if (isKazoeYakuman) return "#cfd8dc";                // 銀
-
-        if (han >= 11) return "#c47a2c"; // 三倍滿（銅）
-        if (han >= 8) return "#ab47bc"; // 倍滿（紫）
-        if (han >= 6) return "#42a5f5"; // 跳滿（藍）
-        if (han >= 5) return "#4caf50"; // 滿貫（綠）
-
-        return "#ffffff"; // 白
+        if (isKazoeYakuman) return "#cfd8dc";               // 銀
+        if (han >= 11) return "#c47a2c";                    // 三倍滿（銅）
+        if (han >= 8) return "#ab47bc";                     // 倍滿（紫）
+        if (han >= 6) return "#42a5f5";                     // 跳滿（藍）
+        if (han >= 5) return "#4caf50";                     // 滿貫（綠）
+        return "#ffffff";                                   // 白
     }
 
     /* =================================================================
@@ -685,13 +696,18 @@ export class ResultRenderer {
     _resetAnimationState() {
         this.r.animations = this.r.animations.filter(a => a.type !== "yaku");
         this.resultTimelineStart = performance.now();
+        
         this.resultYakuAnimated = false;
         this.resultYakuFinished = false;
         this.resultYakuEndTime = null;
         this.resultAfterYakuTime = null;
+        
         this.resultScoreAnimated = false;
         this.resultScoreFinished = false;
         this.resultScoreStartTime = 0;
+        
+        this.resultLevelAnimated = false;
+        this.resultLevelStartTime = 0;
         this.scoreHighlightStartTime = null;
     }
 }
