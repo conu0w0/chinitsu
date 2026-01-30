@@ -717,7 +717,7 @@ export class Renderer {
             // 1. 標題
             ctx.fillStyle = "#ffffff";
             ctx.font = `bold 64px ${this.fontFamily}`;
-            ctx.fillText(titleMap[chomboType] || "本局結束", CX, H * 0.25);
+            ctx.fillText("本局結束", CX, H * 0.25);
             
             // 2. 原因
             const reasonText = result.reason || "錯和 / 違規"; 
