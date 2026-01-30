@@ -905,9 +905,20 @@ export class Renderer {
                 this.resultYakuAnimated = true;
                 
                 const now = performance.now();
-                const lastIndex = sortedYakus.length - 1;
+                const lastIndex = Math.max(sortedYakus.length - 1, 0);
                 
+                // 記錄整個役種動畫結束時間
                 this.resultYakuEndTime = now + lastIndex * 120 + 400;
+                
+                sortedYakus.forEach((yaku, i) => {
+                    this.animations.push({
+                        type: "yaku",
+                        text: yaku,
+                        index: i,
+                        startTime: now + i * 120,
+                        duration: 400
+                    });
+                });
             }
         }
     }
