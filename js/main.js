@@ -114,6 +114,7 @@ class MahjongGame {
 
     async start() {
         await this.loadAssets();
+        await document.fonts.ready;
 
         this.state = new GameState();
         this.renderer = new Renderer(this.canvas, this.state, this.assets);
