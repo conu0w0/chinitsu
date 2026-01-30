@@ -545,7 +545,11 @@ export class Renderer {
                 ctx.fillText(anim.text, slideX, y);
                 ctx.restore();
 
-                return t < 1;
+                if (t >= 1) {
+                    this.resultYakuFinished = true;
+                    return false;
+                }
+                return true;
             }
             
             const t = Math.min((now - anim.startTime) / anim.duration, 1);
@@ -800,7 +804,7 @@ export class Renderer {
         else {
             const HAND_Y  = H * 0.68;
             const SCORE_Y = HAND_Y - 60;
-            const YAKU_BASE_Y = SCORE_Y - 40;
+            const YAKU_BASE_Y = H * 0.42;
             
             this.resultYakuBaseY = YAKU_BASE_Y;
 
@@ -892,7 +896,7 @@ export class Renderer {
                 }
 
                 // === 靜態役種（動畫結束後常駐）===
-                if (this.resultYakuAnimated && performance.now() >= this.resultYakuEndTime) {
+                if (this.resultYakuFinished) {
                     const {    
                         yakuLineHeight,
                         yakuItemsPerCol,
