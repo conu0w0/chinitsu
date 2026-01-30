@@ -254,7 +254,6 @@ export class ResultRenderer {
         else if (isParent && scoreTotal >= 12000) limitName = "滿貫";
 
         // --- 最終顯示標題 ---
-        const backendDisplay = result.score.display || "";
         let finalTitle = "";
 
         if (backendDisplay.includes("役滿")) {
