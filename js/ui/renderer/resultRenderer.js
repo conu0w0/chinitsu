@@ -211,7 +211,7 @@ export class ResultRenderer {
         const HAND_Y = H * 0.68;
         const SCORE_Y = HAND_Y - 60;
         const TITLE_OFFSET_X = 520;
-        const YAKU_BASE_Y = H * 0.42;
+        const YAKU_BASE_Y = H * 0.35;
 
         this.resultYakuBaseY = YAKU_BASE_Y;
 
