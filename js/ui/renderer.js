@@ -60,6 +60,8 @@ export class Renderer {
             comMeld: { x: W * 0.05, y: H * 0.15 + (76 - 56) }
         };
         
+        this.resultTimelineStart = 0;
+        this.resultYakuAnimated = false;        
         this.YAKU_ORDER = [
             // === 役滿 / 地方役 ===
             "天和", "地和", "人和", 
@@ -498,6 +500,42 @@ export class Renderer {
         const ctx = this.ctx;
 
         this.animations = this.animations.filter(anim => {
+            
+            if (anim.type === "yaku") {
+                if (now < anim.startTime) return true;
+                
+                const t = Math.min((now - anim.startTime) / anim.duration, 1);
+                const ease = 1 - Math.pow(1 - t, 3);
+                //const ease = t * t * (3 - 2 * t);
+
+                const itemsPerCol = 4;
+                const colWidth = 250;
+                const lineHeight = 45;
+                const startY = this.canvas.height * 0.54;
+                
+                const row = anim.index % itemsPerCol;
+                const col = Math.floor(anim.index / itemsPerCol);
+                
+                const totalCols = Math.ceil(this.gameState.lastResult.score.yakus.length / itemsPerCol);
+                const totalWidth = (totalCols - 1) * colWidth;
+                const baseX = (this.canvas.width / 2) - totalWidth / 2;               
+                const x = baseX + col * colWidth;
+                const y = startY + row * lineHeight;
+
+                // === 滑入效果 ===
+                const slideX = x + (1 - ease) * 40;
+                const alpha = ease;
+                
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.font = `30px ${this.fontFamily}`;
+                ctx.fillStyle = "#dddddd";
+                ctx.textAlign = "center";
+                ctx.fillText(anim.text, slideX, y);
+                ctx.restore();
+                return t < 1;
+            }
+            
             const t = Math.min((now - anim.startTime) / anim.duration, 1);
             const ease = 1 - Math.pow(1 - t, 3); 
 
@@ -621,6 +659,10 @@ export class Renderer {
        7. 結算畫面
        ====================== */
     drawResult(result) {
+        if (!this.resultTimelineStart) { this.resultTimelineStart = performance.now() };
+        const t = performance.now() - this.resultTimelineStart;
+        const T = { title: 0, winner: 600, yaku: 1200, score: 2200 };
+        
         if (!result) return;
 
         const ctx = this.ctx;
@@ -724,9 +766,12 @@ export class Renderer {
         // === C. 和牌 (Agari) ===
         else {
             // 1. 標題：本局結束 (H * 0.18)
-            ctx.fillStyle = "#ffffff";
-            ctx.font = `bold 64px ${this.fontFamily}`;
-            ctx.fillText("本局結束", CX, H * 0.18); 
+            if (t >= T.title) {
+                ctx.fillStyle = "#ffffff";
+                ctx.font = `bold 64px ${this.fontFamily}`;
+                ctx.fillText("本局結束", CX, H * 0.18);
+            }
+
 
             if (result.score) {
                 const han = result.best ? result.best.han : 0;
@@ -763,86 +808,65 @@ export class Renderer {
                 const roleText = isParent ? "親" : "子";
                 const winnerName = (winnerIdx === 0) ? "玩家" : "COM";
                 const winMethod = (result.winType === "tsumo") ? "自摸" : "榮和";
-                
-                ctx.font = `bold 42px ${this.fontFamily}`;
-                ctx.fillStyle = "#ffffff";
-                ctx.fillText(`[${roleText}] ${winnerName} ${winMethod}`, CX, H * 0.28);
-                
-                // 3. 分數大標題 (H * 0.38)
-                ctx.font = `bold 80px ${this.fontFamily}`;
-                ctx.fillStyle = "#ffcc00"; 
-                ctx.fillText(finalTitle, CX, H * 0.38);
-                
-                const isYakuman = finalTitle.includes("役滿");
 
-                // 4. 副標題：幾翻幾符 (H * 0.46)
-                if (isYakuman) {
-                    // 役滿：只顯示分數 (不需要翻數/符數)
+                // 3. 役種列表
+                if (t >= T.winner) {
                     ctx.font = `bold 42px ${this.fontFamily}`;
-                    ctx.fillText(`${scoreTotal} 點`, CX, H * 0.46);
-                } else {
-                    // 一般和牌：顯示 翻數 + 符數 + 分數
-                    ctx.font = `bold 42px ${this.fontFamily}`;
-                    ctx.fillText(`${han}飜 ${fu}符  ${scoreTotal} 點`, CX, H * 0.46);
-                } 
-
-                // 5. 役種列表 (從 H * 0.54 開始)
-                if (result.score.yakus && result.score.yakus.length > 0) {
-                    
-                    // A. 排序邏輯：依照 YAKU_ORDER 重新排隊
-                    // 複製一份陣列以免改到原始資料
-                    let sortedYakus = [...result.score.yakus]; 
-                    
-                    sortedYakus.sort((a, b) => {
-                        let indexA = this.YAKU_ORDER.indexOf(a);
-                        let indexB = this.YAKU_ORDER.indexOf(b);
-                        if (indexA === -1) indexA = 999;
-                        if (indexB === -1) indexB = 999;
-                        return indexA - indexB;
-                    });
-
-                    // === B. 繪製參數 ===
-                    const startY = H * 0.54;   
-                    const lineHeight = 45;     
-                    const colWidth = 250;      
-                    const itemsPerCol = 4;
-                    
-                    // 計算總欄數
-                    const numCols = Math.ceil(sortedYakus.length / itemsPerCol);
-                    // 重要：計算整個區塊的總寬度
-                    const totalWidth = (numCols - 1) * colWidth; 
-                    // 起始 X 座標：讓整個區塊的中間對準畫面的 CX
-                    const firstColX = CX - (totalWidth / 2);
-                    
-                    ctx.font = `30px ${this.fontFamily}`;
-                    ctx.fillStyle = "#dddddd";
-                    ctx.textAlign = "center";
-
-                    sortedYakus.forEach((yaku, i) => {
-                        // N字型排序算法
-                        const row = i % itemsPerCol;             // 0,1,2,3
-                        const col = Math.floor(i / itemsPerCol); // 0,0,0,0, 1,1...
-
-                        // x 是該欄的中心點
-                        const x = firstColX + (col * colWidth);
-                        const y = startY + (row * lineHeight);
-
-                        ctx.fillText(yaku, x, y);
-                    });
-
-                    ctx.textAlign = "center"; // 畫完改回來
-
-                    // 6. 繪製手牌：固定畫在 4 行文字的下方 (避免蓋到文字)
-                    const rowsUsed = (sortedYakus.length > 4) ? 4 : sortedYakus.length; 
-                    const handY = startY + (rowsUsed * lineHeight) + 30;
-                    
-                    this._drawResultHand(result, CX, handY);
+                    ctx.fillStyle = "#ffffff";
+                    ctx.fillText(`[${roleText}] ${winnerName} ${winMethod}`, CX, H * 0.28);
                 }
+
+                if (result.score.yakus && result.score.yakus.length > 0 && t >= T.yaku && !this.resultYakuAnimated) {
+                    this.resultYakuAnimated = true;
+                    
+                    sortedYakus.forEach((yaku, i) => {
+                        this.animations.push({
+                            type: "yaku",
+                            text: yaku,
+                            index: i,
+                            startTime: performance.now() + i * 120,
+                            duration: 400,
+                        });
+                    });
+                }
+                // 4. 分數區塊
+                if (t >= T.score) {
+                    const ease = Math.min((t - T.score) / 400, 1);
+                    const x = CX - 120 - (1 - ease) * 30;
+                    
+                    ctx.save();
+                    ctx.globalAlpha = ease;
+                    ctx.font = `bold 42px ${this.fontFamily}`;
+                    ctx.fillStyle = "#ffffff";
+                    ctx.textAlign = "right";
+                    ctx.fillText(isYakuman ? `${scoreTotal} 點` : `${han}飜 ${fu}符 ${scoreTotal} 點`, x, H * 0.46);
+                    ctx.restore();
+                }
+
+                if (t >= T.score) {
+                    const ease = Math.min((t - T.score) / 400, 1);
+                    const x = CX + 120 + (1 - ease) * 30;
+                    
+                    ctx.save();
+                    ctx.globalAlpha = ease;
+                    ctx.font = `bold 42px ${this.fontFamily}`;
+                    ctx.fillStyle = "#ffcc00";
+                    ctx.textAlign = "left";
+                    ctx.fillText(finalTitle, x, H * 0.46);
+                    ctx.restore();
+                }
+                // 5. 繪製手牌
+                const rowsUsed = (sortedYakus.length > 4) ? 4 : sortedYakus.length; 
+                const handY = startY + (rowsUsed * lineHeight) + 30;
+                this._drawResultHand(result, CX, handY);         
                 
-                // 底部提示
-                ctx.font = `24px ${this.fontFamily}`;
-                ctx.fillStyle = "#888888";
-                ctx.fillText("— 點擊任意處重新開始 —", CX, H * 0.9);
+                // 6. 底部提示
+                if (t >= T.score + 500) {
+                    ctx.font = `24px ${this.fontFamily}`;
+                    ctx.fillStyle = "#888888";
+                    ctx.textAlign = "center";
+                    ctx.fillText("— 點擊任意處重新開始 —", CX, H * 0.9);
+                }
             }
         }
     }
