@@ -956,12 +956,15 @@ export class Renderer {
             /* ===============================
             * 9. 手牌
             * =============================== */
-            if (t >= T.title) const handLeftX = this._drawResultHand(result, CX, HAND_Y);
+            let handLeftX = null;
+            if (t >= T.title) {
+                handLeftX = this._drawResultHand(result, CX, HAND_Y);
+            }
             
             /* ===============================
             * 10. 分數動畫
             * =============================== */
-            if (this.resultYakuFinished && !this.resultScoreAnimated) {
+            if (handLeftX !== null && this.resultYakuFinished && !this.resultScoreAnimated) {
                 this.resultScoreAnimated = true;
                 this.resultScoreStartTime = performance.now();
             }
