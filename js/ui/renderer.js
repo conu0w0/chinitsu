@@ -523,16 +523,16 @@ export class Renderer {
                     yakuStartY
                 } = this.RESULT_LAYOUT;
                 
-                const row = anim.index % itemsPerCol;
-                const col = Math.floor(anim.index / itemsPerCol);
+                const row = anim.index % yakuItemsPerCol;
+                const col = Math.floor(anim.index / yakuItemsPerCol);
                 
                 const totalYakus = this.gameState.lastResult?.score?.yakus?.length || 0;
-                const totalCols = Math.ceil(totalYakus / itemsPerCol);
-                const totalWidth = (Math.max(1, totalCols) - 1) * colWidth;
+                const totalCols = Math.ceil(totalYakus / yakuItemsPerCol);
+                const totalWidth = (Math.max(1, totalCols) - 1) * yakuColWidth;
                 const baseX = (this.canvas.width / 2) - totalWidth / 2;
                 
-                const x = baseX + col * colWidth;
-                const y = startY + row * yakuLineHeight;
+                const x = baseX + col * yakuColWidth;
+                const y = yakuStartY + row * yakuLineHeight;
 
                 const slideX = x + (1 - ease) * 40;
 
