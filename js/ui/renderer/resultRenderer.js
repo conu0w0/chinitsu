@@ -22,6 +22,7 @@ export class ResultRenderer {
         this.resultScoreAnimated = false;
         this.resultScoreFinished = false;
         this.resultScoreStartTime = 0;
+        this.scoreHighlightStartTime = null;
 
         this.RESULT_LAYOUT = {
             yakuLineHeight: 45,
@@ -256,14 +257,7 @@ export class ResultRenderer {
 
         // --- 最終顯示標題 ---
         let finalTitle = "";
-
-        if (backendDisplay.includes("役滿")) {
-            finalTitle = backendDisplay;
-        } else if (limitName) {
-            finalTitle = limitName;
-        } else {
-            finalTitle = backendDisplay || `${scoreTotal}`;
-        }
+        if (limitName) finalTitle = limitName;
 
         const isYakuman = finalTitle.includes("役滿");
         const isKazoeYakuman = finalTitle.includes("累計役滿");
@@ -390,6 +384,19 @@ export class ResultRenderer {
 
             ctx.fillStyle = "#ffcc00";
             ctx.fillText(finalTitle, handLeftX + TITLE_OFFSET_X, SCORE_Y);
+            
+            if (this.resultScoreFinished && !this.scoreHighlightStartTime) {
+                this.scoreHighlightStartTime = performance.now();
+            }
+            this._drawDiagonalHighlight({
+                text: finalTitle,
+    x: handLeftX + TITLE_OFFSET_X,
+    y: SCORE_Y,
+    font: `bold 42px ${this.r.fontFamily}`,
+    color: "#ffcc00",
+    startTime: this.scoreHighlightStartTime
+});
+
         }
 
         // --- 7. 底部提示 ---
@@ -487,6 +494,7 @@ export class ResultRenderer {
         
         return handLeftX;
     }
+    }
 
     /* =================================================================
        Helper: 繪製靜態手牌 (流局模式)
@@ -583,6 +591,50 @@ export class ResultRenderer {
             startX += tileW + gap;
         });
     }
+
+    _drawDiagonalHighlight({ text, x, y, font, color, startTime }) {
+    const ctx = this.ctx;
+    const now = performance.now();
+
+    // === 1. 量文字大小 ===
+    ctx.save();
+    ctx.font = font;
+    const metrics = ctx.measureText(text);
+    const w = metrics.width;
+    const h = 48; // 字高估值（42px font）
+
+    // === 2. 計算動畫進度（循環） ===
+    const DURATION = 1600; // 一圈 1.6 秒
+    const t = ((now - startTime) % DURATION) / DURATION;
+
+    // 斜線位置（從左下到右上）
+    const sweepX = x - w + (w * 2) * t;
+
+    // === 3. clip：限制只畫在文字區 ===
+    ctx.beginPath();
+    ctx.rect(x, y - h / 2, w, h);
+    ctx.clip();
+
+    // === 4. 建立斜向高光漸層 ===
+    const grad = ctx.createLinearGradient(
+        sweepX, y + h,
+        sweepX + 80, y - h
+    );
+
+    grad.addColorStop(0.0, "rgba(255,255,255,0)");
+    grad.addColorStop(0.4, "rgba(255,255,255,0.0)");
+    grad.addColorStop(0.5, "rgba(255,255,255,0.45)");
+    grad.addColorStop(0.6, "rgba(255,255,255,0.0)");
+    grad.addColorStop(1.0, "rgba(255,255,255,0)");
+
+    // === 5. 用 globalCompositeOperation 疊加 ===
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - w, y - h, w * 3, h * 3);
+
+    ctx.restore();
+}
+
     
     _resetAnimationState() {
         this.r.animations = this.r.animations.filter(a => a.type !== "yaku");
@@ -594,5 +646,6 @@ export class ResultRenderer {
         this.resultScoreAnimated = false;
         this.resultScoreFinished = false;
         this.resultScoreStartTime = 0;
+        this.scoreHighlightStartTime = null;
     }
 }
