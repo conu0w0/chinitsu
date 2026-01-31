@@ -23,14 +23,8 @@ export class ResultRenderer {
         this._lastResultRef = null;
         this.resultTimelineStart = 0;
 
-        // --- 優化：快取計算結果，避免每幀重算 ---
-        this._cachedData = {
-            sortedYakus: [],
-            limitName: "",
-            isYakuman: false,
-            isKazoeYakuman: false,
-            limitColor: "#fff"
-        };
+        // 快取計算結果，避免每幀重算
+        this._cachedData = this._createDefaultCacheData();
 
         // 役種動畫相關
         this.resultYakuAnimated = false;
@@ -48,10 +42,31 @@ export class ResultRenderer {
         this.resultLevelStartTime = 0;
         this.scorePhase = 0;
 
+        // 結算持久狀態
+        this.resultState = RESULT_STATE.INIT;
+        this.stateEnterTime = 0;
+        this.resultHandLeftX = null;
+
+        // --- 配置參數 ---
         this.RESULT_LAYOUT = {
             yakuLineHeight: 45,
             yakuItemsPerCol: 4,
             yakuColWidth: 250
+        };
+
+        this.TIMING = {
+            TITLE_TO_WINNER: 600,
+            WINNER_TO_YAKU: 500,
+            YAKU_INTERVAL: 400,
+            YAKU_DURATION: 400,
+            YAKU_TO_HAND: 300,
+            HAND_TO_SCORE: 300,
+            PHASE0_TO_PHASE1: 600,
+            SCORE_TO_LEVEL: 600,
+            LEVEL_TO_HINT: 900,
+            LEVEL_STAMP_DURATION: 650,
+            LEVEL_STAMP_DROP: 56,
+            LEVEL_HIGHLIGHT_DELAY: 150
         };
 
         this.YAKU_ORDER = [
@@ -62,7 +77,6 @@ export class ResultRenderer {
             "四槓子", "金門橋",
             "九蓮寶燈", "純正九蓮寶燈",
             "石上三年",
-
             // === 常規役種 ===
             "立直", "兩立直", "一發", "門前清自摸和",
             "燕返", "槓振", "嶺上開花",
@@ -81,12 +95,17 @@ export class ResultRenderer {
             "九蓮寶燈", "純正九蓮寶燈",
             "石上三年",
         ]);
- 
-        this.resultState = RESULT_STATE.INIT;
-        this.stateEnterTime = 0;
-        
-        // 結算持久狀態
-        this.resultHandLeftX = null;
+    }
+
+    _createDefaultCacheData() {
+        return {
+            sortedYakus: [],
+            limitName: "",
+            yakumanCount: 0,
+            isYakuman: false,
+            isKazoeYakuman: false,
+            limitColor: "#fff"
+        };
     }
 
     /* =================================================================
@@ -113,7 +132,7 @@ export class ResultRenderer {
         // 3. 檢查是否為新的一次結算（初始化動畫狀態 + 預計算資料）
         if (this._lastResultRef !== result) {
             this._lastResultRef = result;
-            this._resetAnimationState(result); // 傳入 result 以進行預計算
+            this._resetAnimationState(result);
         }
 
         // 4. 根據類型分流
@@ -134,36 +153,34 @@ export class ResultRenderer {
        ================================================================= */
     _resetAnimationState(result) {
         this.resultState = RESULT_STATE.INIT;
+
         // 清除舊的 yaku 動畫，保留其他類型的動畫
-        this.r.animations = this.r.animations.filter(a => a.type !== "yaku");
-        this.resultTimelineStart = performance.now();
+        if (typeof this.r.removeAnimationsByType === "function") {
+            this.r.removeAnimationsByType("yaku");
+        } else {
+            this.r.animations = (this.r.animations ?? []).filter(a => a.type !== "yaku");
+        }
         
+        this.resultTimelineStart = performance.now();
+
         this.resultYakuAnimated = false;
         this.resultYakuFinished = false;
         this.resultYakuEndTime = null;
         this.resultAfterYakuTime = null;
-        
+
         this.resultScoreAnimated = false;
         this.resultScoreFinished = false;
         this.resultScoreStartTime = 0;
         this.scorePhase = 0;
-        
+
         this.resultLevelAnimated = false;
         this.resultLevelStartTime = 0;
         this.resultHandLeftX = null;
-        
+
         this.scoreHighlightStartTime = null;
 
         // --- 資料預處理 (只做一次) ---
-        // 預設值
-        this._cachedData = {
-            sortedYakus: [],
-            limitName: "",
-            yakumanCount: 0,
-            isYakuman: false,
-            isKazoeYakuman: false,
-            limitColor: "#fff"
-        };
+        this._cachedData = this._createDefaultCacheData();
 
         if (result && result.score) {
             // 1. 役種排序
@@ -181,17 +198,17 @@ export class ResultRenderer {
             const han = result.best?.han ?? 0;
             const scoreTotal = result.score.total;
             const isParent = (result.winnerIndex === this.r.gameState.parentIndex);
-            
+
             const yakumanCount =
                 result.score?.yakumanCount ??
                 result.best?.yakumanCount ??
                 this._cachedData.sortedYakus.filter(y => this.YAKUMAN_SET.has(y)).length;
-            
+
             const isYakuman = yakumanCount >= 1;
             const isKazoeYakuman = (!isYakuman && han >= 13);
 
             let limitName = "";
-            
+
             if (yakumanCount >= 2) limitName = `${yakumanCount}倍役滿`;
             else if (yakumanCount === 1) limitName = "役滿";
             else if (han >= 13) limitName = "累計役滿";
@@ -206,12 +223,12 @@ export class ResultRenderer {
             this._cachedData.isYakuman = isYakuman;
             this._cachedData.isKazoeYakuman = isKazoeYakuman;
             this._cachedData.limitName = limitName;
-            
+
             // 3. 預計算顏色
-            this._cachedData.limitColor = this._getLimitColor({ 
-                han, 
-                isYakuman: this._cachedData.isYakuman, 
-                isKazoeYakuman: this._cachedData.isKazoeYakuman 
+            this._cachedData.limitColor = this._getLimitColor({
+                han,
+                isYakuman: this._cachedData.isYakuman,
+                isKazoeYakuman: this._cachedData.isKazoeYakuman
             });
         }
     }
@@ -230,7 +247,7 @@ export class ResultRenderer {
         let waits = offender?.waits || [];
         let isTenpai = offender?.isTenpai || false;
         let label = "";
-        
+
         if (chomboType === "wrong_agari") label = "錯和";
         else if (chomboType === "furiten") label = "振聽";
         else if (!isTenpai) label = "未聽牌";
@@ -280,9 +297,11 @@ export class ResultRenderer {
         const W = this.r.canvas.width;
         const H = this.r.canvas.height;
         const CX = W / 2;
+        // 修正：原本這裡是 ?? ]; 語法錯誤
+        const tenpaiInfo = result.tenpaiInfo ?? [];
 
         const com = this.r.gameState.players[1];
-        const comInfo = result.tenpaiInfo.find(t => t.index === 1);
+        const comInfo = tenpaiInfo.find(t => t.index === 1) ?? {};
         const comIsTenpai = comInfo.isTenpai;
         const comWaits = comInfo.waits;
 
@@ -294,7 +313,7 @@ export class ResultRenderer {
         ctx.fillText("荒牌流局", CX, H * 0.50);
 
         const player = this.r.gameState.players[0];
-        const playerInfo = result.tenpaiInfo.find(t => t.index === 0);
+        const playerInfo = tenpaiInfo.find(t => t.index === 0) ?? {};
         const playerIsTenpai = playerInfo.isTenpai;
         const playerWaits = playerInfo.waits;
 
@@ -345,7 +364,7 @@ export class ResultRenderer {
             ctx.fillText("本局結束", CX, H * 0.18);
 
             if (this.resultState === RESULT_STATE.TITLE) {
-                if (now - this.stateEnterTime > 600) {
+                if (now - this.stateEnterTime > this.TIMING.TITLE_TO_WINNER) {
                     this._enterState(RESULT_STATE.WINNER);
                 }
             }
@@ -355,11 +374,11 @@ export class ResultRenderer {
         if (this.resultState >= RESULT_STATE.WINNER) {
             ctx.font = `bold 42px ${this.r.fontFamily}`;
             ctx.fillStyle = "#fff";
-            ctx.textAlign = "center"; // 確保置中
+            ctx.textAlign = "center";
             ctx.fillText(`[${roleText}] ${winnerName} ${winMethod}`, CX, H * 0.28);
 
             if (this.resultState === RESULT_STATE.WINNER) {
-                if (now - this.stateEnterTime > 500) {
+                if (now - this.stateEnterTime > this.TIMING.WINNER_TO_YAKU) {
                     this._enterState(RESULT_STATE.YAKU_ANIM);
                 }
             }
@@ -371,26 +390,26 @@ export class ResultRenderer {
                 this.resultYakuAnimated = true;
                 const baseY = H * 0.38;
                 this.resultYakuBaseY = baseY;
-                
+
                 const nowT = performance.now();
                 sortedYakus.forEach((yaku, i) => {
                     this.r.animations.push({
                         type: "yaku",
                         text: yaku,
                         index: i,
-                        startTime: nowT + i * 400,
-                        duration: 400
+                        startTime: nowT + i * this.TIMING.YAKU_INTERVAL,
+                        duration: this.TIMING.YAKU_INTERVAL
                     });
                 });
-                
+
                 const lastIndex = sortedYakus.length - 1;
-                this.resultYakuEndTime = nowT + lastIndex * 400 + 400;
+                this.resultYakuEndTime = nowT + lastIndex * this.TIMING.YAKU_INTERVAL + this.TIMING.YAKU_INTERVAL;
             }
-  
+
             if (sortedYakus.length === 0) {
                 this._enterState(RESULT_STATE.HAND);
             } else if (
-                this.resultYakuEndTime && 
+                this.resultYakuEndTime &&
                 now >= this.resultYakuEndTime
             ) {
                 this._enterState(RESULT_STATE.YAKU_STATIC);
@@ -419,7 +438,7 @@ export class ResultRenderer {
             });
 
             if (this.resultState === RESULT_STATE.YAKU_STATIC) {
-                if (now - this.stateEnterTime > 300) {
+                if (now - this.stateEnterTime > this.TIMING.YAKU_TO_HAND) {
                     this._enterState(RESULT_STATE.HAND);
                 }
             }
@@ -434,105 +453,100 @@ export class ResultRenderer {
             }
 
             if (this.resultState === RESULT_STATE.HAND) {
-                if (now - this.stateEnterTime > 300) {
+                if (now - this.stateEnterTime > this.TIMING.HAND_TO_SCORE) {
                     this._enterState(RESULT_STATE.SCORE);
                 }
             }
         }
-        
+
         // ===== SCORE =====
         if (this.resultState >= RESULT_STATE.SCORE && this.resultHandLeftX !== null) {
 
             const isYakumanOnly = this._cachedData.isYakuman && !this._cachedData.isKazoeYakuman;
-            
+
             // ---------- Phase 0：x 飜 y 符 ----------
             if (!isYakumanOnly && this.scorePhase === 0) {
+                this._drawFadeInText({
+                    text: `${han} 飜 ${fu} 符`,
+                    x: this.resultHandLeftX,
+                    y: SCORE_Y,
+                    font: `bold 42px ${this.r.fontFamily}`,
+                    startTime: this.stateEnterTime,
+                    duration: 400
+                });
 
-    this._drawFadeInText({
-        text: `${han} 飜 ${fu} 符`,
-        x: this.resultHandLeftX,
-        y: SCORE_Y,
-        font: `bold 42px ${this.r.fontFamily}`,
-        startTime: this.stateEnterTime,
-        duration: 400
-    });
+                if (now - this.stateEnterTime > this.TIMING.PHASE0_TO_PHASE1) {
+                    this.scorePhase = 1;
+                    this.stateEnterTime = now;
+                }
+            }
 
-    if (now - this.stateEnterTime > 600) {
-        this.scorePhase = 1;
-        this.stateEnterTime = now;
-    }
-}
-            
             // ---------- Phase 1：z 點 ----------
             if (this.scorePhase === 1 || isYakumanOnly) {
+                const pointFontSize = isYakumanOnly ? 64 : 48;
 
-    const pointFontSize = isYakumanOnly ? 64 : 48;
+                this._drawStampText({
+                    text: `${scoreTotal} 點`,
+                    x: this.resultHandLeftX,
+                    y: SCORE_Y,
+                    font: `bold ${pointFontSize}px ${this.r.fontFamily}`,
+                    startTime: this.stateEnterTime,
+                    duration: 500,
+                    dropHeight: 48
+                });
 
-    this._drawStampText({
-        text: `${scoreTotal} 點`,
-        x: this.resultHandLeftX,
-        y: SCORE_Y,
-        font: `bold ${pointFontSize}px ${this.r.fontFamily}`,
-        startTime: this.stateEnterTime,
-        duration: 500,
-        dropHeight: 48
-    });
-
-    if (this.resultState === RESULT_STATE.SCORE) {
-        if (now - this.stateEnterTime > 600) {
-            this._enterState(RESULT_STATE.LEVEL);
-        }
-    }
-}
-
+                if (this.resultState === RESULT_STATE.SCORE) {
+                    if (now - this.stateEnterTime > this.TIMING.SCORE_TO_LEVEL) {
+                        this._enterState(RESULT_STATE.LEVEL);
+                    }
+                }
+            }
         }
 
         // ===== LEVEL =====
-if (this.resultState >= RESULT_STATE.LEVEL && this.resultHandLeftX !== null) {
-    const x = this.resultHandLeftX + TITLE_OFFSET_X;
-    const y = SCORE_Y + LEVEL_OFFSET_Y;
+        if (this.resultState >= RESULT_STATE.LEVEL && this.resultHandLeftX !== null) {
+            const x = this.resultHandLeftX + TITLE_OFFSET_X;
+            const y = SCORE_Y + LEVEL_OFFSET_Y;
 
-    const font = `bold ${LEVEL_FONT_SIZE}px ${this.r.fontFamily}`;
-    const isMultipleYakuman = this._cachedData.yakumanCount >= 2;
+            const font = `bold ${LEVEL_FONT_SIZE}px ${this.r.fontFamily}`;
+            const isMultipleYakuman = this._cachedData.yakumanCount >= 2;
 
-    // === 1) LEVEL 蓋章掉落（慢一點、重一點）===
-    this._drawStampText({
-        text: limitName,
-        x,
-        y,
-        font,
-        startTime: this.stateEnterTime, // ★ LEVEL 進入時間
-        duration: 650,                  // 比 z 點慢
-        dropHeight: 56                  // 掉更高
-    });
+            // === 1) LEVEL 蓋章掉落（慢一點、重一點）===
+            this._drawStampText({
+                text: limitName,
+                x,
+                y,
+                font,
+                startTime: this.stateEnterTime,
+                duration: this.TIMING.LEVEL_STAMP_DURATION,
+                dropHeight: this.TIMING.LEVEL_STAMP_DROP
+            });
 
-    // === 2) 延後 150ms 才啟動高光 ===
-    const HIGHLIGHT_DELAY = 150;
-    const highlightStart = this.stateEnterTime + HIGHLIGHT_DELAY;
+            // === 2) 延後才啟動高光 ===
+            const highlightStart = this.stateEnterTime + this.TIMING.LEVEL_HIGHLIGHT_DELAY;
 
-    if (
-        (isYakuman || isKazoeYakuman || isMultipleYakuman) &&
-        performance.now() >= highlightStart
-    ) {
-        this._drawDiagonalHighlightTextOnly({
-            text: limitName,
-            x,
-            y,
-            font,
-            startTime: highlightStart, 
-            angle: isMultipleYakuman ? 25 : 45,
-            isSilver: isKazoeYakuman
-        });
-    }
+            if (
+                (isYakuman || isKazoeYakuman || isMultipleYakuman) &&
+                performance.now() >= highlightStart
+            ) {
+                this._drawDiagonalHighlightTextOnly({
+                    text: limitName,
+                    x,
+                    y,
+                    font,
+                    startTime: highlightStart,
+                    angle: isMultipleYakuman ? 25 : 45,
+                    isSilver: isKazoeYakuman
+                });
+            }
 
-    // === 3) 狀態推進 ===
-    if (this.resultState === RESULT_STATE.LEVEL) {
-        if (now - this.stateEnterTime > 900) {
-            this._enterState(RESULT_STATE.HINT);
+            // === 3) 狀態推進 ===
+            if (this.resultState === RESULT_STATE.LEVEL) {
+                if (now - this.stateEnterTime > this.TIMING.LEVEL_TO_HINT) {
+                    this._enterState(RESULT_STATE.HINT);
+                }
+            }
         }
-    }
-}
-
 
         // ===== HINT =====
         if (this.resultState >= RESULT_STATE.HINT) {
@@ -544,7 +558,7 @@ if (this.resultState >= RESULT_STATE.LEVEL && this.resultHandLeftX !== null) {
     }
 
     /* =================================================================
-       Helper 1: 繪製結算用手牌
+       Helper : 繪製結算用手牌
        ================================================================= */
     _drawResultHand(result, centerX, startY, isChombo = false) {
         const idx = (result.type === "chombo") ? result.offenderIndex : result.winnerIndex;
@@ -566,6 +580,11 @@ if (this.resultState >= RESULT_STATE.LEVEL && this.resultHandLeftX !== null) {
             } else {
                 winTile = standingTiles.pop();
             }
+        }
+
+        if (winTile == null) {
+            console.warn("[ResultRenderer] winTile missing", { result, standingTiles });
+            return null;
         }
 
         const melds = winner.fulu || [];
@@ -601,7 +620,7 @@ if (this.resultState >= RESULT_STATE.LEVEL && this.resultHandLeftX !== null) {
         const highlightColor = isChombo ? "#ff4444" : "#ffcc00";
 
         this.r.drawTile(winTile, currentX, startY, tileW, tileH);
-        
+
         this.ctx.lineWidth = 4;
         this.ctx.strokeStyle = highlightColor;
         this.ctx.strokeRect(currentX, startY, tileW, tileH);
@@ -609,7 +628,7 @@ if (this.resultState >= RESULT_STATE.LEVEL && this.resultHandLeftX !== null) {
         this.ctx.fillStyle = highlightColor;
         this.ctx.font = `bold 18px ${this.r.fontFamily}`;
         this.ctx.textAlign = "center";
-        
+
         let label = isChombo ? "錯和" : "和了";
         this.r.ctx.fillText(label, currentX + tileW / 2, startY + tileH + 25);
 
@@ -703,124 +722,118 @@ if (this.resultState >= RESULT_STATE.LEVEL && this.resultHandLeftX !== null) {
     }
 
     _drawFadeInText({ text, x, y, font, startTime, duration = 400 }) {
-    const ctx = this.ctx;
-    const now = performance.now();
-    const t = Math.min(1, (now - startTime) / duration);
-
-    ctx.save();
-    ctx.font = font;
-    ctx.globalAlpha = t; // 0 → 1
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, x, y);
-    ctx.restore();
-}
-
-    _drawStampText({
-    text,
-    x,
-    y,
-    font,
-    startTime,
-    duration = 500,
-    dropHeight = 40
-}) {
-    const ctx = this.ctx;
-    const now = performance.now();
-    const rawT = Math.min(1, (now - startTime) / duration);
-
-    // easeOutBack（很像蓋章）
-    const s = 1.70158;
-    const t = (--rawT) * rawT * ((s + 1) * rawT + s) + 1;
-
-    const ty = y - dropHeight * (1 - t);
-    const scale = 1.15 - 0.15 * t;
-
-    ctx.save();
-    ctx.font = font;
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.globalAlpha = t;
-
-    ctx.translate(x, ty);
-    ctx.scale(scale, scale);
-    ctx.fillText(text, 0, 0);
-
-    ctx.restore();
-}
-
-
-    /* =================================================================
-       Helper 5: 斜向高光動畫 (純 Canvas 繪製) - [漸層修正]
-       ================================================================= */
-    _drawDiagonalHighlightTextOnly({ text, x, y, font, startTime, angle = 45, isSilver = false }) {
-        if (!Number.isFinite(startTime)) return;
-        
         const ctx = this.ctx;
         const now = performance.now();
+        const t = Math.min(1, (now - startTime) / duration);
 
-        // 1. 參數
+        ctx.save();
+        ctx.font = font;
+        ctx.globalAlpha = t; // 0 → 1
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, x, y);
+        ctx.restore();
+    }
+
+    _drawStampText({ text, x, y, font, startTime, duration = 500, dropHeight = 40 }) {
+        const ctx = this.ctx;
+        const now = performance.now();
+        const rawT = Math.min(1, (now - startTime) / duration);
+        const p = rawT - 1;
+
+        // easeOutBack（很像蓋章）
+        const s = 1.70158;
+        const t = p * p * ((s + 1) * p + s) + 1;
+
+        const ty = y - dropHeight * (1 - t);
+        const scale = 1.15 - 0.15 * t;
+
         ctx.save();
         ctx.font = font;
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
-        
-        const metrics = ctx.measureText(text);
-        const fontSizeMatch = font.match(/(\d+)px/);
-        const fontSize = fontSizeMatch ? Number(fontSizeMatch[1]) : 48;
+        ctx.globalAlpha = t;
 
-        const w = metrics.width;
-        const h = fontSize * 1.25;
+        ctx.translate(x, ty);
+        ctx.scale(scale, scale);
+        ctx.fillText(text, 0, 0);
 
-        const bandWidth = Math.max(40, w * 0.35);
-        const diag = Math.sqrt(w * w + h * h);
-        const sweep = diag * 1.2;
-
-        // 2. 計算動畫進度
-        const DURATION = isSilver ? 2200 : 1600;
-        const t = ((now - startTime) % DURATION) / DURATION;
-
-        // 3. direction & sweep calc
-        const rad = angle * Math.PI / 180;
-        const dx = Math.cos(rad);
-        const dy = Math.sin(rad);
-
-        const cx = x + w / 2;
-        const cy = y;
-        
-        const ox = cx - dx * sweep + dx * sweep * 2 * t;
-        const oy = cy - dy * sweep + dy * sweep * 2 * t;
-
-        // 4. 畫漸層
-        const grad = ctx.createLinearGradient(
-            ox - dx * bandWidth, oy - dy * bandWidth,
-            ox + dx * bandWidth, oy + dy * bandWidth
-        );
-        
-        if (isSilver) {            
-            grad.addColorStop(0, "rgba(200,220,255,0)");
-            grad.addColorStop(0.45, "rgba(220,235,255,0.4)");
-            grad.addColorStop(0.5, "rgba(255,255,255,0.7)");
-            grad.addColorStop(0.55, "rgba(220,235,255,0.4)");
-            grad.addColorStop(1, "rgba(200,220,255,0)");
-        } else {
-            grad.addColorStop(0, "rgba(255,200,50,0)");
-            grad.addColorStop(0.45, "rgba(255,215,100,0.4)");
-            grad.addColorStop(0.5, "rgba(255,255,180,0.9)");
-            grad.addColorStop(0.55, "rgba(255,215,100,0.4)");
-            grad.addColorStop(1, "rgba(255,200,50,0)");
-        }
-        
-        ctx.fillStyle = grad;
-        ctx.fillRect(x - w, y - h, w * 3, h * 2);
-        
-        // 5. 只保留文字區域
-        ctx.globalCompositeOperation = "source-in";
-        ctx.fillStyle = "#fff";
-        ctx.fillText(text, x, y);
-        
         ctx.restore();
-    }       
+    }
+
+    /* =================================================================
+       Helper : 斜向高光動畫 (安全性修正版)
+       ================================================================= */
+    _drawDiagonalHighlightTextOnly({ text, x, y, font, startTime, angle = 45, isSilver = false }) {
+        if (!Number.isFinite(startTime)) return;
+
+        const ctx = this.ctx;
+        const now = performance.now();
+
+        // 1. 準備參數
+        ctx.save();
+        try {
+            ctx.font = font;
+            ctx.textAlign = "left";
+            ctx.textBaseline = "middle";
+
+            const metrics = ctx.measureText(text);
+            const fontSizeMatch = font.match(/(\d+)px/);
+            const fontSize = fontSizeMatch ? Number(fontSizeMatch[1]) : 48;
+
+            const w = metrics.width;
+            const h = fontSize * 1.25;
+
+            // 2. 先繪製純白文字 (作為 Mask 基底)
+            ctx.fillStyle = "#fff";
+            ctx.fillText(text, x, y);
+
+            // 3. 設定混合模式，確保只畫在文字上
+            ctx.globalCompositeOperation = "source-atop";
+
+            const DURATION = isSilver ? 2200 : 1600;
+            const t = ((now - startTime) % DURATION) / DURATION;
+
+            const bandWidth = Math.max(40, w * 0.35);
+            const diag = Math.sqrt(w * w + h * h);
+            const sweep = diag * 1.2;
+
+            const rad = angle * Math.PI / 180;
+            const dx = Math.cos(rad);
+            const dy = Math.sin(rad);
+
+            const cx = x + w / 2;
+            const cy = y;
+
+            const ox = cx - dx * sweep + dx * sweep * 2 * t;
+            const oy = cy - dy * sweep + dy * sweep * 2 * t;
+
+            const grad = ctx.createLinearGradient(
+                ox - dx * bandWidth, oy - dy * bandWidth,
+                ox + dx * bandWidth, oy + dy * bandWidth
+            );
+
+            if (isSilver) {
+                grad.addColorStop(0, "rgba(200,220,255,0)");
+                grad.addColorStop(0.45, "rgba(220,235,255,0.4)");
+                grad.addColorStop(0.5, "rgba(255,255,255,0.95)");
+                grad.addColorStop(0.55, "rgba(220,235,255,0.4)");
+                grad.addColorStop(1, "rgba(200,220,255,0)");
+            } else {
+                grad.addColorStop(0, "rgba(255,200,50,0)");
+                grad.addColorStop(0.45, "rgba(255,215,100,0.4)");
+                grad.addColorStop(0.5, "rgba(255,255,180,0.95)");
+                grad.addColorStop(0.55, "rgba(255,215,100,0.4)");
+                grad.addColorStop(1, "rgba(255,200,50,0)");
+            }
+
+            ctx.fillStyle = grad;
+            ctx.fillRect(x, y - h / 2, w, h);
+        } finally {
+            // 4. 絕對要還原，否則混合模式會毀掉整個遊戲畫面
+            ctx.restore();
+        }
+    }
 
     _enterState(state) {
         this.resultState = state;
