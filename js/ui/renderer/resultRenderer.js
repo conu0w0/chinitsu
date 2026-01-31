@@ -42,6 +42,7 @@ export class ResultRenderer {
         this.resultLevelAnimated = false;
         this.resultLevelStartTime = 0;
         this.scorePhase = 0;
+        this.resultPointLocked = false;
 
         // 結算持久狀態
         this.resultState = RESULT_STATE.INIT;
@@ -173,6 +174,7 @@ export class ResultRenderer {
         this.resultScoreFinished = false;
         this.resultScoreStartTime = 0;
         this.scorePhase = 0;
+        this.resultPointLocked = false;
 
         this.resultHanfuStartTime = 0;
         this.resultLevelAnimated = false;
@@ -180,6 +182,7 @@ export class ResultRenderer {
         this.resultHandLeftX = null;
 
         this.scoreHighlightStartTime = null;
+        this._scoreLayoutCache = null;
 
         // --- 資料預處理 (只做一次) ---
         this._cachedData = this._createDefaultCacheData();
@@ -363,6 +366,12 @@ export class ResultRenderer {
             ctx.fillStyle = "#fff";
             ctx.textAlign = "center";
             ctx.fillText("本局結束", CX, H * 0.18);
+            
+            if (this.resultState === RESULT_STATE.TITLE) {
+                if (now - this.stateEnterTime > this.TIMING.TITLE_TO_WINNER) {
+                    this._enterState(RESULT_STATE.WINNER);
+                }
+            }
         }
 
         // ===== WINNER =====
@@ -457,43 +466,57 @@ export class ResultRenderer {
             }
         }
 
-        // ===== SCORE =====
-        if (this.resultState >= RESULT_STATE.SCORE && this.resultHandLeftX !== null) {                
-            const isYakumanOnly = this._cachedData.isYakuman && !this._cachedData.isKazoeYakuman;
-            if (isYakumanOnly) this.scorePhase = 1;
+        // ===== SCORE & LEVEL =====
+        // 必須確保手牌起始位置 (resultHandLeftX) 已計算完成
+        if (this.resultState >= RESULT_STATE.SCORE && this.resultHandLeftX !== null) {
             
-            const rowY = SCORE_Y;
-            const rowItems = [];
-            
-            // --- 飜符 ---
-            if (!isYakumanOnly) {
+            // [GC 優化] 若無快取，則計算一次並存起來
+            if (!this._scoreLayoutCache) {
+                const isYakumanOnly = this._cachedData.isYakuman && !this._cachedData.isKazoeYakuman;
+                const rowItems = [];
+                
+                // 1. 準備資料物件 (原本在 Loop 裡面的邏輯移到這裡)
+                // --- 飜符 ---
+                if (!isYakumanOnly) {
+                    rowItems.push({
+                        key: "hanfu",
+                        text: `${han} 飜 ${fu} 符`,
+                        font: `bold 42px ${this.r.fontFamily}`
+                    });
+                }
+                
+                // --- 點數 ---
                 rowItems.push({
-                    key: "hanfu",
-                    text: `${han} 飜 ${fu} 符`,
-                    font: `bold 42px ${this.r.fontFamily}`
+                    key: "point",
+                    text: `${scoreTotal} 點`,
+                    font: `bold ${isYakumanOnly ? 64 : 48}px ${this.r.fontFamily}`
                 });
+                
+                // --- LEVEL (滿貫/役滿稱號) ---
+                if (limitName) {
+                    rowItems.push({
+                        key: "level",
+                        text: limitName,
+                        font: `bold ${LEVEL_FONT_SIZE}px ${this.r.fontFamily}`,
+                        reserved: true
+                    });
+                }
+
+                // 2. 執行排版計算並存入快取
+                // 這裡的 SCORE_Y 必須確保與外面定義的一致
+                this._scoreLayoutCache = this._layoutScoreRow(this.resultHandLeftX, SCORE_Y, rowItems);
+                
+                // [可選] 如果 scorePhase 需要根據狀態初始化，也可以在這裡做
+                if (isYakumanOnly) this.scorePhase = 1;
             }
+
+            // [GC 優化] 直接使用快取資料，不再 new Array/Object
+            const row = this._scoreLayoutCache;
             
-            // --- 點數 ---
-            rowItems.push({
-                key: "point",
-                text: `${scoreTotal} 點`,
-                font: `bold ${isYakumanOnly ? 64 : 48}px ${this.r.fontFamily}`
-            });
+            // 下面是繪製邏輯 (這部分幾乎不用變，除了引用 row)
             
-            // ===== LEVEL =====
-            if (this.resultState >= RESULT_STATE.LEVEL && limitName) {
-                rowItems.push({
-                    key: "level",
-                    text: limitName,
-                    font: `bold ${LEVEL_FONT_SIZE}px ${this.r.fontFamily}`
-                });
-            }
-            
-            const row = this._layoutScoreRow(this.resultHandLeftX, rowY, rowItems);
-            
-            // --- 飜符動畫：淡入 → 定住 ---
-            const hanfu = row.find(i => i.key === "hanfu");
+            // --- 飜符動畫 ---
+            const hanfu = row.find(i => i.key === "hanfu"); // Array.find 效能消耗極低，可接受
             if (hanfu) {
                 if (this.scorePhase === 0) {
                     this._drawFadeInText({
@@ -513,20 +536,35 @@ export class ResultRenderer {
                 }
             }
 
-            // --- 點數動畫：蓋章 ---
+            // --- 點數動畫 ---
             const point = row.find(i => i.key === "point");
             if (point) {
-                this._drawStampText({
-                    text: point.text,
-                    x: point.x,
-                    y: point.y,
-                    font: point.font,
-                    startTime: this.resultScoreStartTime,
-                    dropHeight: 48
-                });
+                // ... (原本的點數繪製邏輯保持不變) ...
+                if (!this.resultPointLocked) {
+                    this._drawStampText({
+                        text: point.text,
+                        x: point.x,
+                        y: point.y,
+                        font: point.font,
+                        startTime: this.resultScoreStartTime,
+                        dropHeight: 48
+                    });
+                    
+                    if (now - this.resultScoreStartTime >= 500) {
+                        this.resultPointLocked = true;
+                    }
+                } else {
+                    ctx.save();
+                    ctx.font = point.font;
+                    ctx.fillStyle = "#fff";
+                    ctx.textAlign = "left";
+                    ctx.textBaseline = "alphabetic";
+                    ctx.fillText(point.text, point.x, point.y);
+                    ctx.restore();
+                }
             }
             
-            // SCORE → LEVEL 推進（只做一次）
+            // SCORE → LEVEL 推進
             if (this.resultState === RESULT_STATE.SCORE) {
                 if (now - this.stateEnterTime > this.TIMING.SCORE_TO_LEVEL) {
                     this._enterState(RESULT_STATE.LEVEL);
@@ -536,7 +574,8 @@ export class ResultRenderer {
             // ===== LEVEL =====
             const level = row.find(i => i.key === "level");
             if (level) {
-                this._drawStampText({
+                 // ... (原本的 Level 繪製邏輯保持不變) ...
+                 this._drawStampText({
                     text: level.text,
                     x: level.x,
                     y: level.y,
@@ -547,7 +586,7 @@ export class ResultRenderer {
                 });
                 
                 const highlightStart = this.stateEnterTime + this.TIMING.LEVEL_HIGHLIGHT_DELAY;
-                const isMultipleYakuman = this._cachedData.yakumanCount >= 2;                
+                const isMultipleYakuman = this._cachedData.yakumanCount >= 2;                 
                 if ((isYakuman || isKazoeYakuman || isMultipleYakuman) && performance.now() >= highlightStart) {
                     this._drawDiagonalHighlightTextOnly({
                         text: level.text,
