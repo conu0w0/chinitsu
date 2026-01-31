@@ -128,7 +128,7 @@ export class ResultRenderer {
 
         // 2. 基礎文字設定
         ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
+        ctx.textBaseline = "alphabetic";
 
         // 3. 檢查是否為新的一次結算（初始化動畫狀態 + 預計算資料）
         if (this._lastResultRef !== result) {
@@ -345,7 +345,6 @@ export class ResultRenderer {
         
         const TITLE_OFFSET_X = 520;
         const LEVEL_FONT_SIZE = 52;
-        const LEVEL_OFFSET_Y = LEVEL_FONT_SIZE * 0.15;
 
         // [效能優化] 使用快取的資料
         const { sortedYakus, limitName, isYakuman, isKazoeYakuman, limitColor } = this._cachedData;
@@ -488,7 +487,6 @@ export class ResultRenderer {
 
                 if (now - this.stateEnterTime > this.TIMING.PHASE0_TO_PHASE1) {
                     this.scorePhase = 1;
-                    this.stateEnterTime = now;
                 }
             }
 
@@ -496,9 +494,11 @@ export class ResultRenderer {
             if (this.scorePhase === 1 || isYakumanOnly) {
                 const pointFontSize = isYakumanOnly ? 64 : 48;
                 
-                if (!this.resultScoreAnimated) {
-                    this.resultScoreAnimated = true;
-                    this.resultScoreStartTime = performance.now();
+                if (this.resultState === RESULT_STATE.SCORE) {
+                    if (now - this.stateEnterTime > this.TIMING.SCORE_TO_LEVEL) {
+                        this.resultScoreAnimated = true;
+                        this._enterState(RESULT_STATE.LEVEL);
+                    }
                 }
                 
                 this._drawStampText({
@@ -522,7 +522,7 @@ export class ResultRenderer {
                 ctx.font = `bold 42px ${this.r.fontFamily}`;
                 ctx.fillStyle = "#fff";
                 ctx.textAlign = "left";
-                ctx.textBaseline = "middle";
+                ctx.textBaseline = "alphabetic";
                 ctx.fillText(`${han} 飜 ${fu} 符`, SCORE_X, SCORE_Y);
                 ctx.restore();
             }
@@ -531,7 +531,7 @@ export class ResultRenderer {
         // ===== LEVEL =====
         if (this.resultState >= RESULT_STATE.LEVEL && this.resultHandLeftX !== null) {
             const x = this.resultHandLeftX + TITLE_OFFSET_X;
-            const y = SCORE_Y + LEVEL_OFFSET_Y;
+            const y = SCORE_Y;
 
             const font = `bold ${LEVEL_FONT_SIZE}px ${this.r.fontFamily}`;
             const isMultipleYakuman = this._cachedData.yakumanCount >= 2;
@@ -755,7 +755,7 @@ export class ResultRenderer {
         ctx.font = font;
         ctx.globalAlpha = t; // 0 → 1
         ctx.textAlign = "left";
-        ctx.textBaseline = "middle";
+        ctx.textBaseline = "alphabetic";
         ctx.fillText(text, x, y);
         ctx.restore();
     }
@@ -776,7 +776,7 @@ export class ResultRenderer {
         ctx.save();
         ctx.font = font;
         ctx.textAlign = "left";
-        ctx.textBaseline = "middle";
+        ctx.textBaseline = "alphabetic";
         ctx.globalAlpha = t;
 
         ctx.translate(x, ty);
@@ -800,7 +800,7 @@ export class ResultRenderer {
         try {
             ctx.font = font;
             ctx.textAlign = "left";
-            ctx.textBaseline = "middle";
+            ctx.textBaseline = "alphabetic";
 
             const metrics = ctx.measureText(text);
             const fontSizeMatch = font.match(/(\d+)px/);
