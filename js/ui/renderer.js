@@ -90,12 +90,22 @@ export class Renderer {
 
     // 4. 最上層覆蓋
     if (this.gameState.phase === "ROUND_END") {
-        if (this.resultRenderer) {
-            // 這裡 resultRenderer 會蓋在最上面，但底層的手牌依然存在
-            this.resultRenderer.draw(this.gameState.lastResult);
+        
+        // 只有在階段 0 (還沒點擊清空) 時，才畫結算畫面
+        if (this.gameState.resultClickStage === 0) {
+            if (this.resultRenderer) {
+                this.resultRenderer.draw(this.gameState.lastResult);
+            }
         }
+        
+        // 階段 1 與 2 時，resultRenderer 不會被呼叫，畫面會變得很清空
+        // 此時 drawInfo 會負責顯示「跳動中」或「結算完」的點數
+        this.drawInfo(); 
+
     } else {
+        // 一般遊戲狀態
         this.renderUI();
+        this.drawInfo();
     }
 }
 
