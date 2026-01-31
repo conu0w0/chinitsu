@@ -36,25 +36,32 @@ export class InputHandler {
 
         // 2. 結算畫面 (ROUND_END) -> 點擊下一局 (判定輪莊)
         if (this.state.phase === "ROUND_END") {
-            const res = this.renderer.resultRenderer;
+            const resRenderer = this.renderer.resultRenderer;
             
-            // 文字動畫還沒到「點擊提示」出現前，不准點擊
-            if (!res.isReadyForClick) return; 
-            
-            // 如果還沒開始跑數字動畫，不准點擊
-            if (!res.isPointsAnimating && !res.isPointsFinished) {
-                console.log("[Result] 啟動點數增減動畫");
-                res.startPointAnimation(); // 呼叫 ResultRenderer 開始跑數字
-                return; 
+            // A. 階段 0：文字動畫跑完後，點擊進入「增減動畫」
+            if (this.state.resultClickStage === 0) {
+                // 如果 Renderer 已經標記文字跑完 (你可以根據時間判定)
+                if (resRenderer.isReadyForNext) { 
+                    this.state.resultClickStage = 1; // 進入動畫階段
+                    this.state.applyResultPoints();  // 雖然點數變了，但 Renderer 會跑動畫慢慢追
+                    console.log("點數結算");
+                }
+                return;
             }
             
-            // 數字動畫跑完了，才允許進入下一局
-            if (res.isPointsFinished) {
+            // B. 階段 1：正在跳數字中，通常禁止點擊或直接跳過動畫
+            if (this.state.resultClickStage === 1) {
+                // 如果想要點一下直接結束動畫：
+                // this.state.resultClickStage = 2;
+                return;
+            }
+            
+            // C. 階段 2：動畫結束了，再次點擊進入下一局
+            if (this.state.resultClickStage === 2) {
                 this.renderer.resultTimelineStart = 0;
                 this.renderer.resultYakuAnimated = false;
                 this.renderer.animations = [];
                 
-                // 進入下一局
                 this.state.nextKyoku();
             }
             return;
