@@ -39,6 +39,7 @@ export class Renderer {
         const infoBoxW = 260;
         const infoBoxH = 120;
         const infoBoxGap = 25;
+        this.visualPoints = [150000, 150000];
         this.displayPoints = [this.gameState.players[0].points, this.gameState.players[1].points];
 
         const riverTotalWidth = (5 * this.riverTileWidth) + this.riverTileHeight;
