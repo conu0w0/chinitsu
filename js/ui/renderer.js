@@ -72,32 +72,29 @@ export class Renderer {
        1. 主繪製循環
        ====================== */
     draw() {
-    // 1. 邏輯與數據更新
+    // 1. 邏輯更新 (即便結算也更新位移，讓牌不會瞬間「掉下來」)
     this._checkHandChanges();
     this._checkComHandChanges();
     this._updateDisplayPoints();
 
-    // 2. 畫布底層渲染
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this._drawBackground();
 
-    // 3. 遊戲世界物件 (中層)
+    // 2. 繪製世界物件 (這部分包含手牌與牌河)
     this.drawInfo();
     this.drawRivers();
-    this.drawHands(); 
-    
-    // 4. 遊戲內動畫 (如：摸牌、切牌位移)
-    // 放在結算畫面之前，這樣結算畫面才能「蓋住」這些動畫
+    this.drawHands(); // ★ 確保這裡沒有被 phase === "ROUND_END" 擋住
+
+    // 3. 繪製動畫
     this._renderAnimations();
 
-    // 5. 頂層切換：結算畫面 vs 遊戲 UI
+    // 4. 最上層覆蓋
     if (this.gameState.phase === "ROUND_END") {
-        // 進入結算模式：由 ResultRenderer 接管最上層
         if (this.resultRenderer) {
+            // 這裡 resultRenderer 會蓋在最上面，但底層的手牌依然存在
             this.resultRenderer.draw(this.gameState.lastResult);
         }
     } else {
-        // 戰鬥模式：顯示操作按鈕（吃、碰、槓、胡、切）
         this.renderUI();
     }
 }
@@ -106,7 +103,7 @@ export class Renderer {
     _checkHandChanges() {
         const player = this.gameState.players[0];
         const currentLen = player.tepai.length;
-        const validPhases = ["DEALING", "DRAW", "PLAYER_DECISION"];
+        const validPhases = ["DEALING", "DRAW", "PLAYER_DECISION", "ROUND_END"];
         const isDealing = (this.gameState.phase === "DEALING"); // ★ 判斷是否發牌中
 
         if (validPhases.includes(this.gameState.phase) && currentLen > this.lastHandLength) {
@@ -148,7 +145,7 @@ export class Renderer {
     _checkComHandChanges() {
         const com = this.gameState.players[1];
         const currentLen = com.tepai.length;
-        const validPhases = ["DEALING", "DRAW", "COM_DECISION"];
+        const validPhases = ["DEALING", "DRAW", "COM_DECISION", "ROUND_END"];
         const isDealing = (this.gameState.phase === "DEALING");
 
         if (validPhases.includes(this.gameState.phase) && currentLen > this.lastComHandLength) {
@@ -590,11 +587,6 @@ export class Renderer {
  * 更新並繪製遊戲進行中的動畫（摸牌、切牌）
  */
 _renderAnimations() {
-    // 如果現在是結算畫面，這裡就直接放空，讓 ResultRenderer 接管
-    if (this.gameState.phase === "ROUND_END") {
-        return; 
-    }
-
     const now = performance.now();
     const { ctx, tileWidth, tileHeight } = this;
 
