@@ -322,8 +322,8 @@ export class Renderer {
             // 只有最後一張且是摸牌狀態才加空隙
             if (isDrawState && i === player.tepai.length - 1) x += this.drawGap;
 
-            // 如果是被指著的牌，目標高度是 -14，否則是 0
-            const targetOffset = (this.hoveredIndex === i) ? -14 : 0;
+            // 如果是被指著的牌，目標高度是 -16，否則是 0
+            const targetOffset = (this.hoveredIndex === i) ? -16 : 0;
             // 簡單的線性插值，讓牌「升起」跟「降落」有過程感
             this.handYOffsets[i] = (this.handYOffsets[i] || 0) * 0.7 + targetOffset * 0.3;
             
@@ -638,7 +638,7 @@ _renderAnimations() {
         const gap = 15;
         // 動態計算按鈕位置 (避開手牌)
         const anchorRight = handZone.x + 13 * (this.tileWidth + this.tileGap);
-        const y = handZone.y - btnH - 20;
+        const y = handZone.y - btnH - 25;
 
         if (state.phase === "PLAYER_DECISION") {
             if (actions.canAnkan) buttons.push({ text: "槓", action: { type: "TRY_ANKAN" } });
