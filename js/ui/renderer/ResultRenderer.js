@@ -115,6 +115,8 @@ export class ResultRenderer {
         // 手牌與聽牌 (使用 Layout 模組)
         layout.drawWaitList(result.offender?.waits || [], CX, H * 0.58, this._getChomboLabel(result));
         this.resultHandLeftX = layout.drawResultHand(result, CX, H * 0.72, true);
+
+        this.isReadyForNext = true;
     }
 
     // ================================================================
@@ -137,6 +139,8 @@ export class ResultRenderer {
         const playerInfo = tenpaiInfo.find(t => t.index === 0) ?? {};
         layout.drawWaitList(playerInfo.waits ?? [], CX, H * 0.64, playerInfo.isTenpai ? "玩家 聽牌" : "玩家 未聽");
         layout.drawStaticHand(r.gameState.players[0], CX, H * 0.80, !playerInfo.isTenpai);
+
+        this.isReadyForNext = true;
     }
 
     // ================================================================
@@ -198,9 +202,13 @@ export class ResultRenderer {
             this._renderScoreAndLevel(now, H * 0.68 - 45);
         }
 
-        // --- 7. HINT ---
+       // --- 7. HINT ---
         if (sm.state >= RESULT_STATE.HINT) {
-            this._drawSubTitle("— 點擊任意處重新開始 —", CX, H * 0.9, "#888", 24);
+            this._drawSubTitle("— 點擊任意處繼續 —", CX, H * 0.9, "#888", 24);
+            this.isReadyForNext = true; 
+        } else {
+            // 尚未到達 HINT 前，禁止點擊下一局
+            this.isReadyForNext = false; 
         }
     }
 
@@ -209,7 +217,19 @@ export class ResultRenderer {
     // ================================================================
     
     _enterState(state) {
+        const now = performance.now();
         this.stateMachine.enter(state);
+
+        // 根據進入的狀態，初始化該階段的動畫起點
+        switch(state) {
+            case RESULT_STATE.SCORE:
+                this.resultHanfuStartTime = now;
+                this.resultScoreStartTime = now + this.TIMING.PHASE0_TO_PHASE1; // 延後一點
+                break;
+            case RESULT_STATE.LEVEL:
+                this.resultLevelStartTime = now;
+                break;
+        }
     }
 
     /**
