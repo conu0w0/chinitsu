@@ -315,7 +315,7 @@ export class ResultRenderer {
 
         ctx.fillStyle = "#aaddff";
         ctx.font = `bold 64px ${this.r.fontFamily}`;
-        ctx.fillText("荒牌流局", CX, H * 0.50);
+        ctx.fillText("荒牌流局", CX, H * 0.46);
 
         const player = this.r.gameState.players[0];
         const playerInfo = tenpaiInfo.find(t => t.index === 0) ?? {};
