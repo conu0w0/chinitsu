@@ -497,89 +497,84 @@ export class Renderer {
        4. 單張牌繪製
        ====================== */
     drawTile(tileVal, x, y, w, h, options = {}) {
-        const { faceDown = false, highlight = false, selected = false, marked = false, rotate = 0 } = options;
-        const img = faceDown ? this.assets.back : this.assets.tiles?.[tileVal];
-        const ctx = this.ctx;
+    const { faceDown = false, highlight = false, selected = false, marked = false, rotate = 0 } = options;
+    const img = faceDown ? this.assets.back : this.assets.tiles?.[tileVal];
+    const ctx = this.ctx;
 
-        ctx.save();
+    ctx.save(); // [A] 全局保存
 
-        // --- 增加陰影效果 (讓牌立體化) ---
-        ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetX = 2; // 向右偏一點
-        ctx.shadowOffsetY = 3; // 向下偏一點，模擬上方光源
-
-        if (rotate !== 0) {
-            ctx.translate(x + w / 2, y + h / 2);
-            ctx.rotate((rotate * Math.PI) / 180);
-            ctx.translate(-(x + w / 2), -(y + h / 2));
-        }
-
-        if (img) {
-            ctx.drawImage(img, x, y, w, h);
-        } else {
-            // Fallback
-            ctx.fillStyle = faceDown ? "#234" : "#f5f5f5";
-            ctx.fillRect(x, y, w, h);
-            ctx.strokeStyle = "#333";
-            ctx.strokeRect(x, y, w, h);
-            
-            if (!faceDown) {
-                ctx.fillStyle = "#000";
-                ctx.font = `20px ${this.fontFamily}`;
-                ctx.fillText(tileVal, x + 10, y + 40);
-            }
-        }
-
-        ctx.shadowColor = "transparent";
-
-        if (highlight) {
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = "#ff4444"; 
-            ctx.lineWidth = 4;
-            this._strokeRoundedRect(ctx, x, y, w, h, 5);
-        }
-
-        if (selected) {
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = "#ffffff";
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
-            ctx.lineWidth = 4;
-            this._strokeRoundedRect(ctx, x, y, w, h, 5);
-        }
-
-        if (marked) {
-            ctx.save();
-            // 1. 取得跳動位移
-            const bounce = Math.sin(Date.now() / 200) * 5;
-            const pawX = x + w / 2;
-            const pawY = y - 20 + bounce; // 浮在牌的上方
-            
-            // 2. 畫肉球 (大圓 + 三個小圓)
-            ctx.fillStyle = "rgba(255, 120, 150, 0.9)"; // 軟萌肉粉色
-            ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
-            ctx.shadowBlur = 4;
-            
-            // 主肉墊
-            ctx.beginPath();
-            ctx.arc(pawX, pawY, 10, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // 三顆小趾頭
-            ctx.beginPath();
-            ctx.arc(pawX - 8, pawY - 8, 4, 0, Math.PI * 2); // 左
-            ctx.arc(pawX, pawY - 11, 4, 0, Math.PI * 2);    // 中
-            ctx.arc(pawX + 8, pawY - 8, 4, 0, Math.PI * 2); // 右
-            ctx.fill();
-            
-            // 3. 牌面上原本的紅框，改成淡淡的粉色呼吸圈
-            ctx.strokeStyle = `rgba(255, 120, 150, ${0.5 + bounce/10})`;
-            ctx.lineWidth = 3;
-            this._strokeRoundedRect(ctx, x, y, w, h, 5);
-            
-            ctx.restore();
-        }
+    // --- 1. 處理旋轉與位移 ---
+    if (rotate !== 0) {
+        ctx.translate(x + w / 2, y + h / 2);
+        ctx.rotate((rotate * Math.PI) / 180);
+        ctx.translate(-(x + w / 2), -(y + h / 2));
     }
+
+    // --- 2. 牌體陰影與繪製 ---
+    ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 3;
+
+    if (img) {
+        ctx.drawImage(img, x, y, w, h);
+    } else {
+        ctx.fillStyle = faceDown ? "#234" : "#f5f5f5";
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = "#333";
+        ctx.strokeRect(x, y, w, h);
+    }
+
+    // 清除陰影，避免影響後續裝飾
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // --- 3. 裝飾層 (高亮/選中) ---
+    if (highlight) {
+        ctx.strokeStyle = "#ff4444"; 
+        ctx.lineWidth = 4;
+        this._strokeRoundedRect(ctx, x, y, w, h, 5);
+    }
+    if (selected) {
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+        ctx.lineWidth = 4;
+        this._strokeRoundedRect(ctx, x, y, w, h, 5);
+    }
+
+    ctx.restore(); // [A] 全局還原 - 確保到這裡座標軸已經回正
+
+    // --- 4. 肉球特效 (獨立於旋轉之外) ---
+    // 這樣牌轉 90 度時，肉球依然會正正地浮在牌的正上方
+    if (marked) {
+        ctx.save(); 
+        const bounce = Math.sin(Date.now() / 200) * 5;
+        const pawX = x + w / 2;
+        const pawY = y - 20 + bounce;
+        
+        ctx.fillStyle = "rgba(255, 120, 150, 0.9)";
+        ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
+        ctx.shadowBlur = 4;
+        
+        // 主肉墊
+        ctx.beginPath();
+        ctx.arc(pawX, pawY, 10, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 三顆小趾頭
+        ctx.beginPath();
+        ctx.arc(pawX - 8, pawY - 8, 4, 0, Math.PI * 2);
+        ctx.arc(pawX, pawY - 11, 4, 0, Math.PI * 2);
+        ctx.arc(pawX + 8, pawY - 8, 4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.strokeStyle = `rgba(255, 120, 150, ${0.5 + bounce/10})`;
+        ctx.lineWidth = 3;
+        this._strokeRoundedRect(ctx, x, y, w, h, 5);
+        ctx.restore();
+    }
+}
 
     /* ======================
        5. 動畫渲染
