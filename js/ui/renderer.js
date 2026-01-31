@@ -764,6 +764,8 @@ _renderAnimations() {
     
     _updateDisplayPoints() {
     const players = this.gameState.players;
+        if (!this.visualPoints) this.visualPoints = players.map(p => p.points);
+        
     let allFinished = true;
 
     players.forEach((p, i) => {
