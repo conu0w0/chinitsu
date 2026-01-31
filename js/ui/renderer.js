@@ -158,6 +158,7 @@ export class Renderer {
             
             for (let i = 0; i < diff; i++) {
                 const tileIndex = this.lastComHandLength + i;
+                if (this.animations.some(a => a.isCom && a.index === tileIndex)) continue;
                 const zone = this.ZONES.comHand;
                 const w = 48;
 
@@ -176,7 +177,7 @@ export class Renderer {
                     x: targetX,
                     y: zone.y,
                     startX: targetX,
-                    startY: zone.y + 150,
+                    startY: zone.y - 150,
                     startTime: performance.now(),
                     duration: 400
                 });
