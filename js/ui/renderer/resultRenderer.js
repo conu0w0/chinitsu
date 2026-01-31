@@ -21,25 +21,19 @@ export class ResultRenderer {
 
         // 結算動畫狀態
         this._lastResultRef = null;
-        this.resultTimelineStart = 0;
-
+        
         // 快取計算結果，避免每幀重算
         this._cachedData = this._createDefaultCacheData();
 
         // 役種動畫相關
         this.resultYakuAnimated = false;
-        this.resultYakuFinished = false;
         this.resultYakuEndTime = null;
-        this.resultAfterYakuTime = null;
         this.resultYakuBaseY = 0;
 
         // 分數動畫相關
-        this.resultScoreAnimated = false;
-        this.resultScoreFinished = false;
         this.resultScoreStartTime = 0;
-        this.scoreHighlightStartTime = null;
+        
         this.resultHanfuStartTime = 0;
-        this.resultLevelAnimated = false;
         this.resultLevelStartTime = 0;
         this.scorePhase = 0;
         this.resultPointLocked = false;
@@ -165,26 +159,17 @@ export class ResultRenderer {
             this.r.animations = (this.r.animations ?? []).filter(a => a.type !== "yaku");
         }
         
-        this.resultTimelineStart = performance.now();
-
-        this.resultYakuAnimated = false;
-        this.resultYakuFinished = false;
+        this.resultYakuAnimated = false;  
         this.resultYakuEndTime = null;
-        this.resultAfterYakuTime = null;
-
-        this.resultScoreAnimated = false;
-        this.resultScoreFinished = false;
         this.resultScoreStartTime = 0;
         this.scorePhase = 0;
         this.resultPointLocked = false;
         this.resultLevelLocked = false;
 
         this.resultHanfuStartTime = 0;
-        this.resultLevelAnimated = false;
         this.resultLevelStartTime = 0;
         this.resultHandLeftX = null;
 
-        this.scoreHighlightStartTime = null;
         this._scoreLayoutCache = null;
 
         // --- 資料預處理 (只做一次) ---
@@ -360,7 +345,7 @@ export class ResultRenderer {
 
         // ===== INIT =====
         if (this.resultState === RESULT_STATE.INIT) {
-            this._enterState(RESULT_STATE.TITLE);
+            return this._enterState(RESULT_STATE.TITLE);
         }
 
         // ===== TITLE =====
@@ -464,7 +449,6 @@ export class ResultRenderer {
                     this._enterState(RESULT_STATE.SCORE);
                     this.resultHanfuStartTime = performance.now();
                     this.resultScoreStartTime = this.resultHanfuStartTime;
-                    this.resultScoreAnimated = false;
                     this._scoreLayoutCache = null;
                 }
             }
@@ -619,6 +603,13 @@ export class ResultRenderer {
                         isSilver: isKazoeYakuman
                     });
                 }
+            }
+            if (
+                this.resultState === RESULT_STATE.LEVEL &&
+                this.resultLevelLocked &&
+                now - this.stateEnterTime > this.TIMING.LEVEL_TO_HINT
+            ) {
+                this._enterState(RESULT_STATE.HINT);
             }
         }
         
