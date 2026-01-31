@@ -209,16 +209,39 @@ export class ResultRenderer {
         this.stateMachine.enter(state);
     }
 
+    /**
+     * 繪製置中的大標題
+     */
     _drawCenteredTitle(text, x, y, size, color = "#fff") {
+        this.ctx.font = `bold ${size}px ${this.r.fontFamily}`;
+        this.ctx.fillStyle = color;
+        this.ctx.textAlign = "center";
+        this.ctx.textBaseline = "alphabetic"; // 確保文字基準線統一
+        this.ctx.fillText(text, x, y);
+    }
+
+    /**
+     * 繪製副標題或提示文字
+     */
+    _drawSubTitle(text, x, y, color, size = 32) {
         this.ctx.font = `bold ${size}px ${this.r.fontFamily}`;
         this.ctx.fillStyle = color;
         this.ctx.textAlign = "center";
         this.ctx.fillText(text, x, y);
     }
 
-    // ================================================================
-    // 私有輔助方法：讓主邏輯保持乾淨
-    // ================================================================
+    /**
+     * 取得錯和原因標籤
+     */
+    _getChomboLabel(result) {
+        const offender = result.offender;
+        const type = result.chomboType;
+        
+        if (type === "wrong_agari") return "錯和";
+        if (type === "furiten") return "振聽";
+        if (!offender?.isTenpai) return "未聽牌";
+        return "違規";
+    }
     
     /**
     * 繪製錯和的罰符資訊 (處理不同顏色的文字組合)
@@ -302,5 +325,120 @@ export class ResultRenderer {
         const winnerName = (result.winnerIndex === 0) ? "玩家" : "COM";
         const winMethod = (result.winType === "tsumo") ? "自摸" : "榮和";
         return `[${roleText}] ${winnerName} ${winMethod}`;
+    }
+
+    /**
+     * 繪製分數與滿貫稱號 (含蓋章與高光動畫)
+     */
+    _renderScoreAndLevel(now, scoreY) {
+        const { ctx, r, layout, effect, cache, TIMING } = this;
+        const { han, fu, scoreTotal, limitName, isYakuman, isKazoeYakuman, yakumanCount } = cache.data;
+
+        // 1. 建立或讀取排版快取
+        if (!this._scoreLayoutCache) {
+            const isYakumanOnly = isYakuman && !isKazoeYakuman;
+            const rowItems = [];
+
+            // 飜符 (役滿則隱藏)
+            if (!isYakumanOnly) {
+                rowItems.push({
+                    key: "hanfu",
+                    text: `${han} 飜 ${fu} 符`,
+                    font: `bold 42px ${r.fontFamily}`
+                });
+            }
+
+            // 點數
+            rowItems.push({
+                key: "point",
+                text: `${scoreTotal} 點`,
+                font: `bold ${isYakumanOnly ? 64 : 48}px ${r.fontFamily}`
+            });
+
+            // 滿貫稱號 (如：滿貫、跳滿、役滿)
+            if (limitName) {
+                rowItems.push({
+                    key: "level",
+                    text: limitName,
+                    font: `bold 52px ${r.fontFamily}`,
+                    reserved: true // 預留位置，蓋章動畫會用到
+                });
+            }
+
+            this._scoreLayoutCache = layout.layoutScoreRow(this.resultHandLeftX, scoreY, rowItems);
+            if (isYakumanOnly) this.scorePhase = 1;
+        }
+
+        const row = this._scoreLayoutCache;
+
+        // 2. 飜符動畫 (Phase 0)
+        const hanfu = row.find(i => i.key === "hanfu");
+        if (hanfu) {
+            if (this.scorePhase === 0) {
+                effect.fadeInText({
+                    text: hanfu.text, x: hanfu.x, y: hanfu.y,
+                    font: hanfu.font, startTime: this.resultHanfuStartTime
+                });
+                if (now - this.resultHanfuStartTime > TIMING.PHASE0_TO_PHASE1) this.scorePhase = 1;
+            } else {
+                this._drawStaticText(hanfu.text, hanfu.x, hanfu.y, hanfu.font);
+            }
+        }
+
+        // 3. 點數蓋章動畫 (Phase 1)
+        const point = row.find(i => i.key === "point");
+        if (point && this.scorePhase >= 1) {
+            if (!this.resultPointLocked) {
+                effect.stampText({
+                    text: point.text, x: point.x, y: point.y,
+                    font: point.font, startTime: this.resultScoreStartTime,
+                    dropHeight: 48
+                });
+                if (now - this.resultScoreStartTime >= 500) this.resultPointLocked = true;
+            } else {
+                this._drawStaticText(point.text, point.x, point.y, point.font);
+            }
+        }
+
+        // 4. 稱號蓋章與高光 (Level Stage)
+        const level = row.find(i => i.key === "level");
+        if (level && this.stateMachine.state >= RESULT_STATE.LEVEL) {
+            if (!this.resultLevelLocked) {
+                effect.stampText({
+                    text: level.text, x: level.x, y: level.y,
+                    font: level.font, startTime: this.resultLevelStartTime,
+                    duration: TIMING.LEVEL_STAMP_DURATION,
+                    dropHeight: TIMING.LEVEL_STAMP_DROP
+                });
+                if (now - this.resultLevelStartTime >= TIMING.LEVEL_STAMP_DURATION) this.resultLevelLocked = true;
+            } else {
+                this._drawStaticText(level.text, level.x, level.y, level.font);
+                
+                // 役滿高光特效
+                const highlightStart = this.resultLevelStartTime + TIMING.LEVEL_HIGHLIGHT_DELAY;
+                const isMultipleYakuman = yakumanCount >= 2;
+                if ((isYakuman || isKazoeYakuman) && now >= highlightStart) {
+                    effect.diagonalHighlight({
+                        text: level.text, x: level.x, y: level.y,
+                        font: level.font, startTime: highlightStart,
+                        angle: isMultipleYakuman ? 25 : 45,
+                        isSilver: isKazoeYakuman
+                    });
+                }
+            }
+        }
+    }
+
+    /**
+     * 內部的靜態文字繪製輔助
+     */
+    _drawStaticText(text, x, y, font, color = "#fff") {
+        this.ctx.save();
+        this.ctx.font = font;
+        this.ctx.fillStyle = color;
+        this.ctx.textAlign = "left";
+        this.ctx.textBaseline = "alphabetic";
+        this.ctx.fillText(text, x, y);
+        this.ctx.restore();
     }
 }
