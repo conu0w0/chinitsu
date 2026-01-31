@@ -61,6 +61,7 @@ export class GameState {
         this.phase = "INIT";
 
         this.dealState = { round: 0, currentPlayer: 0, tilesLeftInBatch: 0 };
+        this.resultClickStage = 0;
         this.lastDiscard = null;
         this.lastResult = null;
         this.roundContext = {};
@@ -208,6 +209,7 @@ export class GameState {
 
     _initKyokuInternal() {
         this.lastResult = null;
+        this.resultClickStage = 0;
        
         this._resetRoundContext();
         this._resetActionContext();
@@ -907,6 +909,7 @@ export class GameState {
 
     _handleChombo(playerIndex, reason, options = {}) {
        this.phase = "ROUND_END";
+       this.resultClickStage = 0;
        
        const offender = this.players[playerIndex];
        const otherIndex = (playerIndex + 1) % 2;
@@ -916,9 +919,7 @@ export class GameState {
        const base = 32000;
        const multiplier = offender.isParent ? 1.5 : 1;
        const penalty = Math.floor(base * multiplier);
-       
-       offender.points -= penalty;
-       other.points += penalty;
+       const oldPoints = this.players.map(p => p.points);
        
        // === 2. 判斷錯和類型 ===
        const chomboType = options.chomboType || "wrong_agari";
@@ -952,7 +953,8 @@ export class GameState {
              waits
           },          
           score: {
-             total: penalty
+             total: penalty,
+             oldPoints: oldPoints
           }
        };
        
@@ -989,10 +991,6 @@ export class GameState {
 
         const pts = score.score;
 
-        // 點數移動
-        winner.points += pts;
-        loser.points -= pts;
-
         this.lastResult = {
             type: "win",
             winnerIndex: playerIndex,
@@ -1000,13 +998,15 @@ export class GameState {
             fu,
             score: {
                 ...score,
-                total: score.score
+                total: score.score,
+                oldPoints: this.players.map(p => p.points)
             },
             winType: ctx.winType,
             isParent: ctx.isParent 
         };
        
         this.phase = "ROUND_END";
+        this.resultClickStage = 0;
     }
 
     _resetActionContext() {
