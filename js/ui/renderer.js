@@ -516,6 +516,7 @@ export class Renderer {
                 ctx.font = `30px ${this.fontFamily}`;
                 ctx.fillStyle = "#dddddd";
                 ctx.textAlign = "center";
+                ctx.textBaseline = "alphabetic";
                 ctx.fillText(anim.text, slideX, y);
                 ctx.restore();
                 
