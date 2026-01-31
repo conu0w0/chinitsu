@@ -72,25 +72,28 @@ export class Renderer {
        1. 主繪製循環
        ====================== */
     draw() {
-        this._checkHandChanges();
-        this._checkComHandChanges();
-        this._updateDisplayPoints();
+    this._checkHandChanges();
+    this._checkComHandChanges();
+    this._updateDisplayPoints();
 
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this._drawBackground();
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this._drawBackground();
 
-        this.drawInfo();
-        this.drawRivers();
-        this.drawHands(); 
-        
-        if (this.gameState.phase === "ROUND_END") {
-            this.resultRenderer.draw(this.gameState.lastResult);
-        } else {
-            this.renderUI();
-        }
-        
-        this._renderAnimations();
+    this.drawInfo();
+    this.drawRivers();
+    this.drawHands(); 
+    
+    if (this.gameState.phase === "ROUND_END") {
+        // ★ 結算畫面會畫在最上層，覆蓋掉牌河與手牌
+        this.resultRenderer.draw(this.gameState.lastResult);
+    } else {
+        // ★ 只有非結算時才畫 UI 按鈕
+        this.renderUI();
     }
+    
+    // ★ 摸牌動畫通常在最上層
+    this._renderAnimations();
+}
 
     // === 偵測玩家手牌變化 ===
     _checkHandChanges() {
@@ -573,55 +576,25 @@ export class Renderer {
        5. 動畫渲染
        ====================== */
     _renderAnimations() {
-        if (this.gameState.phase === "ROUND_END") {
-            this.animations = this.animations.filter(a => a.type !== "yaku");
-            return;
-        }
+    // 這裡維持原樣：結算時不要播一般的摸牌動畫
+    if (this.gameState.phase === "ROUND_END") {
+        // 快速清理掉可能殘留的動畫
+        this.animations = this.animations.filter(a => a.type !== "draw");
+        return;
+    }
+    
+    const now = performance.now();
+    const ctx = this.ctx;
+
+    this.animations = this.animations.filter(anim => {
+        const t = Math.min((now - anim.startTime) / anim.duration, 1);
+        const ease = t * t * (3 - 2 * t);
+
+        // --- ★ 重點：這裡不再處理 anim.type === "yaku" 了！ ---
+        // 因為那部分已經由 ResultRenderer 的 drawAgari -> _handleYakuAnimation 負責
         
-        const now = performance.now();
-        const ctx = this.ctx;
-
-        this.animations = this.animations.filter(anim => {
-            const t = Math.min((now - anim.startTime) / anim.duration, 1);
-            const ease = t * t * (3 - 2 * t);
-            //const ease = 1 - Math.pow(1 - t, 3); 
-
-            // === 1. 處理役種文字動畫 (yaku) ===
-            if (anim.type === "yaku") {
-                if (now < anim.startTime) return true;
-                
-                const {
-                    yakuItemsPerCol,
-                    yakuColWidth,
-                    yakuLineHeight,
-                } = this.resultRenderer.RESULT_LAYOUT;
-                
-                const row = anim.index % yakuItemsPerCol;
-                const col = Math.floor(anim.index / yakuItemsPerCol);
-                
-                const totalYakus = this.gameState.lastResult?.score?.yakus?.length || 0;
-                const totalCols = Math.ceil(totalYakus / yakuItemsPerCol);
-                const totalWidth = (Math.max(1, totalCols) - 1) * yakuColWidth;
-                const baseX = (this.canvas.width / 2) - totalWidth / 2;
-                
-                const x = baseX + col * yakuColWidth;
-                const y = this.resultRenderer.resultYakuBaseY + row * yakuLineHeight;
-
-                const slideX = x + (1 - ease) * 40;
-
-                ctx.save();
-                ctx.globalAlpha = ease;
-                ctx.font = `30px ${this.fontFamily}`;
-                ctx.fillStyle = "#dddddd";
-                ctx.textAlign = "center";
-                ctx.textBaseline = "alphabetic";
-                ctx.fillText(anim.text, slideX, y);
-                ctx.restore();
-                
-                return t < 1;
-            }
-            
-            // === 2. 處理摸牌或切牌動畫 (draw / discard) ===
+        // 這裡只保留原本的摸牌或切牌動畫 (draw / discard)
+        if (anim.type === "draw" || anim.type === "discard") {
             const currentY = anim.startY + (anim.y - anim.startY) * ease;
             const currentX = anim.startX + (anim.x - anim.startX) * ease;
 
@@ -631,10 +604,11 @@ export class Renderer {
                 faceDown: shouldFaceDown 
             });
             ctx.restore();
+        }
 
-            return t < 1;
-        });
-    }
+        return t < 1;
+    });
+}
 
     /* ======================
        6. UI
