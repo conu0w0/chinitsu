@@ -38,6 +38,7 @@ export class ResultRenderer {
         this.resultScoreFinished = false;
         this.resultScoreStartTime = 0;
         this.scoreHighlightStartTime = null;
+        this.resultFanFuStartTime = 0;
         this.resultLevelAnimated = false;
         this.resultLevelStartTime = 0;
         this.scorePhase = 0;
@@ -173,6 +174,7 @@ export class ResultRenderer {
         this.resultScoreStartTime = 0;
         this.scorePhase = 0;
 
+        this.resultFanFuStartTime = 0;
         this.resultLevelAnimated = false;
         this.resultLevelStartTime = 0;
         this.resultHandLeftX = null;
@@ -461,6 +463,9 @@ export class ResultRenderer {
             if (this.resultState === RESULT_STATE.HAND) {
                 if (now - this.stateEnterTime > this.TIMING.HAND_TO_SCORE) {
                     this._enterState(RESULT_STATE.SCORE);
+                    this.resultFanFuStartTime = performance.now();
+                    this.resultScoreStartTime = this.resultFanFuStartTime;
+                    this.resultScoreAnimated = false;
                 }
             }
         }
@@ -477,7 +482,7 @@ export class ResultRenderer {
                     x: SCORE_X,
                     y: SCORE_Y,
                     font: `bold 42px ${this.r.fontFamily}`,
-                    startTime: this.stateEnterTime,
+                    startTime: this.resultFanFuStartTime,
                     duration: 400
                 });
 
@@ -511,6 +516,15 @@ export class ResultRenderer {
                         this._enterState(RESULT_STATE.LEVEL);
                     }
                 }
+            }
+            if (!isYakumanOnly && this.scorePhase >= 1) {
+                ctx.save();
+                ctx.font = `bold 42px ${this.r.fontFamily}`;
+                ctx.fillStyle = "#fff";
+                ctx.textAlign = "left";
+                ctx.textBaseline = "middle";
+                ctx.fillText(`${han} 飜 ${fu} 符`, SCORE_X, SCORE_Y);
+                ctx.restore();
             }
         }
 
