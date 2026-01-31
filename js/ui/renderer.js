@@ -188,21 +188,11 @@ export class Renderer {
         const cy = H / 2;
         const grad = ctx.createRadialGradient(cx, cy, 100, cx, cy, 700);
         grad.addColorStop(0, "#1e4d3e"); // 中心：較亮的墨綠
-        grad.addColorStop(1, "#0a1a15"); // 邊緣：深沉的黑綠
-        
+        grad.addColorStop(1, "#0a1a15"); // 邊緣：深沉的黑綠        
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, W, H);
 
-        // --- 2. 模擬桌布紋理 (增加噪點感) ---
-        ctx.save();
-        ctx.globalAlpha = 0.05;
-        for (let i = 0; i < 500; i++) {
-            ctx.fillStyle = (Math.random() > 0.5) ? "#ffffff" : "#000000";
-            ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1);
-        }
-        ctx.restore();
-
-        // --- 3. 邊緣外框 ---
+        // --- 2. 邊緣外框 ---
         ctx.strokeStyle = "rgba(212, 175, 55, 0.4)"; // 帶透明度的金
         ctx.lineWidth = 15;
         ctx.strokeRect(0, 0, W, H);
@@ -330,7 +320,7 @@ export class Renderer {
             
             const drawY = zone.y + this.handYOffsets[i];
             
-            this.drawTile(tile, x, zone.y, this.tileWidth, this.tileHeight, { 
+            this.drawTile(tile, x, drawY, this.tileWidth, this.tileHeight, { 
                 faceDown: globalFaceDown,
                 selected: (this.hoveredIndex === i)
             });
@@ -592,12 +582,13 @@ export class Renderer {
         const ctx = this.ctx;
 
         this.animations = this.animations.filter(anim => {
-            
+            const t = Math.min((now - anim.startTime) / anim.duration, 1);
+            const ease = t * t * (3 - 2 * t);
+            //const ease = 1 - Math.pow(1 - t, 3); 
+
+            // === 1. 處理役種文字動畫 (yaku) ===
             if (anim.type === "yaku") {
                 if (now < anim.startTime) return true;
-                
-                const t = Math.min((now - anim.startTime) / anim.duration, 1);
-                const ease = t * t * (3 - 2 * t);
                 
                 const {
                     yakuItemsPerCol,
@@ -627,22 +618,18 @@ export class Renderer {
                 ctx.fillText(anim.text, slideX, y);
                 ctx.restore();
                 
-                return true;
+                return t < 1;
             }
             
-            const t = Math.min((now - anim.startTime) / anim.duration, 1);
-            //const ease = 1 - Math.pow(1 - t, 3); 
-            const ease = t * t * (3 - 2 * t);
-            
+            // === 2. 處理摸牌或切牌動畫 (draw / discard) ===
             const currentY = anim.startY + (anim.y - anim.startY) * ease;
             const currentX = anim.startX + (anim.x - anim.startX) * ease;
 
             ctx.save();
             const shouldFaceDown = anim.isCom;
-            const w = this.tileWidth;
-            const h = this.tileHeight;
-
-            this.drawTile(anim.tile, currentX, currentY, w, h, { faceDown: shouldFaceDown });
+            this.drawTile(anim.tile, currentX, currentY, this.tileWidth, this.tileHeight, { 
+                faceDown: shouldFaceDown 
+            });
             ctx.restore();
 
             return t < 1;
