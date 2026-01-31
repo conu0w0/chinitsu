@@ -335,6 +335,12 @@ export class ResultRenderer {
 
         const HAND_Y = H * 0.68;
         const SCORE_Y = HAND_Y - 60;
+
+        // SCORE 區版面
+        const SCORE_X = this.resultHandLeftX;        // 飜符
+        const POINT_OFFSET_X = 180;                  // 點數往右移的距離
+        const POINT_X = this.resultHandLeftX + POINT_OFFSET_X;
+        
         const TITLE_OFFSET_X = 520;
         const LEVEL_FONT_SIZE = 52;
         const LEVEL_OFFSET_Y = LEVEL_FONT_SIZE * 0.15;
@@ -468,7 +474,7 @@ export class ResultRenderer {
             if (!isYakumanOnly && this.scorePhase === 0) {
                 this._drawFadeInText({
                     text: `${han} 飜 ${fu} 符`,
-                    x: this.resultHandLeftX,
+                    x: SCORE_X,
                     y: SCORE_Y,
                     font: `bold 42px ${this.r.fontFamily}`,
                     startTime: this.stateEnterTime,
@@ -484,17 +490,23 @@ export class ResultRenderer {
             // ---------- Phase 1：z 點 ----------
             if (this.scorePhase === 1 || isYakumanOnly) {
                 const pointFontSize = isYakumanOnly ? 64 : 48;
-
+                
+                // ⭐ 只在第一次進入 SCORE 時設定動畫起點
+                if (!this.resultScoreAnimated) {
+                    this.resultScoreAnimated = true;
+                    this.resultScoreStartTime = performance.now();
+                }
+                
                 this._drawStampText({
                     text: `${scoreTotal} 點`,
-                    x: this.resultHandLeftX,
+                    x: POINT_X,
                     y: SCORE_Y,
-                    font: `bold ${pointFontSize}px ${this.r.fontFamily}`,
-                    startTime: this.stateEnterTime,
+                    \font: `bold ${pointFontSize}px ${this.r.fontFamily}`,
+                    startTime: this.resultScoreStartTime,
                     duration: 500,
                     dropHeight: 48
                 });
-
+                
                 if (this.resultState === RESULT_STATE.SCORE) {
                     if (now - this.stateEnterTime > this.TIMING.SCORE_TO_LEVEL) {
                         this._enterState(RESULT_STATE.LEVEL);
