@@ -25,6 +25,7 @@ export class ResultRenderer {
         this.effect       = new ResultEffect(renderer);
         this.cache        = new ResultCache();
         this.yakuAnimations = [];
+        this.isReadyForNext = false;
         
         // --- 持久引用儲存 ---
         this._lastResultRef = null;
@@ -40,6 +41,7 @@ export class ResultRenderer {
      */
     _resetAnimationState() {
         // 1. 狀態機歸零
+        this.isReadyForNext = false;
         this.stateMachine.enter(RESULT_STATE.INIT);
 
         // 2. 座標與排版快取重置
