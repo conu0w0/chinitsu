@@ -156,6 +156,7 @@ export class ResultRenderer {
        ================================================================= */
     _resetAnimationState(result) {
         this.resultState = RESULT_STATE.INIT;
+        this._scoreLayoutCache = null;
 
         // 清除舊的 yaku 動畫，保留其他類型的動畫
         if (typeof this.r.removeAnimationsByType === "function") {
@@ -464,6 +465,7 @@ export class ResultRenderer {
                     this.resultHanfuStartTime = performance.now();
                     this.resultScoreStartTime = this.resultHanfuStartTime;
                     this.resultScoreAnimated = false;
+                    this._scoreLayoutCache = null;
                 }
             }
         }
@@ -587,7 +589,7 @@ export class ResultRenderer {
                         dropHeight: this.TIMING.LEVEL_STAMP_DROP
                     });
                     
-                    if (now - this.stateEnterTime >= this.TIMING.LEVEL_STAMP_DURATION) {
+                    if (now - this.resultLevelStartTime >= this.TIMING.LEVEL_STAMP_DURATION) {
                         this.resultLevelLocked = true;
                     }
                 } else {
@@ -600,7 +602,7 @@ export class ResultRenderer {
                     ctx.restore();
                 }
 
-                const highlightStart = this.stateEnterTime + this.TIMING.LEVEL_HIGHLIGHT_DELAY;
+                const highlightStart = this.resultLevelStartTime + this.TIMING.LEVEL_HIGHLIGHT_DELAY;
                 const isMultipleYakuman = this._cachedData.yakumanCount >= 2;                 
                 if (
                     this.resultState >= RESULT_STATE.LEVEL &&
@@ -924,6 +926,5 @@ export class ResultRenderer {
     _enterState(state) {
         this.resultState = state;
         this.stateEnterTime = performance.now();
-        this._scoreLayoutCache = null;
     }
 }
