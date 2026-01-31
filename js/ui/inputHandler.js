@@ -36,12 +36,12 @@ export class InputHandler {
 
         // 2. 結算畫面 (ROUND_END) -> 點擊下一局 (判定輪莊)
         if (this.state.phase === "ROUND_END") {
-            const resRenderer = this.renderer.resultRenderer;
+            const res = this.renderer.resultRenderer;
             
             // A. 階段 0：文字動畫跑完後，點擊進入「增減動畫」
             if (this.state.resultClickStage === 0) {
                 // 如果 Renderer 已經標記文字跑完 (你可以根據時間判定)
-                if (resRenderer.isReadyForNext) { 
+                if (res.isReadyForNext) { 
                     this.state.resultClickStage = 1; // 進入動畫階段
                     this.state.applyResultPoints();  // 雖然點數變了，但 Renderer 會跑動畫慢慢追
                     console.log("點數結算");
@@ -51,8 +51,9 @@ export class InputHandler {
             
             // B. 階段 1：正在跳數字中，通常禁止點擊或直接跳過動畫
             if (this.state.resultClickStage === 1) {
-                // 如果想要點一下直接結束動畫：
-                // this.state.resultClickStage = 2;
+                this.renderer.visualPoints = this.state.players.map(p => p.points);
+                this.state.resultClickStage = 2; // 直接解鎖下一局點擊
+                console.log("嗷嗚！跳過動畫，直接看結果！");
                 return;
             }
             
