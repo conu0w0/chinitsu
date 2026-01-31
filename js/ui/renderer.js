@@ -479,7 +479,10 @@ export class Renderer {
        5. 動畫渲染
        ====================== */
     _renderAnimations() {
-        if (this.gameState.phase !== "ROUND_END" && !this.animations.some(a => a.type !== "yaku")) return;
+        if (this.gameState.phase === "ROUND_END") {
+            this.animations = this.animations.filter(a => a.type !== "yaku");
+            return;
+        }
         
         const now = performance.now();
         const ctx = this.ctx;
