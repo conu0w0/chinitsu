@@ -322,8 +322,8 @@ export class Renderer {
             // 只有最後一張且是摸牌狀態才加空隙
             if (isDrawState && i === player.tepai.length - 1) x += this.drawGap;
 
-            // 如果是被指著的牌，目標高度是 -20，否則是 0
-            const targetOffset = (this.hoveredIndex === i) ? -20 : 0;
+            // 如果是被指著的牌，目標高度是 -14，否則是 0
+            const targetOffset = (this.hoveredIndex === i) ? -14 : 0;
             // 簡單的線性插值，讓牌「升起」跟「降落」有過程感
             this.handYOffsets[i] = (this.handYOffsets[i] || 0) * 0.7 + targetOffset * 0.3;
             
@@ -549,33 +549,34 @@ export class Renderer {
         ctx.save();
         const bounce = Math.sin(Date.now() / 200) * 5;
         
-        // 關鍵：因為立直牌視覺寬度變成了 h，所以中心點要重新計算
-        const visualWidth = (rotate !== 0) ? h : w;
+        // 取得旋轉後的視覺高度
+        // 如果轉 90/-90 度，視覺高度就是原本的寬度 (w)
         const visualHeight = (rotate !== 0) ? w : h;
         
-        // 計算旋轉後的視覺中心
-        const centerX = x + w / 2;
+        // 取得牌的視覺中心 Y
         const centerY = y + h / 2;
         
-        // 肉球位置：浮在視覺上的上方
-        const pawX = centerX;
-        const pawY = centerY - (visualHeight / 2) - 15 + bounce;
+        // --- 核心修正點 ---
+        // pawY = 中心點 - (視覺高度的一半) - (固定的安全距離) + 跳動
+        // 這裡把安全距離從 15 加大到 25，確保不壓牌
+        const pawY = centerY - (visualHeight / 2) - 25 + bounce;
+        const pawX = x + w / 2;
 
         ctx.fillStyle = "rgba(255, 120, 150, 0.9)";
         ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
         ctx.shadowBlur = 4;
         
-        // 主肉墊
+        // 畫肉球... (其餘代碼不變)
         ctx.beginPath();
         ctx.arc(pawX, pawY, 10, 0, Math.PI * 2);
         ctx.fill();
         
-        // 三顆小趾頭
         ctx.beginPath();
         ctx.arc(pawX - 8, pawY - 8, 4, 0, Math.PI * 2);
         ctx.arc(pawX, pawY - 11, 4, 0, Math.PI * 2);
         ctx.arc(pawX + 8, pawY - 8, 4, 0, Math.PI * 2);
         ctx.fill();
+        
         ctx.restore();
     }
 }
