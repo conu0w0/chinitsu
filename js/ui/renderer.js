@@ -72,27 +72,34 @@ export class Renderer {
        1. 主繪製循環
        ====================== */
     draw() {
+    // 1. 邏輯與數據更新
     this._checkHandChanges();
     this._checkComHandChanges();
     this._updateDisplayPoints();
 
+    // 2. 畫布底層渲染
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this._drawBackground();
 
+    // 3. 遊戲世界物件 (中層)
     this.drawInfo();
     this.drawRivers();
     this.drawHands(); 
     
+    // 4. 遊戲內動畫 (如：摸牌、切牌位移)
+    // 放在結算畫面之前，這樣結算畫面才能「蓋住」這些動畫
+    this._renderAnimations();
+
+    // 5. 頂層切換：結算畫面 vs 遊戲 UI
     if (this.gameState.phase === "ROUND_END") {
-        // ★ 結算畫面會畫在最上層，覆蓋掉牌河與手牌
-        this.resultRenderer.draw(this.gameState.lastResult);
+        // 進入結算模式：由 ResultRenderer 接管最上層
+        if (this.resultRenderer) {
+            this.resultRenderer.draw(this.gameState.lastResult);
+        }
     } else {
-        // ★ 只有非結算時才畫 UI 按鈕
+        // 戰鬥模式：顯示操作按鈕（吃、碰、槓、胡、切）
         this.renderUI();
     }
-    
-    // ★ 摸牌動畫通常在最上層
-    this._renderAnimations();
 }
 
     // === 偵測玩家手牌變化 ===
@@ -575,36 +582,47 @@ export class Renderer {
     /* ======================
        5. 動畫渲染
        ====================== */
-    _renderAnimations() {
-    // 結算階段不處理任何主場景動畫
+    /**
+ * 更新並繪製遊戲進行中的動畫（摸牌、切牌）
+ */
+_renderAnimations() {
+    // 如果現在是結算畫面，這裡就直接放空，讓 ResultRenderer 接管
     if (this.gameState.phase === "ROUND_END") {
-        this.animations = []; 
-        return;
+        return; 
     }
-    
+
     const now = performance.now();
-    const ctx = this.ctx;
+    const { ctx, tileWidth, tileHeight } = this;
 
+    // 只過濾並執行純粹的牌型位移動畫
     this.animations = this.animations.filter(anim => {
-        const t = Math.min((now - anim.startTime) / anim.duration, 1);
-        const ease = t * t * (3 - 2 * t);
+        const elapsed = now - anim.startTime;
+        const progress = Math.min(elapsed / anim.duration, 1);
+        
+        // 使用簡單的 easeOutQuad 緩動
+        const ease = progress * (2 - progress);
 
-        // ★ 這裡只處理遊戲進行中的 draw/discard 動畫
-        if (anim.type === "draw" || anim.type === "discard") {
-            const currentY = anim.startY + (anim.y - anim.startY) * ease;
-            const currentX = anim.startX + (anim.x - anim.startX) * ease;
+        // 計算當前座標
+        const currentX = anim.startX + (anim.x - anim.startX) * ease;
+        const currentY = anim.startY + (anim.y - anim.startY) * ease;
 
-            ctx.save();
-            const shouldFaceDown = anim.isCom;
-            this.drawTile(anim.tile, currentX, currentY, this.tileWidth, this.tileHeight, { 
-                faceDown: shouldFaceDown 
-            });
-            ctx.restore();
-        }
-        return t < 1;
+        ctx.save();
+        // 如果是電腦摸牌，通常會畫背面
+        const isFaceDown = anim.isCom && anim.type === "draw";
+        
+        this.drawTile(
+            anim.tile, 
+            currentX, 
+            currentY, 
+            tileWidth, 
+            tileHeight, 
+            { faceDown: isFaceDown }
+        );
+        ctx.restore();
+
+        return progress < 1; // 動畫未完則保留
     });
 }
-
     /* ======================
        6. UI
        ====================== */
