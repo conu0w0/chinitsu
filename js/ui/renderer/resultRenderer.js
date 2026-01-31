@@ -43,6 +43,7 @@ export class ResultRenderer {
         this.resultLevelStartTime = 0;
         this.scorePhase = 0;
         this.resultPointLocked = false;
+        this.resultLevelLocked = false;
 
         // 結算持久狀態
         this.resultState = RESULT_STATE.INIT;
@@ -175,6 +176,7 @@ export class ResultRenderer {
         this.resultScoreStartTime = 0;
         this.scorePhase = 0;
         this.resultPointLocked = false;
+        this.resultLevelLocked = false;
 
         this.resultHanfuStartTime = 0;
         this.resultLevelAnimated = false;
@@ -470,12 +472,11 @@ export class ResultRenderer {
         // 必須確保手牌起始位置 (resultHandLeftX) 已計算完成
         if (this.resultState >= RESULT_STATE.SCORE && this.resultHandLeftX !== null) {
             
-            // [GC 優化] 若無快取，則計算一次並存起來
             if (!this._scoreLayoutCache) {
                 const isYakumanOnly = this._cachedData.isYakuman && !this._cachedData.isKazoeYakuman;
                 const rowItems = [];
                 
-                // 1. 準備資料物件 (原本在 Loop 裡面的邏輯移到這裡)
+                // 1. 準備資料物件
                 // --- 飜符 ---
                 if (!isYakumanOnly) {
                     rowItems.push({
@@ -573,21 +574,38 @@ export class ResultRenderer {
             
             // ===== LEVEL =====
             const level = row.find(i => i.key === "level");
-            if (level) {
-                 // ... (原本的 Level 繪製邏輯保持不變) ...
-                 this._drawStampText({
-                    text: level.text,
-                    x: level.x,
-                    y: level.y,
-                    font: level.font,
-                    startTime: this.stateEnterTime,
-                    duration: this.TIMING.LEVEL_STAMP_DURATION,
-                    dropHeight: this.TIMING.LEVEL_STAMP_DROP
-                });
-                
+            if (level && this.resultState >= RESULT_STATE.LEVEL) {
+                if (!this.resultLevelLocked) {
+                    this._drawStampText({
+                        text: level.text,
+                        x: level.x,
+                        y: level.y,
+                        font: level.font,
+                        startTime: this.stateEnterTime,
+                        duration: this.TIMING.LEVEL_STAMP_DURATION,
+                        dropHeight: this.TIMING.LEVEL_STAMP_DROP
+                    });
+                    
+                    if (now - this.stateEnterTime >= this.TIMING.LEVEL_STAMP_DURATION) {
+                        this.resultLevelLocked = true;
+                    }
+                } else {
+                    ctx.save();
+                    ctx.font = level.font;
+                    ctx.fillStyle = "#fff";
+                    ctx.textAlign = "left";
+                    ctx.textBaseline = "alphabetic";
+                    ctx.fillText(level.text, level.x, level.y);
+                    ctx.restore();
+                }
+
                 const highlightStart = this.stateEnterTime + this.TIMING.LEVEL_HIGHLIGHT_DELAY;
                 const isMultipleYakuman = this._cachedData.yakumanCount >= 2;                 
-                if ((isYakuman || isKazoeYakuman || isMultipleYakuman) && performance.now() >= highlightStart) {
+                if (
+                    this.resultState >= RESULT_STATE.LEVEL &&
+                    (isYakuman || isKazoeYakuman || isMultipleYakuman) &&
+                    performance.now() >= highlightStart
+                ) {
                     this._drawDiagonalHighlightTextOnly({
                         text: level.text,
                         x: level.x,
@@ -905,5 +923,6 @@ export class ResultRenderer {
     _enterState(state) {
         this.resultState = state;
         this.stateEnterTime = performance.now();
+        this._scoreLayoutCache = null;
     }
 }
