@@ -171,16 +171,38 @@ export class Renderer {
     }
 
     _drawBackground() {
-        if (this.assets.table) {
-            this.ctx.drawImage(this.assets.table, 0, 0, this.canvas.width, this.canvas.height);
-        } else {
-            this.ctx.fillStyle = "#1b4d3e"; 
-            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-            this.ctx.strokeStyle = "#d4af37"; 
-            this.ctx.lineWidth = 10;
-            this.ctx.strokeRect(0, 0, this.canvas.width, this.canvas.height);
+    const ctx = this.ctx;
+    const W = this.canvas.width;
+    const H = this.canvas.height;
+
+    if (this.assets.table) {
+        ctx.drawImage(this.assets.table, 0, 0, W, H);
+    } else {
+        // --- 1. 深色桌布漸層 (模擬聚光燈) ---
+        const cx = W / 2;
+        const cy = H / 2;
+        const grad = ctx.createRadialGradient(cx, cy, 100, cx, cy, 700);
+        grad.addColorStop(0, "#1e4d3e"); // 中心：較亮的墨綠
+        grad.addColorStop(1, "#0a1a15"); // 邊緣：深沉的黑綠
+        
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+
+        // --- 2. 模擬桌布紋理 (增加噪點感) ---
+        ctx.save();
+        ctx.globalAlpha = 0.05;
+        for (let i = 0; i < 500; i++) {
+            ctx.fillStyle = (Math.random() > 0.5) ? "#ffffff" : "#000000";
+            ctx.fillRect(Math.random() * W, Math.random() * H, 1, 1);
         }
+        ctx.restore();
+
+        // --- 3. 邊緣外框 ---
+        ctx.strokeStyle = "rgba(212, 175, 55, 0.4)"; // 帶透明度的金
+        ctx.lineWidth = 15;
+        ctx.strokeRect(0, 0, W, H);
     }
+}
 
     getUIAction(x, y) {
         for (const btn of this.uiButtons) {
@@ -204,6 +226,11 @@ export class Renderer {
         const boxHeight = 120;
         const x = cx - boxWidth / 2;
         const y = cy - boxHeight / 2;
+
+        const pulse = Math.sin(Date.now() / 500) * 0.2 + 0.8; // 產生 0.6 ~ 1.0 的波動
+        ctx.strokeStyle = `rgba(255, 204, 0, ${pulse * 0.4})`; // 山牌餘量警示色
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x - 2, y - 2, boxWidth + 4, boxHeight + 4);
 
         // === 畫背景 (半透明黑底 + 細邊框) ===
         ctx.fillStyle = "rgba(0, 0, 0, 0.6)"; 
@@ -444,6 +471,12 @@ export class Renderer {
 
         ctx.save();
 
+        // --- 增加陰影效果 (讓牌立體化) ---
+        ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 2; // 向右偏一點
+        ctx.shadowOffsetY = 3; // 向下偏一點，模擬上方光源
+
         if (rotate !== 0) {
             ctx.translate(x + w / 2, y + h / 2);
             ctx.rotate((rotate * Math.PI) / 180);
@@ -466,13 +499,39 @@ export class Renderer {
             }
         }
 
-        if (highlight) {
-            ctx.strokeStyle = "#ff4444"; 
-            ctx.lineWidth = 4;
-            ctx.strokeRect(x, y, w, h);
-        }
+        ctx.shadowColor = "transparent";
 
-        ctx.restore();
+        if (highlight) {
+            ctx.save();
+            // 1. 取得跳動位移
+            const bounce = Math.sin(Date.now() / 200) * 5;
+            const pawX = x + w / 2;
+            const pawY = y - 20 + bounce; // 浮在牌的上方
+            
+            // 2. 畫肉球 (大圓 + 三個小圓)
+            ctx.fillStyle = "rgba(255, 120, 150, 0.9)"; // 軟萌肉粉色
+            ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
+            ctx.shadowBlur = 4;
+            
+            // 主肉墊
+            ctx.beginPath();
+            ctx.arc(pawX, pawY, 10, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 三顆小趾頭
+            ctx.beginPath();
+            ctx.arc(pawX - 8, pawY - 8, 4, 0, Math.PI * 2); // 左
+            ctx.arc(pawX, pawY - 11, 4, 0, Math.PI * 2);    // 中
+            ctx.arc(pawX + 8, pawY - 8, 4, 0, Math.PI * 2); // 右
+            ctx.fill();
+            
+            // 3. 牌面上原本的紅框，改成淡淡的粉色呼吸圈
+            ctx.strokeStyle = `rgba(255, 120, 150, ${0.5 + bounce/10})`;
+            ctx.lineWidth = 3;
+            this._strokeRoundedRect(ctx, x, y, w, h, 5);
+            
+            ctx.restore();
+        }
     }
 
     /* ======================
@@ -621,28 +680,68 @@ export class Renderer {
 
     drawUIButton(x, y, w, h, text, tileIcon = null) {
         const ctx = this.ctx;
+        
+        ctx.save();
+        
+        // 1. 繪製按鈕主體 - 帶有半透明感的磨砂玻璃        
         const gradient = ctx.createLinearGradient(x, y, x, y + h);
-        gradient.addColorStop(0, "#4a4a4a");
-        gradient.addColorStop(1, "#2b2b2b");
+        gradient.addColorStop(0, "rgba(74, 120, 90, 0.8)"); // 竹葉綠 (頂部)
+        gradient.addColorStop(1, "rgba(40, 70, 50, 0.9)");  // 深林綠 (底部)
+        
         ctx.fillStyle = gradient;
-        ctx.fillRect(x, y, w, h);
-
-        ctx.strokeStyle = "#a0a0a0";
+        // 使用圓角矩形
+        this._fillRoundedRect(ctx, x, y, w, h, 8);
+        
+        // 2. 增加白色內發光 (模擬玻璃邊緣質感)
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
         ctx.lineWidth = 2;
-        ctx.strokeRect(x, y, w, h);
-
+        this._strokeRoundedRect(ctx, x, y, w, h, 8);
+        
+        // 3. 繪製內容
         if (tileIcon !== null && tileIcon !== undefined) {
-            const tileW = 30; 
+            const tileW = 30;
             const tileH = 42;
             const tileX = x + (w - tileW) / 2;
             const tileY = y + (h - tileH) / 2;
+            
+            // 畫圖標前稍微加一點發光
+            ctx.shadowColor = "rgba(255, 255, 255, 0.5)";
+            ctx.shadowBlur = 10;
             this.drawTile(tileIcon, tileX, tileY, tileW, tileH);
         } else {
             ctx.fillStyle = "#ffffff";
-            ctx.font = `bold 20px ${this.fontFamily}`;
+            ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+            ctx.shadowBlur = 4;
+            ctx.font = `bold 22px ${this.fontFamily}`;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText(text, x + w / 2, y + h / 2);
         }
+        
+        ctx.restore();
+    }
+    
+    // 輔助方法：圓角矩形
+    _fillRoundedRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+        ctx.fill();
+    }
+    
+    _strokeRoundedRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+        ctx.stroke();
     }
 }
+
