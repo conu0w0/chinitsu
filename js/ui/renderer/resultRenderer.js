@@ -491,7 +491,6 @@ export class ResultRenderer {
             if (this.scorePhase === 1 || isYakumanOnly) {
                 const pointFontSize = isYakumanOnly ? 64 : 48;
                 
-                // ⭐ 只在第一次進入 SCORE 時設定動畫起點
                 if (!this.resultScoreAnimated) {
                     this.resultScoreAnimated = true;
                     this.resultScoreStartTime = performance.now();
@@ -501,7 +500,7 @@ export class ResultRenderer {
                     text: `${scoreTotal} 點`,
                     x: POINT_X,
                     y: SCORE_Y,
-                    \font: `bold ${pointFontSize}px ${this.r.fontFamily}`,
+                    font: `bold ${pointFontSize}px ${this.r.fontFamily}`,
                     startTime: this.resultScoreStartTime,
                     duration: 500,
                     dropHeight: 48
