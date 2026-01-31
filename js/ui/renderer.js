@@ -178,7 +178,7 @@ export class Renderer {
                     x: targetX,
                     y: zone.y,
                     startX: targetX,
-                    startY: zone.y - 150,
+                    startY: zone.y + 150,
                     startTime: performance.now(),
                     duration: 400
                 });
