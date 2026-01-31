@@ -527,7 +527,7 @@ export class ResultRenderer {
                         font: hanfu.font,
                         startTime: this.resultHanfuStartTime
                     });                    
-                    if (now - this.stateEnterTime > this.TIMING.PHASE0_TO_PHASE1) this.scorePhase = 1;                    
+                    if (now - this.resultHanfuStartTime > this.TIMING.PHASE0_TO_PHASE1) this.scorePhase = 1;                    
                 } else {
                     ctx.font = hanfu.font;
                     ctx.fillStyle = "#fff";
@@ -569,6 +569,7 @@ export class ResultRenderer {
             if (this.resultState === RESULT_STATE.SCORE) {
                 if (now - this.stateEnterTime > this.TIMING.SCORE_TO_LEVEL) {
                     this._enterState(RESULT_STATE.LEVEL);
+                    this.resultLevelStartTime = performance.now();
                 }
             }
             
@@ -581,7 +582,7 @@ export class ResultRenderer {
                         x: level.x,
                         y: level.y,
                         font: level.font,
-                        startTime: this.stateEnterTime,
+                        startTime: this.resultLevelStartTime,
                         duration: this.TIMING.LEVEL_STAMP_DURATION,
                         dropHeight: this.TIMING.LEVEL_STAMP_DROP
                     });
@@ -604,7 +605,7 @@ export class ResultRenderer {
                 if (
                     this.resultState >= RESULT_STATE.LEVEL &&
                     (isYakuman || isKazoeYakuman || isMultipleYakuman) &&
-                    performance.now() >= highlightStart
+                    this.resultLevelLocked && performance.now() >= highlightStart
                 ) {
                     this._drawDiagonalHighlightTextOnly({
                         text: level.text,
