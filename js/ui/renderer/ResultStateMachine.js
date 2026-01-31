@@ -17,6 +17,10 @@ export class ResultStateMachine {
     }
 
     enter(state) {
+        if (!Object.values(RESULT_STATE).includes(state)) {
+            console.warn("[ResultStateMachine] Unknown state:", state);
+            return;
+        }
         this.state = state;
         this.stateEnterTime = performance.now();
     }
