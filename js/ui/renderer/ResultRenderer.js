@@ -185,7 +185,6 @@ export class ResultRenderer {
         // --- 4. YAKU STATIC ---
         if (sm.state >= RESULT_STATE.YAKU_STATIC) {
             this._drawYakuList(sortedYakus, CX);
-            this._drawYakuList(sortedYakus, CX);
             if (sm.state === RESULT_STATE.YAKU_STATIC && (now - sm.stateEnterTime > this.TIMING.YAKU_TO_HAND)) {
                 this._enterState(RESULT_STATE.HAND);
             }
@@ -202,6 +201,12 @@ export class ResultRenderer {
         // --- 6. SCORE & LEVEL ---
         if (sm.state >= RESULT_STATE.SCORE && this.resultHandLeftX !== null) {
             this._renderScoreAndLevel(now, H * 0.68 - 45);
+
+            if (sm.state === RESULT_STATE.LEVEL && this.resultLevelLocked) {
+                if (now - sm.stateEnterTime > (this.TIMING.LEVEL_TO_HINT || 1000)) {
+                    this._enterState(RESULT_STATE.HINT);
+                }
+            }
         }
 
        // --- 7. HINT ---
@@ -224,9 +229,13 @@ export class ResultRenderer {
 
         // 根據進入的狀態，初始化該階段的動畫起點
         switch(state) {
+            case RESULT_STATE.YAKU_ANIM:
+                this.yakuAnimations = []; 
+                this.resultYakuAnimated = false; 
+                break;
             case RESULT_STATE.SCORE:
                 this.resultHanfuStartTime = now;
-                this.resultScoreStartTime = now + this.TIMING.PHASE0_TO_PHASE1; // 延後一點
+                this.resultScoreStartTime = now + this.TIMING.PHASE0_TO_PHASE1;
                 break;
             case RESULT_STATE.LEVEL:
                 this.resultLevelStartTime = now;
@@ -325,7 +334,8 @@ export class ResultRenderer {
     const totalCols = Math.ceil(sortedYakus.length / yakuItemsPerCol);
     const totalWidth = (Math.max(1, totalCols) - 1) * yakuColWidth;
     const baseX = cx - totalWidth / 2;
-    
+
+        ctx.save();    
     ctx.font = `30px ${r.fontFamily}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
@@ -370,6 +380,7 @@ export class ResultRenderer {
             );
         });
     }
+        ctx.restore();
 }
     
     /**
