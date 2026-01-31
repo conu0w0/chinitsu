@@ -80,6 +80,8 @@ export class ResultRenderer {
             "九蓮寶燈", "純正九蓮寶燈",
             "石上三年",
         ]);
+        
+        this._cachedData.yakumanCount = yakumanCount;
 
         this.resultState = RESULT_STATE.INIT;
         this.stateEnterTime = 0;
@@ -181,7 +183,10 @@ export class ResultRenderer {
             const hasYakuman = this._cachedData.sortedYakus.some(y => this.YAKUMAN_SET.has(y));
 
             let limitName = "";
-            if (hasYakuman) limitName = "役滿";
+            let yakumanCount = this._cachedData.sortedYakus.filter(y => this.YAKUMAN_SET.has(y)).length;
+            
+            if (hasYakuman && yakumanCount >= 2) limitName = `${yakumanCount}倍役滿`;
+            else if (hasYakuman && yakumanCount === 1) limitName = "役滿";
             else if (han >= 13) limitName = "累計役滿";
             else if (han >= 11) limitName = "三倍滿";
             else if (han >= 8) limitName = "倍滿";
@@ -440,7 +445,7 @@ export class ResultRenderer {
 
             
             if (this.resultState === RESULT_STATE.SCORE) {
-                if (now - this.stateEnterTime > 300) {
+                if (now - this.stateEnterTime > 800) {
                     this._enterState(RESULT_STATE.LEVEL);
                 }
             }
@@ -461,21 +466,23 @@ export class ResultRenderer {
             if (this.scoreHighlightStartTime === null) {
                 this.scoreHighlightStartTime = performance.now();
             }
+            
+            const isMultipleYakuman = this._cachedData.yakumanCount >= 2;
 
-            if (isYakuman || isKazoeYakuman) {
+            if (isYakuman || isKazoeYakuman || isMultipleYakuman) {
                 this._drawDiagonalHighlightTextOnly({
                     text: limitName,
                     x: this.resultHandLeftX + TITLE_OFFSET_X,
                     y: SCORE_Y + LEVEL_OFFSET_Y,
                     font: `bold 42px ${this.r.fontFamily}`,
                     startTime: this.scoreHighlightStartTime,
-                    angle: 45, 
+                    angle: angle: isMultipleYakuman ? -25 : -45, 
                     isSilver: isKazoeYakuman
                 });
             }
 
             if (this.resultState === RESULT_STATE.LEVEL) {
-                if (now - this.stateEnterTime > 500) {
+                if (now - this.stateEnterTime > 600) {
                     this._enterState(RESULT_STATE.HINT);
                 }
             }
