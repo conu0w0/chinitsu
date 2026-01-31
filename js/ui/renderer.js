@@ -576,10 +576,9 @@ export class Renderer {
        5. 動畫渲染
        ====================== */
     _renderAnimations() {
-    // 這裡維持原樣：結算時不要播一般的摸牌動畫
+    // 結算階段不處理任何主場景動畫
     if (this.gameState.phase === "ROUND_END") {
-        // 快速清理掉可能殘留的動畫
-        this.animations = this.animations.filter(a => a.type !== "draw");
+        this.animations = []; 
         return;
     }
     
@@ -590,10 +589,7 @@ export class Renderer {
         const t = Math.min((now - anim.startTime) / anim.duration, 1);
         const ease = t * t * (3 - 2 * t);
 
-        // --- ★ 重點：這裡不再處理 anim.type === "yaku" 了！ ---
-        // 因為那部分已經由 ResultRenderer 的 drawAgari -> _handleYakuAnimation 負責
-        
-        // 這裡只保留原本的摸牌或切牌動畫 (draw / discard)
+        // ★ 這裡只處理遊戲進行中的 draw/discard 動畫
         if (anim.type === "draw" || anim.type === "discard") {
             const currentY = anim.startY + (anim.y - anim.startY) * ease;
             const currentX = anim.startX + (anim.x - anim.startX) * ease;
@@ -605,7 +601,6 @@ export class Renderer {
             });
             ctx.restore();
         }
-
         return t < 1;
     });
 }
