@@ -10,10 +10,13 @@ export class InputHandler {
         
         // 綁定點擊事件
         this.canvas.addEventListener("click", (e) => this._onCanvasClick(e));
+        
+        // 追蹤移動事件
+        this.canvas.addEventListener("mousemove", (e) => this._onCanvasMove(e));
     }
 
     /* ======================
-       處理 Canvas 點擊 (統一入口)
+       處理 Canvas 點擊
        ====================== */
     _onCanvasClick(event) {
         const rect = this.canvas.getBoundingClientRect();
@@ -51,6 +54,46 @@ export class InputHandler {
 
         // 4. 手牌點擊判定 (切牌)
         this._handlePlayerHandClick(px, py);
+    }
+
+    /* ======================
+       偵測游標移動
+       ====================== */    
+    // 新增滑鼠移動處理
+    _onCanvasMove(event) {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        const px = (event.clientX - rect.left) * scaleX;
+        const py = (event.clientY - rect.top) * scaleY;
+        
+        // 檢查是否指著手牌
+        const player = this.state.players[0];
+        const zone = this.renderer.ZONES.playerHand;
+        const tileW = this.renderer.tileWidth;
+        const tileH = this.renderer.tileHeight;
+        const gap = this.renderer.tileGap;
+        const drawGap = this.renderer.drawGap;
+        
+        const isTsumo = (player.tepai.length % 3 === 2);
+        let hoveredIndex = -1;
+        
+        // 只有玩家能出牌的階段才計算 Hover
+        if (this._canPlayerDiscard()) {
+            for (let i = 0; i < player.tepai.length; i++) {
+                let x = zone.x + i * (tileW + gap);
+                if (isTsumo && i === player.tepai.length - 1) x += drawGap;
+                
+                // 這裡判定 y 稍微往下偏移一點，避免彈起時滑鼠滑出判定區
+                if (this._hit(px, py, x, zone.y - 20, tileW, tileH + 20)) {
+                    hoveredIndex = i;
+                    break;
+                }
+            }
+        }
+        
+        // 將選中的 Index 傳回給 Renderer
+        this.renderer.hoveredIndex = hoveredIndex;
     }
 
     /* ======================
