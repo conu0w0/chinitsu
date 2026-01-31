@@ -73,32 +73,36 @@ export class Renderer {
        1. 主繪製循環
        ====================== */
     draw() {
-    // 1. 邏輯更新 (位移、點數 Lerp)
+    // 1. 邏輯更新
     this._checkHandChanges();
     this._checkComHandChanges();
-    this._updateDisplayPoints(); // ★ 這個方法內要負責判定 Stage 1 -> 2 的切換
+    this._updateDisplayPoints(); 
 
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this._drawBackground();
 
-    // 2. 基礎物件
+    // 2. 基礎世界物件 (牌桌、手牌)
     this.drawRivers();
     this.drawHands();
     this._renderAnimations();
 
-    // 3. 結算層 (黑幕與役名)
-    if (this.gameState.phase === "ROUND_END" && this.gameState.resultClickStage === 0) {
-        if (this.resultRenderer) {
-            this.resultRenderer.draw(this.gameState.lastResult);
+    // 3. 處理結算與 UI 層級
+    if (this.gameState.phase === "ROUND_END") {
+        // --- 結算階段 ---
+        if (this.gameState.resultClickStage === 0) {
+            // 畫黑幕與役名 (此時不畫 Info，所以 Info 會被擋住/不顯示)
+            if (this.resultRenderer) {
+                this.resultRenderer.draw(this.gameState.lastResult);
+            }
+        } else {
+            // 點擊一次後 (Stage 1 或 2)，黑幕消失，顯現 Info 讓玩家看跳分
+            this.drawInfo();
         }
+    } else {
+        // --- 一般遊戲階段 ---
+        this.renderUI(); // 畫操作按鈕 (吃碰槓胡)
+        this.drawInfo(); // 正常顯示分數
     }
-
-    // 4. 最上層 UI (點數永遠在最上面，或是清空黑幕後顯現)
-    if (this.gameState.phase !== "ROUND_END") {
-        this.renderUI(); // 只有遊戲中才畫按鈕
-    }
-    
-    this.drawInfo(); // 統一在最後畫點數，保證層級最高且不會被擋住
 }
 
     // === 偵測玩家手牌變化 ===
