@@ -302,7 +302,7 @@ export class ResultRenderer {
 
         const com = this.r.gameState.players[1];
         const comInfo = tenpaiInfo.find(t => t.index === 1) ?? {};
-        const comIsTenpai = comInfo.isTenpai;
+        const comIsTenpai = !!comInfo.isTenpai;
         const comWaits = comInfo.waits;
 
         this._drawStaticHand(com, CX, H * 0.15, !comIsTenpai);
@@ -398,12 +398,12 @@ export class ResultRenderer {
                         text: yaku,
                         index: i,
                         startTime: nowT + i * this.TIMING.YAKU_INTERVAL,
-                        duration: this.TIMING.YAKU_INTERVAL
+                        duration: this.TIMING.YAKU_DURATION
                     });
                 });
 
                 const lastIndex = sortedYakus.length - 1;
-                this.resultYakuEndTime = nowT + lastIndex * this.TIMING.YAKU_INTERVAL + this.TIMING.YAKU_INTERVAL;
+                this.resultYakuEndTime = nowT + lastIndex * this.TIMING.YAKU_INTERVAL + this.TIMING.YAKU_DURATION;
             }
 
             if (sortedYakus.length === 0) {
@@ -565,7 +565,7 @@ export class ResultRenderer {
         const winner = this.r.gameState.players[idx];
         if (!winner) return null;
 
-        const ankanCount = winner.fulu.filter(f => f.type === "ankan").length;
+        const ankanCount = (winner.fulu ?? []).filter(f => f.type === "ankan").length;
         const baseLen = 13 - ankanCount * 3;
         const isHandFull = (winner.tepai.length === baseLen + 1);
 
