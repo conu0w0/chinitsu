@@ -46,6 +46,7 @@ export class ResultRenderer {
         this.scoreHighlightStartTime = null;
         this.resultLevelAnimated = false;
         this.resultLevelStartTime = 0;
+        this.scorePhase = 0;
 
         this.RESULT_LAYOUT = {
             yakuLineHeight: 45,
@@ -145,6 +146,7 @@ export class ResultRenderer {
         this.resultScoreAnimated = false;
         this.resultScoreFinished = false;
         this.resultScoreStartTime = 0;
+        this.scorePhase = 0;
         
         this.resultLevelAnimated = false;
         this.resultLevelStartTime = 0;
@@ -437,23 +439,42 @@ export class ResultRenderer {
                 }
             }
         }
-
+        
         // ===== SCORE =====
         if (this.resultState >= RESULT_STATE.SCORE && this.resultHandLeftX !== null) {
-            ctx.font = `bold 42px ${this.r.fontFamily}`;
-            ctx.fillStyle = "#fff";
-            ctx.textAlign = "left"; // 明確設定為靠左
+
+            const isYakumanOnly = this._cachedData.isYakuman && !this._cachedData.isKazoeYakuman;
             
-            const isAnyYakuman = this._cachedData.yakumanCount >= 1;
-
-            const scoreText = isAnyYakuman ? `${scoreTotal} 點` : `${han} 飜 ${fu} 符 ${scoreTotal} 點`;
-
-            ctx.fillText(scoreText, this.resultHandLeftX, SCORE_Y + LEVEL_OFFSET_Y);
-
+            // ---------- Phase 0：x 飜 y 符 ----------
+            if (!isYakumanOnly && this.scorePhase === 0) {
+                ctx.font = `bold 42px ${this.r.fontFamily}`;
+                ctx.fillStyle = "#fff";
+                ctx.textAlign = "left";
+                
+                const hanFuText = `${han} 飜 ${fu} 符`;
+                ctx.fillText(hanFuText, this.resultHandLeftX, SCORE_Y);
+                
+                if (now - this.stateEnterTime > 600) {
+                    this.scorePhase = 1;
+                    this.stateEnterTime = now;
+                }
+            }
             
-            if (this.resultState === RESULT_STATE.SCORE) {
-                if (now - this.stateEnterTime > 800) {
-                    this._enterState(RESULT_STATE.LEVEL);
+            // ---------- Phase 1：z 點 ----------
+            if (this.scorePhase === 1 || isYakumanOnly) {
+                
+                const pointFontSize = isYakumanOnly ? 64 : 48;
+                
+                ctx.font = `bold ${pointFontSize}px ${this.r.fontFamily}`;
+                ctx.fillStyle = "#fff";
+                ctx.textAlign = "left";
+                
+                ctx.fillText(`${scoreTotal} 點`, this.resultHandLeftX, SCORE_Y );
+                
+                if (this.resultState === RESULT_STATE.SCORE) {
+                    if (now - this.stateEnterTime > 600) {
+                        this._enterState(RESULT_STATE.LEVEL);
+                    }
                 }
             }
         }
