@@ -463,12 +463,13 @@ export class ResultRenderer {
             }
 
             if (isYakuman || isKazoeYakuman) {
-                this._drawDiagonalHighlight({
+                this._drawDiagonalHighlightTextOnly({
                     text: limitName,
                     x: this.resultHandLeftX + TITLE_OFFSET_X,
                     y: SCORE_Y + LEVEL_OFFSET_Y,
                     font: `bold 42px ${this.r.fontFamily}`,
                     startTime: this.scoreHighlightStartTime,
+                    angle: 45, 
                     isSilver: isKazoeYakuman
                 });
             }
@@ -651,13 +652,16 @@ export class ResultRenderer {
     /* =================================================================
        Helper 5: 斜向高光動畫 (純 Canvas 繪製) - [漸層修正]
        ================================================================= */
-    _drawDiagonalHighlight({ text, x, y, font, startTime, isSilver }) {
+    _drawDiagonalHighlightTextOnly({ text, x, y, font, startTime, angle = 45, isSilver = false }) {
         const ctx = this.ctx;
         const now = performance.now();
 
-        // 1. 量文字大小
+        // 1. 參數
         ctx.save();
         ctx.font = font;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        
         const metrics = ctx.measureText(text);
         const w = metrics.width;
         const h = 48;
@@ -665,46 +669,49 @@ export class ResultRenderer {
         // 2. 計算動畫進度
         const DURATION = isSilver ? 2200 : 1600;
         const t = ((now - startTime) % DURATION) / DURATION;
-        const sweepX = x - w + (w * 2) * t;
 
         // 3. clip
-        ctx.beginPath();
-        ctx.rect(x, y - h / 2, w, h);
-        ctx.clip();
+        const rad = angle * Math.PI / 180;
+        const dx = Math.cos(rad);
+        const dy = Math.sin(rad);
 
-        // 4. [修正] 建立漸層：只設定一次 Stops
+        const sweep = w * 2;
+        const cx = x + w / 2;
+        const cy = y;
+        
+        const ox = cx - dx * sweep + dx * sweep * 2 * t;
+        const oy = cy - dy * sweep + dy * sweep * 2 * t;
+
+        // 4. 畫漸層
         const grad = ctx.createLinearGradient(
-            sweepX, y + h,
-            sweepX + (isSilver ? 120 : 80), y - h
+            ox - dx * 80, oy - dy * 80,
+            ox + dx * 80, oy + dy * 80
         );
-
-        if (isSilver) {
-            // 銀色系
-            grad.addColorStop(0.0, "rgba(200,220,255,0)");
-            grad.addColorStop(0.45,"rgba(220,235,255,0.35)");
-            grad.addColorStop(0.5, "rgba(255,255,255,0.6)");
-            grad.addColorStop(0.55,"rgba(220,235,255,0.35)");
-            grad.addColorStop(1.0, "rgba(200,220,255,0)");
+        
+        if (isSilver) {            
+            grad.addColorStop(0, "rgba(200,220,255,0)");
+            grad.addColorStop(0.45, "rgba(220,235,255,0.4)");
+            grad.addColorStop(0.5, "rgba(255,255,255,0.7)");
+            grad.addColorStop(0.55, "rgba(220,235,255,0.4)");
+            grad.addColorStop(1, "rgba(200,220,255,0)");
         } else {
-            // 金色系
-            grad.addColorStop(0.0, "rgba(255,200,50,0)");
-            grad.addColorStop(0.45,"rgba(255,215,100,0.4)");
-            grad.addColorStop(0.5, "rgba(255,255,180,0.8)");
-            grad.addColorStop(0.55,"rgba(255,215,100,0.4)");
-            grad.addColorStop(1.0, "rgba(255,200,50,0)");
+            grad.addColorStop(0, "rgba(255,200,50,0)");
+            grad.addColorStop(0.45, "rgba(255,215,100,0.4)");
+            grad.addColorStop(0.5, "rgba(255,255,180,0.9)");
+            grad.addColorStop(0.55, "rgba(255,215,100,0.4)");
+            grad.addColorStop(1, "rgba(255,200,50,0)");
         }
-
-        const pulse = 1 + Math.sin(now / 300) * 0.02;
-        ctx.translate(x + w / 2, y);
-        ctx.scale(pulse, pulse);
-        ctx.translate(-(x + w / 2), -y);
-
-        ctx.globalCompositeOperation = "lighter";
+        
         ctx.fillStyle = grad;
-        ctx.fillRect(x - w, y - h, w * 3, h * 3);
-
+        ctx.fillRect(x - w, y - h, w * 3, h * 2);
+        
+        // 5. 只保留文字區域
+        ctx.globalCompositeOperation = "source-in";
+        ctx.fillStyle = "#fff";
+        ctx.fillText(text, x, y);
+        
         ctx.restore();
-    }
+    }       
 
     _enterState(state) {
         this.resultState = state;
