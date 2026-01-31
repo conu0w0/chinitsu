@@ -14,7 +14,6 @@ export class ResultRenderer {
         this.ctx = renderer.ctx;
         
         // --- 配置參數注入 ---
-        // 這樣以後只要改 ResultConfig.js，這裡就會自動同步！
         this.TIMING = RESULT_TIMING;
         this.RESULT_LAYOUT = RESULT_LAYOUT_CONFIG;
         this.YAKU_ORDER = YAKU_DEFS.ORDER;
@@ -25,7 +24,8 @@ export class ResultRenderer {
         this.layout       = new ResultLayout(renderer);
         this.effect       = new ResultEffect(renderer);
         this.cache        = new ResultCache();
-
+        this.yakuAnimations = [];
+        
         // --- 持久引用儲存 ---
         this._lastResultRef = null;
 
@@ -61,6 +61,7 @@ export class ResultRenderer {
         
         // 5. 其他
         this.resultYakuEndTime = 0;
+        this.yakuAnimations = [];
     }
 
     /**
@@ -172,10 +173,12 @@ export class ResultRenderer {
         // --- 3. YAKU ANIMATION ---
         if (sm.state === RESULT_STATE.YAKU_ANIM) {
             this._handleYakuAnimation(sortedYakus, H * 0.38);
+            this._drawYakuList(sortedYakus, CX);
         }
 
         // --- 4. YAKU STATIC ---
         if (sm.state >= RESULT_STATE.YAKU_STATIC) {
+            this._drawYakuList(sortedYakus, CX);
             this._drawYakuList(sortedYakus, CX);
             if (sm.state === RESULT_STATE.YAKU_STATIC && (now - sm.stateEnterTime > this.TIMING.YAKU_TO_HAND)) {
                 this._enterState(RESULT_STATE.HAND);
@@ -269,42 +272,72 @@ export class ResultRenderer {
     * 處理「役」清單的動畫觸發邏輯
     */
     _handleYakuAnimation(sortedYakus, baseY) {        
-        const { r, TIMING } = this;
-        if (this.resultYakuAnimated || !sortedYakus.length) return;
-        
-        this.resultYakuAnimated = true;
-        this.resultYakuBaseY = baseY;
-        
-        const nowT = performance.now();
-        sortedYakus.forEach((yaku, i) => {
-            r.animations.push({
-                type: "yaku",
-                text: yaku,
-                index: i,
-                startTime: nowT + i * TIMING.YAKU_INTERVAL,
-                duration: TIMING.YAKU_DURATION
-            });
+    const { TIMING } = this;
+    if (this.resultYakuAnimated || !sortedYakus.length) return;
+    
+    this.resultYakuAnimated = true;
+    this.resultYakuBaseY = baseY;
+    
+    const nowT = performance.now();
+    sortedYakus.forEach((yaku, i) => {
+        this.yakuAnimations.push({
+            text: yaku,
+            index: i,
+            startTime: nowT + i * TIMING.YAKU_INTERVAL,
+            duration: TIMING.YAKU_DURATION,
         });
+    });
 
-        const lastIndex = sortedYakus.length - 1;
-        this.resultYakuEndTime = nowT + lastIndex * TIMING.YAKU_INTERVAL + TIMING.YAKU_DURATION;
-    }
+    const lastIndex = sortedYakus.length - 1;
+    this.resultYakuEndTime = nowT + lastIndex * TIMING.YAKU_INTERVAL + TIMING.YAKU_DURATION;
+}
     
     /**
     * 繪製靜態的「役」列表 (分欄顯示)
     */
     _drawYakuList(sortedYakus, cx) {
-        const { ctx, r, RESULT_LAYOUT } = this;
-        const { yakuLineHeight, yakuItemsPerCol, yakuColWidth } = RESULT_LAYOUT;
-        
-        const totalCols = Math.ceil(sortedYakus.length / yakuItemsPerCol);
-        const totalWidth = (Math.max(1, totalCols) - 1) * yakuColWidth;
-        const baseX = cx - totalWidth / 2;
-        
-        ctx.font = `30px ${r.fontFamily}`;
+    const { ctx, r, RESULT_LAYOUT, stateMachine: sm } = this;
+    const { yakuLineHeight, yakuItemsPerCol, yakuColWidth } = RESULT_LAYOUT;
+    const now = performance.now();
+
+    const totalCols = Math.ceil(sortedYakus.length / yakuItemsPerCol);
+    const totalWidth = (Math.max(1, totalCols) - 1) * yakuColWidth;
+    const baseX = cx - totalWidth / 2;
+    
+    ctx.font = `30px ${r.fontFamily}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
+
+    if (sm.state === RESULT_STATE.YAKU_ANIM) {
+        // === 動態階段：處理飛入效果 ===
+        this.yakuAnimations.forEach(anim => {
+            if (now < anim.startTime) return; 
+
+            const t = Math.min((now - anim.startTime) / anim.duration, 1);
+            const ease = t * t * (3 - 2 * t);
+
+            const row = anim.index % yakuItemsPerCol;
+            const col = Math.floor(anim.index / yakuItemsPerCol);
+            
+            const targetX = baseX + col * yakuColWidth;
+            const targetY = this.resultYakuBaseY + row * yakuLineHeight;
+            // X 軸偏移：從右側 40px 滑動到 0px
+            const currentX = targetX + (1 - ease) * 40;
+
+            ctx.save();
+            ctx.globalAlpha = ease; // 淡入
+            ctx.fillStyle = "#ffffff"; 
+            ctx.fillText(anim.text, currentX, targetY);
+            ctx.restore();
+        });
+
+        // 檢查是否所有役種都播完了，播完就切換狀態
+        if (now > this.resultYakuEndTime) {
+            this._enterState(RESULT_STATE.YAKU_STATIC);
+        }
+    } else {
+        // === 靜態階段：直接畫出所有文字 ===
         ctx.fillStyle = "#ddd";
-        ctx.textAlign = "center";
-        
         sortedYakus.forEach((yaku, i) => {
             const row = i % yakuItemsPerCol;
             const col = Math.floor(i / yakuItemsPerCol);
@@ -315,6 +348,7 @@ export class ResultRenderer {
             );
         });
     }
+}
     
     /**
     * 取得勝者描述文字
