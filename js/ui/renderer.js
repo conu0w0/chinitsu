@@ -72,41 +72,32 @@ export class Renderer {
        1. 主繪製循環
        ====================== */
     draw() {
-    // 1. 邏輯更新 (即便結算也更新位移，讓牌不會瞬間「掉下來」)
+    // 1. 邏輯更新 (位移、點數 Lerp)
     this._checkHandChanges();
     this._checkComHandChanges();
-    this._updateDisplayPoints();
+    this._updateDisplayPoints(); // ★ 這個方法內要負責判定 Stage 1 -> 2 的切換
 
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     this._drawBackground();
 
-    // 2. 繪製世界物件 (這部分包含手牌與牌河)
-    this.drawInfo();
+    // 2. 基礎物件
     this.drawRivers();
-    this.drawHands(); // ★ 確保這裡沒有被 phase === "ROUND_END" 擋住
-
-    // 3. 繪製動畫
+    this.drawHands();
     this._renderAnimations();
 
-    // 4. 最上層覆蓋
-    if (this.gameState.phase === "ROUND_END") {
-        
-        // 只有在階段 0 (還沒點擊清空) 時，才畫結算畫面
-        if (this.gameState.resultClickStage === 0) {
-            if (this.resultRenderer) {
-                this.resultRenderer.draw(this.gameState.lastResult);
-            }
+    // 3. 結算層 (黑幕與役名)
+    if (this.gameState.phase === "ROUND_END" && this.gameState.resultClickStage === 0) {
+        if (this.resultRenderer) {
+            this.resultRenderer.draw(this.gameState.lastResult);
         }
-        
-        // 階段 1 與 2 時，resultRenderer 不會被呼叫，畫面會變得很清空
-        // 此時 drawInfo 會負責顯示「跳動中」或「結算完」的點數
-        this.drawInfo(); 
-
-    } else {
-        // 一般遊戲狀態
-        this.renderUI();
-        this.drawInfo();
     }
+
+    // 4. 最上層 UI (點數永遠在最上面，或是清空黑幕後顯現)
+    if (this.gameState.phase !== "ROUND_END") {
+        this.renderUI(); // 只有遊戲中才畫按鈕
+    }
+    
+    this.drawInfo(); // 統一在最後畫點數，保證層級最高且不會被擋住
 }
 
     // === 偵測玩家手牌變化 ===
@@ -771,14 +762,27 @@ _renderAnimations() {
     }
     
     _updateDisplayPoints() {
-        this.gameState.players.forEach((p, i) => {
-            const diff = p.points - this.displayPoints[i];
-            if (Math.abs(diff) > 0.1) {
-                // 每次靠近 10%，這樣數字增加時會有「先快後慢」的平滑感
-                this.displayPoints[i] += diff * 0.1;
-            } else {
-                this.displayPoints[i] = p.points;
-            }
-        });
+    const players = this.gameState.players;
+    let allFinished = true;
+
+    players.forEach((p, i) => {
+        if (this.visualPoints[i] === undefined) this.visualPoints[i] = p.points;
+
+        const diff = p.points - this.visualPoints[i];
+        if (Math.abs(diff) > 0.5) {
+            this.visualPoints[i] += diff * 0.1; // 啪啪啪跳動中
+            allFinished = false;
+        } else {
+            this.visualPoints[i] = p.points;
+        }
+    });
+
+    // ★ 重點：如果正在動畫階段 (1) 且數字跳完了，自動轉跳到可重開階段 (2)
+    if (this.gameState.phase === "ROUND_END" && this.gameState.resultClickStage === 1) {
+        if (allFinished) {
+            this.gameState.resultClickStage = 2;
+            console.log("嗷嗚！點數移動完了，可以點擊下一局囉！");
+        }
     }
+}
 }
