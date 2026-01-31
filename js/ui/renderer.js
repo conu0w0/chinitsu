@@ -501,16 +501,16 @@ export class Renderer {
     const img = faceDown ? this.assets.back : this.assets.tiles?.[tileVal];
     const ctx = this.ctx;
 
-    ctx.save(); // [A] 全局保存
+    ctx.save(); 
 
-    // --- 1. 處理旋轉與位移 ---
+    // --- 1. 座標轉換 (包含牌面、框框) ---
     if (rotate !== 0) {
         ctx.translate(x + w / 2, y + h / 2);
         ctx.rotate((rotate * Math.PI) / 180);
         ctx.translate(-(x + w / 2), -(y + h / 2));
     }
 
-    // --- 2. 牌體陰影與繪製 ---
+    // --- 2. 繪製牌體 ---
     ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
     ctx.shadowBlur = 4;
     ctx.shadowOffsetX = 2;
@@ -521,17 +521,12 @@ export class Renderer {
     } else {
         ctx.fillStyle = faceDown ? "#234" : "#f5f5f5";
         ctx.fillRect(x, y, w, h);
-        ctx.strokeStyle = "#333";
         ctx.strokeRect(x, y, w, h);
     }
 
-    // 清除陰影，避免影響後續裝飾
     ctx.shadowColor = "transparent";
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
 
-    // --- 3. 裝飾層 (高亮/選中) ---
+    // --- 3. 繪製框框 (在旋轉的座標系內，所以會跟著轉) ---
     if (highlight) {
         ctx.strokeStyle = "#ff4444"; 
         ctx.lineWidth = 4;
@@ -542,17 +537,33 @@ export class Renderer {
         ctx.lineWidth = 4;
         this._strokeRoundedRect(ctx, x, y, w, h, 5);
     }
-
-    ctx.restore(); // [A] 全局還原 - 確保到這裡座標軸已經回正
-
-    // --- 4. 肉球特效 (獨立於旋轉之外) ---
-    // 這樣牌轉 90 度時，肉球依然會正正地浮在牌的正上方
     if (marked) {
-        ctx.save(); 
+        // 這是牌面上的「呼吸紅框」，必須跟著牌轉
         const bounce = Math.sin(Date.now() / 200) * 5;
-        const pawX = x + w / 2;
-        const pawY = y - 20 + bounce;
+        ctx.strokeStyle = `rgba(255, 120, 150, ${0.5 + bounce / 10})`;
+        ctx.lineWidth = 3;
+        this._strokeRoundedRect(ctx, x, y, w, h, 5);
+    }
+
+    ctx.restore(); // ★ 座標系在此回正！
+
+    // --- 4. 繪製肉球 (在回正後的座標系，永遠頭朝上) ---
+    if (marked) {
+        ctx.save();
+        const bounce = Math.sin(Date.now() / 200) * 5;
         
+        // 關鍵：因為立直牌視覺寬度變成了 h，所以中心點要重新計算
+        const visualWidth = (rotate !== 0) ? h : w;
+        const visualHeight = (rotate !== 0) ? w : h;
+        
+        // 計算旋轉後的視覺中心
+        const centerX = x + w / 2;
+        const centerY = y + h / 2;
+        
+        // 肉球位置：浮在視覺上的上方
+        const pawX = centerX;
+        const pawY = centerY - (visualHeight / 2) - 15 + bounce;
+
         ctx.fillStyle = "rgba(255, 120, 150, 0.9)";
         ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
         ctx.shadowBlur = 4;
@@ -568,10 +579,6 @@ export class Renderer {
         ctx.arc(pawX, pawY - 11, 4, 0, Math.PI * 2);
         ctx.arc(pawX + 8, pawY - 8, 4, 0, Math.PI * 2);
         ctx.fill();
-        
-        ctx.strokeStyle = `rgba(255, 120, 150, ${0.5 + bounce/10})`;
-        ctx.lineWidth = 3;
-        this._strokeRoundedRect(ctx, x, y, w, h, 5);
         ctx.restore();
     }
 }
