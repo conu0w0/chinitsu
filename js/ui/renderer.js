@@ -116,8 +116,9 @@ export class Renderer {
 
             for (let i = 0; i < diff; i++) {
                 const tileIndex = this.lastHandLength + i;
-                const tileVal = player.tepai[tileIndex];
+                if (this.animations.some(a => !a.isCom && a.index === tileIndex)) continue;
                 
+                const tileVal = player.tepai[tileIndex];                
                 const zone = this.ZONES.playerHand;
                 let targetX = zone.x + tileIndex * (this.tileWidth + this.tileGap);
                 
