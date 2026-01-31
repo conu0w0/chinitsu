@@ -36,14 +36,27 @@ export class InputHandler {
 
         // 2. 結算畫面 (ROUND_END) -> 點擊下一局 (判定輪莊)
         if (this.state.phase === "ROUND_END") {
+            const res = this.renderer.resultRenderer;
             
-            // 重置 Renderer 的結算動畫狀態
-            this.renderer.resultTimelineStart = 0;
-            this.renderer.resultYakuAnimated = false;
-            this.renderer.animations = [];
+            // 文字動畫還沒到「點擊提示」出現前，不准點擊
+            if (!res.isReadyForClick) return; 
             
-            // 進入下一局
-            this.state.nextKyoku();
+            // 如果還沒開始跑數字動畫，不准點擊
+            if (!res.isPointsAnimating && !res.isPointsFinished) {
+                console.log("[Result] 啟動點數增減動畫");
+                res.startPointAnimation(); // 呼叫 ResultRenderer 開始跑數字
+                return; 
+            }
+            
+            // 數字動畫跑完了，才允許進入下一局
+            if (res.isPointsFinished) {
+                this.renderer.resultTimelineStart = 0;
+                this.renderer.resultYakuAnimated = false;
+                this.renderer.animations = [];
+                
+                // 進入下一局
+                this.state.nextKyoku();
+            }
             return;
         }
 
