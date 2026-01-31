@@ -33,9 +33,13 @@ export class Renderer {
         this.riverTileWidth = 40; 
         this.riverTileHeight = 56;
 
+        this.hoveredIndex = -1; 
+        this.handYOffsets = new Array(14).fill(0);
+
         const infoBoxW = 260;
         const infoBoxH = 120;
         const infoBoxGap = 25;
+        this.displayPoints = [this.gameState.players[0].points, this.gameState.players[1].points];
 
         const riverTotalWidth = (5 * this.riverTileWidth) + this.riverTileHeight;
 
@@ -70,6 +74,7 @@ export class Renderer {
     draw() {
         this._checkHandChanges();
         this._checkComHandChanges();
+        this._updateDisplayPoints();
 
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this._drawBackground();
@@ -249,6 +254,8 @@ export class Renderer {
         // 取得分數
         const p0Score = state.players[0].points;
         const p1Score = state.players[1].points;
+        const p0Display = Math.floor(this.displayPoints[0]);
+        const p1Display = Math.floor(this.displayPoints[1]);
         
         // 取得餘牌
         const yamaCount = state.yama.length;
@@ -260,7 +267,7 @@ export class Renderer {
         // 上行：COM 資訊
         ctx.font = `bold 20px ${this.fontFamily}`;
         ctx.fillStyle = "#ffffff";
-        ctx.fillText(`${p1Role} COM：${p1Score}`, cx, cy - 35);
+        ctx.fillText(`${p1Role} COM：${p1Display}`, cx, cy - 35);
 
         // 中行：餘牌 (黃色高亮)
         ctx.font = `bold 24px ${this.fontFamily}`;
@@ -270,7 +277,22 @@ export class Renderer {
         // 下行：玩家資訊
         ctx.font = `bold 20px ${this.fontFamily}`;
         ctx.fillStyle = "#ffffff";
-        ctx.fillText(`${p0Role} 玩家：${p0Score}`, cx, cy + 40);
+        ctx.fillText(`${p0Role} 玩家：${p0Display}`, cx, cy + 40);
+
+        // --- COM 的分數變動提示 ---
+        if (Math.abs(state.players[1].points - this.displayPoints[1]) > 1) {
+            ctx.fillStyle = "#ffcc00";
+            ctx.font = "bold 14px " + this.fontFamily;
+            ctx.fillText(state.players[1].points > this.displayPoints[1] ? "↑" : "↓", cx + 80, cy - 35);
+        }
+        
+        // --- 玩家的分數變動提示 ---
+        if (Math.abs(this.gameState.players[0].points - this.displayPoints[0]) > 1) {
+            ctx.fillStyle = "#ffcc00";
+            ctx.font = "bold 14px " + this.fontFamily;
+            ctx.fillText(this.gameState.players[0].points > this.displayPoints[0] ? "↑" : "↓", cx + 80, cy + 40);
+        }
+        
     }
 
     /* ======================
@@ -288,7 +310,7 @@ export class Renderer {
         const zone = this.ZONES.playerHand;
         const globalFaceDown = player.handFaceDown; 
         
-        // ★ FIX: 發牌階段忽略間隙
+        // 發牌階段忽略間隙
         const isDealing = (this.gameState.phase === "DEALING");
         const isDrawState = !isDealing && (player.tepai.length % 3 === 2);
 
@@ -299,11 +321,19 @@ export class Renderer {
             let x = zone.x + i * (this.tileWidth + this.tileGap);
             
             // 只有最後一張且是摸牌狀態才加空隙
-            if (isDrawState && i === player.tepai.length - 1) {
-                x += this.drawGap;
-            }
+            if (isDrawState && i === player.tepai.length - 1) x += this.drawGap;
+
+            // 如果是被指著的牌，目標高度是 -20，否則是 0
+            const targetOffset = (this.hoveredIndex === i) ? -20 : 0;
+            // 簡單的線性插值，讓牌「升起」跟「降落」有過程感
+            this.handYOffsets[i] = (this.handYOffsets[i] || 0) * 0.7 + targetOffset * 0.3;
             
-            this.drawTile(tile, x, zone.y, this.tileWidth, this.tileHeight, { faceDown: globalFaceDown });
+            const drawY = zone.y + this.handYOffsets[i];
+            
+            this.drawTile(tile, x, zone.y, this.tileWidth, this.tileHeight, { 
+                faceDown: globalFaceDown,
+                selected: (this.hoveredIndex === i)
+            });
         });
     }
 
@@ -454,7 +484,7 @@ export class Renderer {
                             this.gameState.lastDiscard.fromPlayer === (isCom ? 1 : 0) &&
                             i === riverData.length - 1);
 
-            this.drawTile(item.tile, drawX, drawY, w, h, { rotate, highlight: isLast });
+            this.drawTile(item.tile, drawX, drawY, w, h, { rotate, marked: isLast });
 
             // === 5. 為了「下一張牌」更新累積偏移量 ===
             currentRowX += tileSpace;
@@ -465,7 +495,7 @@ export class Renderer {
        4. 單張牌繪製
        ====================== */
     drawTile(tileVal, x, y, w, h, options = {}) {
-        const { faceDown = false, highlight = false, rotate = 0 } = options;
+        const { faceDown = false, highlight = false, selected = false, marked = false, rotate = 0 } = options;
         const img = faceDown ? this.assets.back : this.assets.tiles?.[tileVal];
         const ctx = this.ctx;
 
@@ -502,6 +532,21 @@ export class Renderer {
         ctx.shadowColor = "transparent";
 
         if (highlight) {
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = "#ff4444"; 
+            ctx.lineWidth = 4;
+            this._strokeRoundedRect(ctx, x, y, w, h, 5);
+        }
+
+        if (selected) {
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "#ffffff";
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+            ctx.lineWidth = 4;
+            this._strokeRoundedRect(ctx, x, y, w, h, 5);
+        }
+
+        if (marked) {
             ctx.save();
             // 1. 取得跳動位移
             const bounce = Math.sin(Date.now() / 200) * 5;
@@ -743,5 +788,16 @@ export class Renderer {
         ctx.closePath();
         ctx.stroke();
     }
+    
+    _updateDisplayPoints() {
+        this.gameState.players.forEach((p, i) => {
+            const diff = p.points - this.displayPoints[i];
+            if (Math.abs(diff) > 0.1) {
+                // 每次靠近 10%，這樣數字增加時會有「先快後慢」的平滑感
+                this.displayPoints[i] += diff * 0.1;
+            } else {
+                this.displayPoints[i] = p.points;
+            }
+        });
+    }
 }
-
