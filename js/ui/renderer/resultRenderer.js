@@ -664,7 +664,11 @@ export class ResultRenderer {
         
         const metrics = ctx.measureText(text);
         const w = metrics.width;
-        const h = 48;
+        const h = 52;
+
+        const bandWidth = Math.max(40, w * 0.35);
+        const diag = Math.sqrt(w * w + h * h);
+        const sweep = diag * 1.2;
 
         // 2. 計算動畫進度
         const DURATION = isSilver ? 2200 : 1600;
@@ -675,7 +679,6 @@ export class ResultRenderer {
         const dx = Math.cos(rad);
         const dy = Math.sin(rad);
 
-        const sweep = w * 2;
         const cx = x + w / 2;
         const cy = y;
         
@@ -684,8 +687,8 @@ export class ResultRenderer {
 
         // 4. 畫漸層
         const grad = ctx.createLinearGradient(
-            ox - dx * 80, oy - dy * 80,
-            ox + dx * 80, oy + dy * 80
+            ox - dx * bandWidth, oy - dy * bandWidth,
+            ox + dx * bandWidth, oy + dy * bandWidth
         );
         
         if (isSilver) {            
