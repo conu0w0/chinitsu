@@ -315,7 +315,8 @@ export class ResultRenderer {
         const HAND_Y = H * 0.68;
         const SCORE_Y = HAND_Y - 60;
         const TITLE_OFFSET_X = 520;
-        const LEVEL_OFFSET_Y = 6;
+        const LEVEL_FONT_SIZE = 52;
+        const LEVEL_OFFSET_Y = LEVEL_FONT_SIZE * 0.15;
 
         // [效能優化] 使用快取的資料
         const { sortedYakus, limitName, isYakuman, isKazoeYakuman, limitColor } = this._cachedData;
@@ -462,7 +463,7 @@ export class ResultRenderer {
             const x = this.resultHandLeftX + TITLE_OFFSET_X;
             const y = SCORE_Y + LEVEL_OFFSET_Y;
             
-            ctx.font = `bold 42px ${this.r.fontFamily}`;
+            ctx.font = `bold ${LEVEL_FONT_SIZE}px ${this.r.fontFamily}`;
             ctx.textAlign = "left";
             
             // 1) 先畫底字
@@ -476,8 +477,9 @@ export class ResultRenderer {
             if (isYakuman || isKazoeYakuman || isMultipleYakuman) {
                 this._drawDiagonalHighlightTextOnly({
                     text: limitName,
-                    x, y,
-                    font: `bold 42px ${this.r.fontFamily}`,
+                    x,
+                    y,
+                    font: `bold ${LEVEL_FONT_SIZE}px ${this.r.fontFamily}`,
                     startTime: this.scoreHighlightStartTime,
                     angle: isMultipleYakuman ? 25 : 45,
                     isSilver: isKazoeYakuman
@@ -671,8 +673,10 @@ export class ResultRenderer {
         ctx.textBaseline = "middle";
         
         const metrics = ctx.measureText(text);
+        const fontSize = parseInt(font, 10);
+
         const w = metrics.width;
-        const h = 52;
+        const h = fontSize * 1.25;
 
         const bandWidth = Math.max(40, w * 0.35);
         const diag = Math.sqrt(w * w + h * h);
