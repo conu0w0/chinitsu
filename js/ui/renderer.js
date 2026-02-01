@@ -79,7 +79,7 @@ export class Renderer {
             // COM 區域
             comHand:     { x: W * 0.80, y: H * 0.15 },
             comRiver:    { x: CX - (riverW / 2), y: CY - (infoBoxH / 2) - infoGap - (0.8 * 56), cols: 6 },
-            comMeld:     { x: W * 0.15, y: H * 0.15 + (76 - 56) }
+            comMeld:     { x: W * 0.12, y: H * 0.15 + (76 - 56) }
         };
     }
 
