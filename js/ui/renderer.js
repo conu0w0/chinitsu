@@ -3,7 +3,7 @@
  * 負責將 GameState 視覺化繪製到 Canvas 上
  * 包含：背景、手牌管理、動畫系統、UI 交互繪製
  */
-import { ResultRenderer } from "./renderer/resultRenderer.js";
+import { ResultRenderer } from "./renderer/ResultRenderer.js";
 
 export class Renderer {
     constructor(canvas, gameState, assets = {}) {
