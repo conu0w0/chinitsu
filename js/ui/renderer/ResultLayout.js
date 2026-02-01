@@ -77,6 +77,7 @@ export class ResultLayout {
     drawResultHand(result, centerX, startY, options = {}) {
         const { r, ctx } = this;
         const isChombo = (typeof options === 'boolean') ? options : (options.isChombo || false);
+        const isHideLabel = (typeof options === 'object' && options.isHideLabel === true);
         
         const tileCfg = r.config.tile;
         const tileW = tileCfg.w;
@@ -132,7 +133,8 @@ export class ResultLayout {
         
         r.drawTile(winTile, finalWinX, startY, tileW, tileH);
         
-        if (!options.isHideLabel) {
+        if (!isHideLabel) {
+            ctx.save();
             ctx.lineWidth = 4;
             ctx.strokeStyle = highlightColor;
             ctx.strokeRect(finalWinX, startY, tileW, tileH);
@@ -142,6 +144,7 @@ export class ResultLayout {
             ctx.textAlign = "center";
             ctx.textBaseline = "top";
             ctx.fillText(isChombo ? "錯和" : "和了", finalWinX + tileW / 2, startY + tileH + 10);
+            ctx.restore();
         }
         
         return handLeftX;
