@@ -169,6 +169,8 @@ export class ResultRenderer {
         const now = performance.now();
         const [W, H, CX] = [r.canvas.width, r.canvas.height, r.canvas.width / 2];
         const { sortedYakus, limitName, isYakuman, isKazoeYakuman } = cache.data;
+        
+        this.resultHandLeftX = layout.drawResultHand(result, CX, H * 0.68, { isChombo: false });
 
         // --- 0. INIT ---
         if (sm.state === RESULT_STATE.INIT) return this._enterState(RESULT_STATE.TITLE);
@@ -208,9 +210,7 @@ export class ResultRenderer {
         }
 
         // --- 5. HAND ---
-        if (sm.state >= RESULT_STATE.HAND) {
-            this.resultHandLeftX = layout.drawResultHand(result, CX, H * 0.68);
-            
+        if (sm.state >= RESULT_STATE.HAND) {            
             if (sm.state === RESULT_STATE.HAND && (now - sm.stateEnterTime > this.TIMING.HAND_TO_SCORE)) {
                 this._enterState(RESULT_STATE.SCORE);
             }
