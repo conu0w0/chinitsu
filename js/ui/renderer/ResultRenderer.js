@@ -121,7 +121,7 @@ export class ResultRenderer {
         const roleText = isParent ? "[親]" : "[子]";
         const textLabel = `${roleText} ${who} 罰符`;
 
-        this._drawPenaltyInfo(textLabel, `${result.score.total} 點`, CX, H * 0.48);
+        this._drawPenaltyInfo(textLabel, ` ${result.score.total} 點`, CX, H * 0.48);
 
         // 手牌與聽牌
         layout.drawWaitList(
