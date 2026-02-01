@@ -966,6 +966,35 @@ export class GameState {
     _getAnkanCount(player) {
         return player.fulu.filter(f => f.type === "ankan").length;
     }
+   
+    applyResultPoints() {
+       const result = this.lastResult;
+       if (!result) return;
+       
+       const points = result.score ? result.score.total : 0;
+       if (!points || Number.isNaN(points)) return;
+       
+       // --- 情況 A: 和牌 ---
+       if (result.winnerIndex !== undefined && result.winnerIndex !== null) {
+          const winnerIdx = result.winnerIndex;
+          const loserIdx = (winnerIdx === 0) ? 1 : 0;
+          
+          this.players[winnerIdx].points += points;
+          this.players[loserIdx].points -= points;
+       }
+       // --- 情況 B: 錯和 ---
+       else if (result.offenderIndex !== undefined && result.offenderIndex !== null) {
+          const offenderIdx = result.offenderIndex;
+          const otherIdx = (offenderIdx === 0) ? 1 : 0;
+          
+          this.players[offenderIdx].points -= points;
+          this.players[otherIdx].points += points;
+       }
+       
+       console.log(
+          `[分數更新] 玩家: ${this.players[0].points}, COM: ${this.players[1].points}`
+       );
+    }   
 
     resolveHand(playerIndex, ctx) {   
         const player = this.players[playerIndex];
@@ -1084,40 +1113,6 @@ export class GameState {
           isTenpai: waits.length > 0,
           waits
        };
-    }
-
-   applyResultPoints() {
-        const result = this.lastResult;
-        if (!result) return;
-
-        // 如果 Scorer 已經有算好 deltas (變動量)，優先使用
-        if (result.deltas && result.deltas.length === 2) {
-            this.players[0].score += result.deltas[0];
-            this.players[1].score += result.deltas[1];
-            return;
-        }
-
-        const points = result.score ? result.score.total : 0;
-        if (points === 0) return; // 沒分就不動
-
-        // --- 情況 A: 和牌 (Agari) ---
-        if (result.winnerIndex !== undefined && result.winnerIndex !== null) {
-            const winnerIdx = result.winnerIndex;
-            const loserIdx = (winnerIdx === 0) ? 1 : 0; // 對手就是輸家
-
-            this.players[winnerIdx].score += points;
-            this.players[loserIdx].score -= points;
-        }
-        // --- 情況 B: 錯和 (Chombo) ---
-        else if (result.offenderIndex !== undefined && result.offenderIndex !== null) {
-            const offenderIdx = result.offenderIndex;
-            const otherIdx = (offenderIdx === 0) ? 1 : 0;
-
-            this.players[offenderIdx].score -= points; // 違規者扣分
-            this.players[otherIdx].score += points;    // 對方加分
-        }
-        
-        console.log(`[分數更新] 玩家: ${this.players[0].score}, COM: ${this.players[1].score}`);
     }
 
     _shuffle(array) {
