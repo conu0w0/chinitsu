@@ -88,14 +88,17 @@ export class ResultLayout {
         const player = r.gameState.players[idx];
         if (!player) return null;
         
-        let standingTiles = [...player.tepai];
+        // --- 核心修正：確保手牌與和了牌都是純數字，不帶任何 marked 屬性 ---
+        const getPureId = (t) => (t && typeof t === 'object') ? t.tile : t;
+
+        let standingTiles = player.tepai.map(getPureId); 
         let winTile = -1;
         
         // 判斷和了牌
         if (standingTiles.length % 3 === 2) {
             winTile = standingTiles.pop();
         } else if (r.gameState.lastDiscard) {
-            winTile = r.gameState.lastDiscard.tile;
+            winTile = getPureId(r.gameState.lastDiscard.tile);
         }
         
         const melds = player.fulu || [];
@@ -129,9 +132,10 @@ export class ResultLayout {
         const finalWinX = currentX; 
         const highlightColor = isChombo ? "#ff4444" : "#ffcc00";
         
-        r.drawTile(winTile, finalWinX, startY, tileW, tileH);
+        // 這裡再次確保傳入的是純 ID
+        r.drawTile(getPureId(winTile), finalWinX, startY, tileW, tileH);
         
-        // --- 結算專用的文字標籤 (這不是肉球，是結算 UI) ---
+        // --- 結算專用的文字標籤 (固定顯示) ---
         ctx.save();
         ctx.lineWidth = 4;
         ctx.strokeStyle = highlightColor;
