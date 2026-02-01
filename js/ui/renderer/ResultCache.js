@@ -39,7 +39,7 @@ export class ResultCache {
 
         // --- 役種排序 ---
         if (result.score.yakus?.length) {
-            this.data.sortedYakus = [...result.score.yakus].sort((a, b) => {
+            data.sortedYakus = [...result.score.yakus].sort((a, b) => {
                 let ia = YAKU_ORDER.indexOf(a);
                 let ib = YAKU_ORDER.indexOf(b);
                 if (ia === -1) ia = 999;
@@ -57,7 +57,7 @@ export class ResultCache {
         const yakumanCount =
             result.score?.yakumanCount ??
             result.best?.yakumanCount ??
-            this.data.sortedYakus.filter(y => YAKUMAN_SET.has(y)).length;
+            data.sortedYakus.filter(y => YAKUMAN_SET.has(y)).length;
 
         const isYakuman = yakumanCount >= 1;
         const isKazoeYakuman = (!isYakuman && han >= 13);
@@ -73,13 +73,14 @@ export class ResultCache {
         else if (!isParent && scoreTotal >= 8000) limitName = "滿貫";
         else if (isParent && scoreTotal >= 12000) limitName = "滿貫";
 
-        this.data.yakumanCount = yakumanCount;
-        this.data.isYakuman = isYakuman;
-        this.data.isKazoeYakuman = isKazoeYakuman;
-        this.data.limitName = limitName;
+        data.yakumanCount = yakumanCount;
+        data.isYakuman = isYakuman;
+        data.isKazoeYakuman = isKazoeYakuman;
+        data.limitName = limitName;
 
         // --- 計算顏色 ---
-        this.data.limitColor = this._getLimitColor({ han, isYakuman, isKazoeYakuman });
+        data.limitColor = this._getLimitColor({ han, isYakuman, isKazoeYakuman });
+        
         this.data = data;
     }
 
