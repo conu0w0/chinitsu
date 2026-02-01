@@ -1086,52 +1086,38 @@ export class GameState {
        };
     }
 
-   // 在 GameState.js 的 class GameState 裡面加入這個方法
-
-    /**
-     * 結算畫面結束後，將分數變動應用到玩家身上
-     */
-    applyResultPoints() {
+   applyResultPoints() {
         const result = this.lastResult;
         if (!result) return;
 
-        // 1. 如果 result 裡面已經計算好 deltas (分數變動陣列 [-1000, 1000...])
-        if (result.deltas) {
-            this.players.forEach((player, index) => {
-                player.score += result.deltas[index];
-            });
-        } 
-        // 2. 如果沒有 deltas，嘗試用 winnerIndex 和 total 手動計算 (簡單版 fallback)
-        else if (result.score && typeof result.score.total === 'number') {
-            const points = result.score.total;
-            
-            // 處理和牌 (Agari)
-            if (result.winnerIndex !== undefined) {
-                // 贏家加分
-                this.players[result.winnerIndex].score += points;
-                
-                // 輸家扣分 (如果是自摸，通常需要在 Scorer 裡算好 deltas，這邊假設是簡單榮和或 1v1)
-                // 注意：如果有 loserIndex (放槍者)，就扣他的分
-                if (result.loserIndex !== undefined && result.loserIndex !== -1) {
-                    this.players[result.loserIndex].score -= points;
-                } else {
-                    // 如果是自摸，其他玩家均分扣分 (或是 1v1 對家扣分)
-                    // 這裡建議你的 Scorer 最好都要回傳 deltas，不然這邊邏輯會很複雜
-                    // 暫時假設是 1v1 對戰：
-                    const loserIdx = result.winnerIndex === 0 ? 1 : 0;
-                    this.players[loserIdx].score -= points;
-                }
-            }
-            // 處理錯和 (Chombo)
-            else if (result.offenderIndex !== undefined) {
-                this.players[result.offenderIndex].score -= points;
-                // 1v1 對家加分
-                const otherIdx = result.offenderIndex === 0 ? 1 : 0;
-                this.players[otherIdx].score += points;
-            }
+        // 如果 Scorer 已經有算好 deltas (變動量)，優先使用
+        if (result.deltas && result.deltas.length === 2) {
+            this.players[0].score += result.deltas[0];
+            this.players[1].score += result.deltas[1];
+            return;
         }
 
-        console.log("分數已更新:", this.players.map(p => p.score));
+        const points = result.score ? result.score.total : 0;
+        if (points === 0) return; // 沒分就不動
+
+        // --- 情況 A: 和牌 (Agari) ---
+        if (result.winnerIndex !== undefined && result.winnerIndex !== null) {
+            const winnerIdx = result.winnerIndex;
+            const loserIdx = (winnerIdx === 0) ? 1 : 0; // 對手就是輸家
+
+            this.players[winnerIdx].score += points;
+            this.players[loserIdx].score -= points;
+        }
+        // --- 情況 B: 錯和 (Chombo) ---
+        else if (result.offenderIndex !== undefined && result.offenderIndex !== null) {
+            const offenderIdx = result.offenderIndex;
+            const otherIdx = (offenderIdx === 0) ? 1 : 0;
+
+            this.players[offenderIdx].score -= points; // 違規者扣分
+            this.players[otherIdx].score += points;    // 對方加分
+        }
+        
+        console.log(`[分數更新] 玩家: ${this.players[0].score}, COM: ${this.players[1].score}`);
     }
 
     _shuffle(array) {
