@@ -39,7 +39,7 @@ export class ResultLayout {
         ctx.strokeRect(boxX, boxY, boxWidth, boxHeight);
         ctx.restore();
 
-        ctx.font = `bold 22px ${this.r.fontFamily}`;
+        ctx.font = `bold 22px ${this.r.config.fontFamily}`;
         ctx.fillStyle = "#dddddd";
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
