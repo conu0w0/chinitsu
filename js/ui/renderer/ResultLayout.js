@@ -72,7 +72,7 @@ export class ResultLayout {
     // 2. 座標安全檢查 (使用 Renderer 的 config)
     const safeStartY = (Number.isFinite(startY)) ? startY : r.config.height * 0.7;
     
-    // 3. 命名一致性修正 (關鍵汪！)
+    // 3. 命名一致性修正
     const tileCfg = r.config.tile;
     const tileW = tileCfg.w;
     const tileH = tileCfg.h;
@@ -84,7 +84,7 @@ export class ResultLayout {
     const player = r.gameState.players[idx];
     if (!player) return null;
 
-    // 5. 計算手牌與和了牌邏輯 (維持你原本精密的計算)
+    // 5. 計算手牌與和了牌邏輯
     let standingTiles = [...player.tepai];
     let winTile = -1;
     
