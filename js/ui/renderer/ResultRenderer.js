@@ -436,125 +436,104 @@ export class ResultRenderer {
     /**
      * 繪製分數與滿貫稱號 (含蓋章與高光動畫)
      */
+    /**
+     * 繪製分數與滿貫稱號 (含蓋章與高光動畫)
+     */
     _renderScoreAndLevel(now, scoreY) {
         const { ctx, r, layout, effect, cache, TIMING } = this;
         const { han, fu, scoreTotal, limitName, isYakuman, isKazoeYakuman, yakumanCount, limitColor } = cache.data;
 
         // 1. 建立或讀取排版快取
         if (!this._scoreLayoutCache && this.resultHandLeftX !== null) {
-            const isYakumanOnly = isYakuman && !isKazoeYakuman;
+            // 三格 vs 兩格 邏輯判斷：
+            // 只有「純役滿」且「不是累計役滿」時，才採用兩格排版 (隱藏飜符)
+            const isPureYakuman = isYakuman && !isKazoeYakuman;
             const rowItems = [];
 
-            // 飜符 (役滿則隱藏)
-            if (!isYakumanOnly) {
+            // [ x 飜 y 符 ] - 兩格模式下隱藏
+            if (!isPureYakuman) {
                 rowItems.push({
                     key: "hanfu",
                     text: `${han} 飜 ${fu} 符`,
                     font: `bold 42px ${this.r.config.fontFamily}`,
-                    color: "#ffffff" // 飜符維持白色
+                    color: "#ffffff" // 飜符固定白色
                 });
             }
 
-            // 點數
+            // [ z 點 ]
             rowItems.push({
                 key: "point",
                 text: `${scoreTotal} 點`,
-                font: `bold ${isYakumanOnly ? 64 : 48}px ${this.r.config.fontFamily}`,
-                color: (isYakuman || han >= 13) ? limitColor : "#ffffff" // 役滿點數也套色
+                // 兩格模式下字體放大一點
+                font: `bold ${isPureYakuman ? 64 : 48}px ${this.r.config.fontFamily}`,
+                // 點數套色邏輯：役滿或累計役滿 (han >= 13) 則套用 limitColor
+                color: (isYakuman || han >= 13) ? limitColor : "#ffffff"
             });
 
-            // 滿貫稱號 (如：滿貫、跳滿、役滿)
+            // [ LEVEL ]
             if (limitName) {
                 rowItems.push({
                     key: "level",
                     text: limitName,
                     font: `bold 52px ${this.r.config.fontFamily}`,
-                    color: limitColor, // 稱號使用 Cache 算的顏色
+                    color: limitColor, // 稱號永遠套色
                     reserved: true 
                 });
             }
 
-            this._scoreLayoutCache = layout.layoutScoreRow(this.resultHandLeftX, scoreY, rowItems);
-            if (isYakumanOnly) this.scorePhase = 1;
+            // 呼叫 layout 計算座標 (gap 可以設為 40 讓間距大一點更美觀)
+            this._scoreLayoutCache = layout.layoutScoreRow(this.resultHandLeftX, scoreY, rowItems, 40);
+            
+            // 如果是兩格模式，直接跳過 Phase 0 (飜符淡入)
+            if (isPureYakuman) this.scorePhase = 1;
         }
-        if (!this._scoreLayoutCache) return;
 
+        // --- 以下繪製邏輯 (Phase 0, 1, Level) 與之前相同，確保傳入正確的 color 參數 ---
         const row = this._scoreLayoutCache;
+        if (!row) return;
 
-        // 2. 飜符動畫 (Phase 0)
+        // 2. 飜符 (Phase 0)
         const hanfu = row.find(i => i.key === "hanfu");
         if (hanfu) {
             if (this.scorePhase === 0) {
-                effect.fadeInText({
-                    text: hanfu.text,
-                    x: hanfu.x,
-                    y: hanfu.y,
-                    font: hanfu.font,
-                    color: hanfu.color,
-                    startTime: this.resultHanfuStartTime
-                });
+                effect.fadeInText({ ...hanfu, startTime: this.resultHanfuStartTime });
                 if (now - this.resultHanfuStartTime > TIMING.PHASE0_TO_PHASE1) this.scorePhase = 1;
             } else {
                 this._drawStaticText(hanfu.text, hanfu.x, hanfu.y, hanfu.font, hanfu.color);
             }
         }
 
-        // 3. 點數蓋章動畫 (Phase 1)
+        // 3. 點數 (Phase 1)
         const point = row.find(i => i.key === "point");
         if (point && this.scorePhase >= 1) {
             if (!this.resultPointLocked) {
-                effect.stampText({
-                    text: point.text,
-                    x: point.x,
-                    y: point.y,
-                    font: point.font,
-                    color: point.color,
-                    startTime: this.resultScoreStartTime,
-                    dropHeight: 48
-                });
+                effect.stampText({ ...point, startTime: this.resultScoreStartTime });
                 if (now - this.resultScoreStartTime >= 500) {
                     this.resultPointLocked = true;
-                    if (this.stateMachine.state === RESULT_STATE.SCORE) {
-                        this._enterState(RESULT_STATE.LEVEL);
-                    }
+                    this._enterState(RESULT_STATE.LEVEL);
                 }
             } else {
                 this._drawStaticText(point.text, point.x, point.y, point.font, point.color);
             }
         }
 
-        // 4. 稱號蓋章與高光 (Level Stage)
+        // 4. 稱號 (Level)
         const level = row.find(i => i.key === "level");
         if (level && this.stateMachine.state >= RESULT_STATE.LEVEL) {
             if (!this.resultLevelLocked) {
-                effect.stampText({
-                    text: level.text,
-                    x: level.x,
-                    y: level.y,
-                    font: level.font,
-                    color: level.color, // 這裡帶入 limitColor
-                    startTime: this.resultLevelStartTime,
-                    duration: TIMING.LEVEL_STAMP_DURATION,
-                    dropHeight: TIMING.LEVEL_STAMP_DROP
-                });
+                effect.stampText({ ...level, startTime: this.resultLevelStartTime, duration: TIMING.LEVEL_STAMP_DURATION });
                 if (now - this.resultLevelStartTime >= TIMING.LEVEL_STAMP_DURATION) this.resultLevelLocked = true;
             } else {
-                // 1. 先畫出靜態底色文字 (帶有 shadowBlur 10 的發光感)
                 this._drawStaticText(level.text, level.x, level.y, level.font, level.color);
 
-                // 2. 只有役滿才跑高光
+                // 役滿高光
                 const highlightStart = this.resultLevelStartTime + TIMING.LEVEL_HIGHLIGHT_DELAY;
-                const isMultipleYakuman = yakumanCount >= 2;
-                
                 if ((isYakuman || isKazoeYakuman) && now >= highlightStart) {
                     effect.diagonalHighlight({
-                        text: level.text,
-                        x: level.x,
-                        y: level.y,
-                        font: level.font,
+                        ...level,
                         startTime: highlightStart,
-                        angle: isMultipleYakuman ? 25 : 45, // 多倍役滿角度更平，看起來更華麗
-                        isSilver: isKazoeYakuman            // 累計役滿用銀色高光
+                        angle: yakumanCount >= 2 ? 25 : 45,
+                        isSilver: isKazoeYakuman
                     });
                 }
             }
