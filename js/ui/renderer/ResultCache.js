@@ -63,7 +63,9 @@ export class ResultCache {
         const isKazoeYakuman = (!isYakuman && han >= 13);
 
         let limitName = "";
-        if (yakumanCount >= 2) limitName = `${yakumanCount}倍役滿`;
+        if      (yakumanCount === 4) limitName = "四倍役滿";
+        else if (yakumanCount === 3) limitName = "三倍役滿";
+        else if (yakumanCount === 2) limitName = "兩倍役滿";
         else if (yakumanCount === 1) limitName = "役滿";
         else if (han >= 13) limitName = "累計役滿";
         else if (han >= 11) limitName = "三倍滿";
