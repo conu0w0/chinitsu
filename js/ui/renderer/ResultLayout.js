@@ -16,11 +16,23 @@ export class ResultLayout {
         });
     }
 
-    drawWaitList(waitTiles, centerX, startY, labelText) {
+    drawWaitList(waitTiles, centerX, startY, isFuriten = false) {
         const ctx = this.ctx;
         const tileW = 36;
         const tileH = 50;
         const gap = 10;
+        
+        let labelText = "聽牌";
+        let labelColor = "#dddddd"; // 預設白灰色
+
+        if (!waitTiles || waitTiles.length === 0) {
+            labelText = "未聽牌"; // 當沒有聽牌列表時，顯示未聽牌
+            labelColor = "#aaaaaa";
+        } else if (isFuriten) {
+            labelText = "振聽";   // 振聽時顯示紅色
+            labelColor = "#ff6666";
+        }
+        
         const tilesCount = waitTiles?.length || 0;
         const tilesWidth = tilesCount > 0 ? tilesCount * (tileW + gap) - gap : 0;
         const paddingX = 20;
@@ -40,7 +52,7 @@ export class ResultLayout {
         ctx.restore();
 
         ctx.font = `bold 22px ${this.r.config.fontFamily}`;
-        ctx.fillStyle = "#dddddd";
+        ctx.fillStyle = labelColor;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
         ctx.fillText(labelText, centerX, boxY + paddingY);
