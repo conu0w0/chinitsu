@@ -397,15 +397,26 @@ export class ResultRenderer {
             if (now > this.resultYakuEndTime) this._enterState(RESULT_STATE.YAKU_STATIC);
         } else {
             // === 靜態階段：直接畫出所有文字 ===
-            ctx.fillStyle = "#ddd";
             sortedYakus.forEach((yaku, i) => {
                 const row = i % yakuItemsPerCol;
                 const col = Math.floor(i / yakuItemsPerCol);
-                ctx.fillText(
-                    yaku,
-                    baseX + col * yakuColWidth,
-                    this.resultYakuBaseY + row * yakuLineHeight
-                );
+                const targetX = baseX + col * yakuColWidth;
+                const targetY = this.resultYakuBaseY + row * yakuLineHeight;
+
+                ctx.save();
+                // 檢查是否為役滿役種
+                const isYakuman = this.YAKUMAN_SET.has(yaku);
+                
+                if (isYakuman) {
+                    ctx.fillStyle = "#ffcc00"; // 役滿保持金黃色
+                    ctx.shadowColor = "rgba(255, 200, 0, 0.5)";
+                    ctx.shadowBlur = 8;
+                } else {
+                    ctx.fillStyle = "#ffffff"; // 普通役保持純白色
+                }
+
+                ctx.fillText(yaku, targetX, targetY);
+                ctx.restore();
             });
         }
         ctx.restore();
