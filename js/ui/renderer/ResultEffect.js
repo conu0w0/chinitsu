@@ -23,34 +23,55 @@ export class ResultEffect {
     /**
      * 蓋章動畫文字
      */
-    stampText({ text, x, y, font, startTime, duration = 500, dropHeight = 40 }) {
+    /**
+     * 蓋章動畫文字 - 改良為 Z 軸垂直掉落感
+     */
+    stampText({ text, x, y, font, color = "#fff", startTime, duration = 500 }) {
         const ctx = this.ctx;
         const now = performance.now();
         const rawT = Math.min(1, (now - startTime) / duration);
+        
+        // 使用自定義的強烈 easeOutBack
         const p = rawT - 1;
-
-        // easeOutBack（像蓋章的動畫）
-        const s = 1.70158;
+        const s = 1.2; // 回彈係數，越大落地瞬間晃動感越強
         const t = p * p * ((s + 1) * p + s) + 1;
-
-        const ty = y - dropHeight * (1 - t);
-        const scale = 1.15 - 0.15 * t;
 
         ctx.save();
         ctx.font = font;
         ctx.textAlign = "left";
         ctx.textBaseline = "alphabetic";
-        ctx.globalAlpha = t;
+        
+        // 測量文字寬度以計算中心點
+        const metrics = ctx.measureText(text);
+        const centerX = x + metrics.width / 2;
+        const centerY = y - 20; // 粗略估計文字中心高度 (y 是基準線)
 
-        ctx.translate(x, ty);
+        // 計算縮放：從 3.0 倍掉落到 1.0 倍
+        // 讓縮放跟隨 t 動畫，達成落地回彈感
+        const scale = 3.0 - 2.0 * t; 
+        
+        // 透明度：快速淡入
+        ctx.globalAlpha = Math.min(1, rawT * 2);
+
+        // --- 核心改動：中心縮放 ---
+        ctx.translate(centerX, centerY);
         ctx.scale(scale, scale);
-        ctx.fillText(text, 0, 0);
+        
+        // 設定套色
+        ctx.fillStyle = color;
+        if (color !== "#fff") {
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 15 * t; // 落地後發光變強
+        }
+
+        // 繪製文字 (位移回左上角)
+        ctx.fillText(text, -metrics.width / 2, 20); 
 
         ctx.restore();
     }
 
     /**
-     * 斜向高光動畫（通常用在役滿或累計役滿）
+     * 斜向高光動畫（用在役滿及累計役滿）
      */
     diagonalHighlight({ text, x, y, font, startTime, angle = 45, isSilver = false }) {
         if (!Number.isFinite(startTime)) return;
@@ -60,65 +81,58 @@ export class ResultEffect {
 
         ctx.save();
         try {
+            // --- 1：先設定文字狀態，方便計算範圍 ---
             ctx.font = font;
             ctx.textAlign = "left";
             ctx.textBaseline = "alphabetic";
 
             const metrics = ctx.measureText(text);
-            const fontSizeMatch = font.match(/(\d+)px/);
-            const fontSize = fontSizeMatch ? Number(fontSizeMatch[1]) : 48;
-
+            const fontSize = parseInt(font) || 48;
             const w = metrics.width;
-            const h = fontSize * 1.25;
+            const h = fontSize * 1.5;
+            const textCenterY = y - fontSize * 0.35;
 
-            // 1. 先畫白底文字作 Mask
-            ctx.fillStyle = "#fff";
-            ctx.fillText(text, x, y);
-
-            // 2. 設定混合模式
+            // --- 2：設定混合模式 ---
+            // source-atop 會把接下來畫的東西，限制在「畫布已有像素」的範圍內
             ctx.globalCompositeOperation = "source-atop";
 
             const DURATION = isSilver ? 2200 : 1600;
             const t = ((now - startTime) % DURATION) / DURATION;
 
-            const bandWidth = Math.max(40, w * 0.35);
+            // 計算掃描位移
             const diag = Math.sqrt(w * w + h * h);
-            const sweep = diag * 1.2;
-
+            const offset = (t * 2 - 1) * (diag + 100); 
             const rad = angle * Math.PI / 180;
             const dx = Math.cos(rad);
             const dy = Math.sin(rad);
 
-            const cx = x + w / 2;
-            const cy = y;
-
-            const ox = cx - dx * sweep + dx * sweep * 2 * t;
-            const oy = cy - dy * sweep + dy * sweep * 2 * t;
-
+            const gradX = x + w / 2 + dx * offset;
+            const gradY = textCenterY + dy * offset;
+            const bandWidth = 60; // 稍微寬一點效果更好
+            
             const grad = ctx.createLinearGradient(
-                ox - dx * bandWidth, oy - dy * bandWidth,
-                ox + dx * bandWidth, oy + dy * bandWidth
+                gradX - dx * bandWidth, gradY - dy * bandWidth,
+                gradX + dx * bandWidth, gradY + dy * bandWidth
             );
 
+            // 漸層色設定
             if (isSilver) {
-                grad.addColorStop(0, "rgba(200,220,255,0)");
-                grad.addColorStop(0.45, "rgba(220,235,255,0.4)");
-                grad.addColorStop(0.5, "rgba(255,255,255,0.95)");
-                grad.addColorStop(0.55, "rgba(220,235,255,0.4)");
-                grad.addColorStop(1, "rgba(200,220,255,0)");
+                grad.addColorStop(0, "rgba(255, 255, 255, 0)");
+                grad.addColorStop(0.5, "rgba(255, 255, 255, 0.8)"); 
+                grad.addColorStop(1, "rgba(255, 255, 255, 0)");
             } else {
-                grad.addColorStop(0, "rgba(255,200,50,0)");
-                grad.addColorStop(0.45, "rgba(255,215,100,0.4)");
-                grad.addColorStop(0.5, "rgba(255,255,180,0.95)");
-                grad.addColorStop(0.55, "rgba(255,215,100,0.4)");
-                grad.addColorStop(1, "rgba(255,200,50,0)");
+                grad.addColorStop(0, "rgba(255, 215, 0, 0)");
+                grad.addColorStop(0.5, "rgba(255, 255, 220, 0.9)"); 
+                grad.addColorStop(1, "rgba(255, 215, 0, 0)");
             }
 
+            // --- 3：直接畫上覆蓋全文字的矩形 ---
             ctx.fillStyle = grad;
-            ctx.fillRect(x, y - h / 2, w, h);
+            // 這裡畫的是矩形，但因為 source-atop，它只會顯示在文字形狀上
+            ctx.fillRect(x - 10, y - fontSize - 10, w + 20, fontSize + 20);
 
         } finally {
-            ctx.restore(); // 一定要還原，避免污染其他畫面
+            ctx.restore(); // 務必還原混合模式，否則後面畫的東西全都會消失
         }
     }
 }
