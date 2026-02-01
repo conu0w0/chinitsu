@@ -18,7 +18,7 @@ export class Renderer {
             height: 1024,
             fontFamily: "'M PLUS Rounded 1c', 'Microsoft JhengHei', sans-serif",
             tile: { w: 48, h: 76, gap: 2, drawGap: 20 },
-            river: { w: 40, h: 56 },
+            river: { w: 40, h: 56, gap: 2 },
             meld: { w: 36, h: 56 },
             colors: {
                 text: "#ffffff",
@@ -66,19 +66,20 @@ export class Renderer {
         const { width: W, height: H } = this.config;
         const CX = W / 2;
         const CY = H / 2;
-        const riverW = (5 * this.config.river.w) + this.config.river.h; // 預估一行寬度
+        const { w: rW, h: rH, gap: rGap = 0 } = this.config.river;
+        const riverW = (5 * rW) + rH + (5 * rGap);
         const infoBoxH = 120;
         const infoGap = 25;
 
         this.ZONES = {
             // 玩家區域
             playerHand:  { x: W * 0.15, y: H * 0.80 },
-            playerRiver: { x: CX - (riverW / 2), y: CY + (infoBoxH / 2) + infoGap, cols: 6 },
+            playerRiver: { x: CX - (riverW / 2), y: CY + (infoBoxH / 2) + infoGap, cols: 6, width: riverW },
             playerMeld:  { x: W * 0.88, y: H * 0.80 + (76 - 56) },
 
             // COM 區域
             comHand:     { x: W * 0.80, y: H * 0.15 },
-            comRiver:    { x: CX - (riverW / 2), y: CY - (infoBoxH / 2) - infoGap - (0.8 * 56), cols: 6 },
+            comRiver:    { x: CX - (riverW / 2), y: CY - (infoBoxH / 2) - infoGap - (0.8 * 56), cols: 6, width: riverW },
             comMeld:     { x: W * 0.12, y: H * 0.15 + (76 - 56) }
         };
     }
@@ -248,7 +249,7 @@ export class Renderer {
     }
 
     _drawRiverGroup(riverData, zone, isCom) {
-        const { w, h } = this.config.river;
+        const { w, h, gap = 0 } = this.config.river;
         let curRow = 0;
         let curXOffset = 0;
 
@@ -263,23 +264,29 @@ export class Renderer {
             const rotate = item.isRiichi ? (isCom ? 90 : -90) : 0;
             
             // 計算繪製座標
-            let dx = isCom 
-                ? (zone.x + zone.cols * w) - curXOffset - tileSpace // COM 從右往左
-                : zone.x + curXOffset;                              // Player 從左往右
+            let dx;
+            if (isCom) {
+                // COM 從右往左
+                dx = (zone.x + zone.width) - curXOffset - tileSpace;
+            } else {
+                // Player 從左往右
+                dx = zone.x + curXOffset;
+            } 
             
-            let dy = zone.y + curRow * h;
+            let dy = zone.y + curRow * (h + gap);
 
             // 立直牌的位置微調 (置中旋轉)
             if (rotate !== 0) {
                 const offset = (h - w) / 2;
-                dx += offset; dy += offset;
+                dx += offset; 
+                dy += offset;
             }
 
             // 標記最後一張打出的牌
             const isLast = (this.gameState.lastDiscard?.fromPlayer === (isCom ? 1 : 0) && i === riverData.length - 1);
 
             this.drawTile(item.tile, dx, dy, w, h, { rotate, marked: isLast });
-            curXOffset += tileSpace;
+            curXOffset += (tileSpace + gap);
         });
     }
 
