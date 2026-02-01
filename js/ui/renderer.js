@@ -88,17 +88,17 @@ export class Renderer {
        ================================================================= */
 
     draw() {
-        // 1. 邏輯狀態更新 (動畫步進、手牌偵測)
         this._updateState();
-
-        // 2. 清空畫布
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
-        // 3. 繪製場景 (背景、牌局)
-        this._renderScene();
-
-        // 4. 繪製 UI 層 (按鈕、結算畫面)
-        this._renderOverlay();
+        
+        // --- 調整後的順序 ---
+        this._drawBackground();
+        this._drawInfoBox();     
+        this._drawRivers();   
+        this._drawHands();
+        this._drawAnimations();
+        
+        this._renderOverlay();  // 只有 UI 按鈕跟結算畫面會在最頂層
     }
 
     /* =================================================================
