@@ -258,7 +258,7 @@ export class ResultRenderer {
      * 繪製置中的大標題
      */
     _drawCenteredTitle(text, x, y, size, color = "#fff") {
-        this.ctx.font = `bold ${size}px ${this.r.fontFamily}`;
+        this.ctx.font = `bold ${size}px ${this.r.config.fontFamily}`;
         this.ctx.fillStyle = color;
         this.ctx.textAlign = "center";
         this.ctx.textBaseline = "alphabetic"; // 確保文字基準線統一
@@ -269,7 +269,7 @@ export class ResultRenderer {
      * 繪製副標題或提示文字
      */
     _drawSubTitle(text, x, y, color, size = 32) {
-        this.ctx.font = `bold ${size}px ${this.r.fontFamily}`;
+        this.ctx.font = `bold ${size}px ${this.r.config.fontFamily}`;
         this.ctx.fillStyle = color;
         this.ctx.textAlign = "center";
         this.ctx.fillText(text, x, y);
