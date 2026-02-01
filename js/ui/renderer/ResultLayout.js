@@ -63,85 +63,95 @@ export class ResultLayout {
     }
 
     drawResultHand(result, centerX, startY, isChombo = false) {
-        const idx = (result.type === "chombo") ? result.offenderIndex : result.winnerIndex;
-        const winner = this.r.gameState.players[idx];
-        if (!winner) return null;
+    // 1. 安全檢查：如果 startY 無效，預設放在畫布 40% 的高度
+    const safeStartY = (startY && startY > 0 && startY < this.r.config.height) 
+                       ? startY 
+                       : this.r.config.height * 0.4;     
+    
+    // 2. 修正屬性路徑 (統一使用新的 config 結構)
+    const tileCfg = this.r.config.tile;
+    const tileW = tileCfg.w;
+    const tileH = tileCfg.h;
+    const gap = tileCfg.gap || 2;
+    const sectionGap = 30; // 稍微拉開距離更有質感
+    
+    // 3. 獲取獲勝者資訊
+    const idx = (result.type === "chombo") ? result.offenderIndex : result.winnerIndex;
+    const winner = this.r.gameState.players[idx];
+    if (!winner) return null;
 
-        const ankanCount = (winner.fulu ?? []).filter(f => f.type === "ankan").length;
-        const baseLen = 13 - ankanCount * 3;
-        const isHandFull = (winner.tepai.length === baseLen + 1);
+    // 4. 計算手牌與 winTile (這段維持你的邏輯)
+    const ankanCount = (winner.fulu ?? []).filter(f => f.type === "ankan").length;
+    const baseLen = 13 - ankanCount * 3;
+    const isHandFull = (winner.tepai.length === baseLen + 1);
 
-        let standingTiles = [...winner.tepai];
-        let winTile = -1;
+    let standingTiles = [...winner.tepai];
+    let winTile = -1;
 
-        if (isHandFull) {
-            winTile = standingTiles.pop();
-        } else {
-            if (!isHandFull && this.r.gameState.lastDiscard) {
-                winTile = this.r.gameState.lastDiscard.tile;
-            } else {
-                winTile = standingTiles.pop();
-            }
-        }
-
-        if (winTile == null) {
-            console.warn("[ResultRenderer] winTile missing", { result, standingTiles });
-            return null;
-        }
-
-        const melds = winner.fulu || [];
-        const tileW = this.r.tileWidth;
-        const tileH = this.r.tileHeight;
-        const gap = 2;
-        const sectionGap = 25;
-
-        let totalWidth = standingTiles.length * (tileW + gap);
-        if (melds.length > 0) {
-            totalWidth += sectionGap;
-            melds.forEach(m => totalWidth += this.r._calculateMeldWidth(m, tileW) + 10);
-        }
-        totalWidth += sectionGap + tileW;
-
-        let currentX = centerX - (totalWidth / 2);
-        const handLeftX = currentX;
-
-        standingTiles.forEach(t => {
-            this.r.drawTile(t, currentX, startY, tileW, tileH);
-            currentX += tileW + gap;
-        });
-
-        if (melds.length > 0) {
-            currentX += sectionGap;
-            melds.forEach(m => {
-                const w = this.r._drawSingleMeld(m, currentX, startY, tileW, tileH);
-                currentX += w + 10;
-            });
-        }
-
-        currentX += sectionGap;
-        const highlightColor = isChombo ? "#ff4444" : "#ffcc00";
-
-        this.r.drawTile(winTile, currentX, startY, tileW, tileH);
-
-        this.ctx.lineWidth = 4;
-        this.ctx.strokeStyle = highlightColor;
-        this.ctx.strokeRect(currentX, startY, tileW, tileH);
-
-        this.ctx.fillStyle = highlightColor;
-        this.ctx.font = `bold 18px ${this.r.fontFamily}`;
-        this.ctx.textAlign = "center";
-
-        let label = isChombo ? "錯和" : "和了";
-        this.ctx.fillText(label, currentX + tileW / 2, startY + tileH + 25);
-
-        return handLeftX;
+    if (isHandFull) {
+        winTile = standingTiles.pop();
+    } else {
+        winTile = (this.r.gameState.lastDiscard) ? this.r.gameState.lastDiscard.tile : standingTiles.pop();
     }
+
+    if (winTile == null) return null;
+
+    // 5. 計算佈局總寬度 (確保居中)
+    const melds = winner.fulu || [];
+    let totalWidth = standingTiles.length * (tileW + gap);
+    if (melds.length > 0) {
+        totalWidth += sectionGap;
+        melds.forEach(m => totalWidth += this.r._calculateMeldWidth(m, tileW) + 10);
+    }
+    totalWidth += sectionGap + tileW; // 加上最後一張和了牌
+
+    let currentX = centerX - (totalWidth / 2);
+    const handLeftX = currentX;
+
+    // 6. 開始繪製 (注意：這裡全部改用 safeStartY)
+    standingTiles.forEach(t => {
+        this.r.drawTile(t, currentX, safeStartY, tileW, tileH);
+        currentX += tileW + gap;
+    });
+
+    if (melds.length > 0) {
+        currentX += sectionGap;
+        melds.forEach(m => {
+            const w = this.r._drawSingleMeld(m, currentX, safeStartY, tileW, tileH);
+            currentX += w + 10;
+        });
+    }
+
+    // 7. 繪製和了牌與標記
+    currentX += sectionGap;
+    const highlightColor = isChombo ? "#ff4444" : "#ffcc00";
+
+    // 使用 safeStartY 繪製最後一張牌
+    this.r.drawTile(winTile, currentX, safeStartY, tileW, tileH, {
+        highlight: true // 如果你的 drawTile 有支援
+    });
+
+    // 畫出醒目的外框
+    this.ctx.lineWidth = 4;
+    this.ctx.strokeStyle = highlightColor;
+    this.ctx.strokeRect(currentX, safeStartY, tileW, tileH);
+
+    // 畫文字標籤
+    this.ctx.fillStyle = highlightColor;
+    this.ctx.font = `bold 22px ${this.r.config.fontFamily}`; // 注意這裡的路徑
+    this.ctx.textAlign = "center";
+
+    let label = isChombo ? "錯和" : "和了";
+    this.ctx.fillText(label, currentX + tileW / 2, safeStartY + tileH + 35);
+
+    return handLeftX;
+}
 
     drawStaticHand(player, centerX, startY, faceDown = false) {
         const tiles = player.tepai;
         const melds = player.fulu || [];
-        const tileW = this.r.tileWidth;
-        const tileH = this.r.tileHeight;
+        const tileW = this.r.config.tile.w;
+        const tileH = this.r.config.tile.h;
         const gap = 2;
         const sectionGap = 20;
 
