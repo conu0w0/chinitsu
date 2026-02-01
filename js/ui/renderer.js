@@ -43,15 +43,19 @@ export class Renderer {
 
         // 手牌動畫狀態
         this.handState = {
-            lastLen0: 0, // 玩家手牌長度紀錄
-            lastLen1: 0, // COM 手牌長度紀錄
+            lastLen0: 0,  // 玩家手牌長度紀錄
+            lastLen1: 0,  // COM 手牌長度紀錄
+            lastMeld0: 0, // 玩家副露數量紀錄
+            lastMeld1: 0, // COM 副露數量紀錄
             yOffsets: new Array(14).fill(0) // 玩家手牌懸浮動畫位移
         };
 
         // 分數跳動狀態
         this.scoreState = {
-            visual: [150000, 150000], // 當前顯示的分數 (動畫用)
-            display: [0, 0]           // 最終渲染整數
+            visual: [150000, 150000],      // 當前顯示的分數 (動畫用)
+            display: [0, 0],               // 最終渲染整數
+            lastTargets: [150000, 150000], // 用來偵測分數是否發生變化
+            animStartTime: 0               // 動畫允許開始的時間 (用於停頓)
         };
 
         // 子渲染器
@@ -117,9 +121,33 @@ export class Renderer {
         this._updateHandHoverEffects();
     }
 
-    // 更新分數顯示邏輯
+    // 更新分數顯示邏輯 (含停頓效果)
     _updateScoreAnimation() {
         const players = this.gameState.players;
+        const now = performance.now();
+        const DELAY_MS = 800; // ★ 設定停頓時間 (毫秒)，這裡設為 0.8 秒
+
+        // 1. 檢查分數是否發生變化 (偵測 Target 改變)
+        let hasNewTarget = false;
+        players.forEach((p, i) => {
+            if (p.points !== this.scoreState.lastTargets[i]) {
+                this.scoreState.lastTargets[i] = p.points; // 更新紀錄
+                hasNewTarget = true;
+            }
+        });
+
+        // 2. 如果有新目標，設定動畫開始時間 (當前時間 + 延遲)
+        if (hasNewTarget) {
+            this.scoreState.animStartTime = now + DELAY_MS;
+        }
+
+        // 3. 如果還沒到開始時間，就暫停 (顯示舊分數，不做漸變)
+        if (now < this.scoreState.animStartTime) {
+            // 這裡必須確保 display 被更新為舊的 visual 值，避免畫面閃爍
+            this.scoreState.display = this.scoreState.visual.map(Math.round);
+            return; 
+        }
+
         let allFinished = true;
 
         players.forEach((p, i) => {
@@ -127,6 +155,7 @@ export class Renderer {
             const current = this.scoreState.visual[i];
             const diff = target - current;
 
+            // 只有當差距大於 0.1 時才運算
             if (Math.abs(diff) > 0.1) {
                 allFinished = false;
                 // 動態步進：差距越大跳越快，最小步進 100
@@ -149,23 +178,54 @@ export class Renderer {
     }
 
     // 檢查是否需要新增「摸牌動畫」
+    // 檢查是否需要新增「摸牌動畫」
     _checkHandChanges() {
-        // 輔助函式：處理單個玩家的動畫檢查
-        const check = (playerIdx, lastLenProp, zoneKey, isCom) => {
+        /**
+         * 輔助函式：處理單個玩家的動畫檢查
+         * @param {number} playerIdx 玩家索引
+         * @param {string} lastLenProp 手牌長度紀錄屬性名
+         * @param {string} lastMeldProp 副露數量紀錄屬性名 (新增)
+         * @param {string} zoneKey 區域 key
+         * @param {boolean} isCom 是否為電腦
+         */
+        const check = (playerIdx, lastLenProp, lastMeldProp, zoneKey, isCom) => {
             const player = this.gameState.players[playerIdx];
             const currentLen = player.tepai.length;
-            const lastLen = this.handState[lastLenProp];
+            const currentMeld = player.fulu.length;
             
-            // 只有在特定階段且牌數增加時才觸發
+            const lastLen = this.handState[lastLenProp];
+            const lastMeld = this.handState[lastMeldProp];
+            
             const validPhases = ["DEALING", "DRAW", "PLAYER_DECISION", "COM_DECISION", "ROUND_END"];
             
-            if (validPhases.includes(this.gameState.phase) && currentLen > lastLen) {
-                const diff = currentLen - lastLen;
-                const isDealing = (this.gameState.phase === "DEALING");
-                const isDrawState = !isDealing && (currentLen % 3 === 2); // 判斷是否為摸牌動作
+            // 判斷是否為「槓後補牌」的情況：
+            // 1. 副露變多了 (代表剛槓完)
+            // 2. 手牌張數模 3 餘 2 (代表現在是摸入牌的狀態，例如 14, 11, 8 張)
+            const isKanDraw = (currentMeld > lastMeld) && (currentLen % 3 === 2);
 
-                for (let i = 0; i < diff; i++) {
-                    const idx = lastLen + i;
+            // 觸發條件：(一般摸牌：長度增加) OR (槓後補牌)
+            if (validPhases.includes(this.gameState.phase) && (currentLen > lastLen || isKanDraw)) {
+                
+                // 決定要動畫的牌是哪些
+                let startIndex, count;
+                
+                if (isKanDraw) {
+                    // 如果是槓後補牌，只對「最後一張」做動畫
+                    startIndex = currentLen - 1;
+                    count = 1;
+                } else {
+                    // 一般摸牌，對「新增的那些牌」做動畫
+                    startIndex = lastLen;
+                    count = currentLen - lastLen;
+                }
+
+                const isDealing = (this.gameState.phase === "DEALING");
+                // 判斷是否為需要留空隙的摸牌 (非發牌階段且是第 3n+2 張)
+                const isDrawState = !isDealing && (currentLen % 3 === 2);
+
+                for (let i = 0; i < count; i++) {
+                    const idx = startIndex + i;
+                    
                     // 避免重複添加
                     if (this.animations.some(a => a.isCom === isCom && a.index === idx)) continue;
 
@@ -188,18 +248,21 @@ export class Renderer {
                         isCom: isCom,
                         tile: isCom ? -1 : player.tepai[idx],
                         index: idx,
-                        x: tx, y: zone.y,           // 終點
-                        startX: tx, startY: zone.y + (isCom ? 150 : -150), // 起點 (從畫面外飛入)
+                        x: tx, y: zone.y,
+                        startX: tx, startY: zone.y + (isCom ? 150 : -150),
                         startTime: performance.now(),
                         duration: 400
                     });
                 }
             }
+            
+            // 更新狀態紀錄
             this.handState[lastLenProp] = currentLen;
+            this.handState[lastMeldProp] = currentMeld;
         };
-
-        check(0, "lastLen0", "playerHand", false); // Player
-        check(1, "lastLen1", "comHand", true);     // COM
+        
+        check(0, "lastLen0", "lastMeld0", "playerHand", false); // Player
+        check(1, "lastLen1", "lastMeld1", "comHand", true);     // COM
     }
 
     _updateHandHoverEffects() {
