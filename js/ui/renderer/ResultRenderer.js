@@ -58,6 +58,7 @@ export class ResultRenderer {
         this.resultHanfuStartTime = 0;
         this.resultScoreStartTime = 0;
         this.resultLevelStartTime = 0;
+        
         this.scorePhase = 0;            // 0: 飜符淡入, 1: 顯示點數與稱號
         this.resultPointLocked = false; // 點數蓋章是否完成
         this.resultLevelLocked = false; // 稱號蓋章是否完成
@@ -65,6 +66,9 @@ export class ResultRenderer {
         // 5. 其他
         this.resultYakuEndTime = 0;
         this.yakuAnimations = [];
+        
+        // 確保重置時 Canvas 是乾淨的背景
+        this.ctx.clearRect(0, 0, this.r.canvas.width, this.r.canvas.height);
     }
 
     /**
