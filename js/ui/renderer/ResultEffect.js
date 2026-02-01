@@ -70,8 +70,54 @@ export class ResultEffect {
         ctx.restore();
     }
 
+    export class ResultEffect {
+    // ... constructor 略
+
     /**
-     * 斜向高光動畫（用在役滿及累計役滿）
+     * 蓋章動畫文字 - 改良為近距離重擊感
+     */
+    stampText({ text, x, y, font, color = "#fff", startTime, duration = 450 }) {
+        const ctx = this.ctx;
+        const now = performance.now();
+        const rawT = Math.min(1, (now - startTime) / duration);
+        
+        // 更強勁的回彈效果
+        const p = rawT - 1;
+        const s = 1.7; 
+        const t = p * p * ((s + 1) * p + s) + 1;
+
+        ctx.save();
+        ctx.font = font;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
+        
+        const metrics = ctx.measureText(text);
+        const centerX = x + metrics.width / 2;
+        const centerY = y - 20; 
+
+        // --- 調整 1：近距離縮放 ---
+        // 從 1.4 倍縮小到 1.0 倍，感覺是從很近的地方壓下來
+        const scale = 1.4 - 0.4 * t; 
+        
+        // --- 調整 2：延遲出現 ---
+        // 動畫進行到一半 (0.5) 才開始快速淡入，製造「突然出現」的衝擊感
+        ctx.globalAlpha = Math.max(0, (rawT - 0.4) / 0.6);
+
+        ctx.translate(centerX, centerY);
+        ctx.scale(scale, scale);
+        
+        ctx.fillStyle = color;
+        if (color !== "#fff" && color !== "#ffffff") {
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 15 * t;
+        }
+
+        ctx.fillText(text, -metrics.width / 2, 20); 
+        ctx.restore();
+    }
+
+    /**
+     * 斜向高光動畫
      */
     diagonalHighlight({ text, x, y, font, startTime, angle = 45, isSilver = false }) {
         if (!Number.isFinite(startTime)) return;
@@ -80,63 +126,51 @@ export class ResultEffect {
         const now = performance.now();
 
         ctx.save();
-        try {
-            // 強制關閉陰影，避免高光滲透到文字陰影區
-            ctx.shadowBlur = 0;
-            ctx.shadowColor = "transparent";
-            
-            // --- 1：先設定文字狀態，方便計算範圍 ---
-            ctx.font = font;
-            ctx.textAlign = "left";
-            ctx.textBaseline = "alphabetic";
+        
+        // 1. 設定文字基本狀態
+        ctx.font = font;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "alphabetic";
 
-            const metrics = ctx.measureText(text);
-            const fontSize = parseInt(font) || 48;
-            const w = metrics.width;
-            const h = fontSize * 1.5;
-            const textCenterY = y - fontSize * 0.35;
+        const metrics = ctx.measureText(text);
+        const fontSize = parseInt(font) || 48;
+        const w = metrics.width;
+        
+        const DURATION = isSilver ? 2200 : 1600;
+        const t = ((now - startTime) % DURATION) / DURATION;
 
-            // --- 2：設定混合模式 ---
-            // source-atop 會把接下來畫的東西，限制在「畫布已有像素」的範圍內
-            ctx.globalCompositeOperation = "source-atop";
+        const diag = Math.sqrt(w * w + fontSize * fontSize);
+        const offset = (t * 2 - 1) * (diag + 100); 
+        const rad = angle * Math.PI / 180;
+        const dx = Math.cos(rad);
+        const dy = Math.sin(rad);
 
-            const DURATION = isSilver ? 2200 : 1600;
-            const t = ((now - startTime) % DURATION) / DURATION;
+        const gradX = x + w / 2 + dx * offset;
+        const gradY = (y - fontSize/2) + dy * offset;
+        
+        const grad = ctx.createLinearGradient(
+            gradX - dx * 40, gradY - dy * 40,
+            gradX + dx * 40, gradY + dy * 40
+        );
 
-            // 計算掃描位移
-            const diag = Math.sqrt(w * w + h * h);
-            const offset = (t * 2 - 1) * (diag + 100); 
-            const rad = angle * Math.PI / 180;
-            const dx = Math.cos(rad);
-            const dy = Math.sin(rad);
-
-            const gradX = x + w / 2 + dx * offset;
-            const gradY = textCenterY + dy * offset;
-            const bandWidth = 60; // 稍微寬一點效果更好
-            
-            const grad = ctx.createLinearGradient(
-                gradX - dx * bandWidth, gradY - dy * bandWidth,
-                gradX + dx * bandWidth, gradY + dy * bandWidth
-            );
-
-            // 漸層色設定
-            if (isSilver) {
-                grad.addColorStop(0, "rgba(255, 255, 255, 0)");
-                grad.addColorStop(0.5, "rgba(255, 255, 255, 0.8)"); 
-                grad.addColorStop(1, "rgba(255, 255, 255, 0)");
-            } else {
-                grad.addColorStop(0, "rgba(255, 215, 0, 0)");
-                grad.addColorStop(0.5, "rgba(255, 255, 220, 0.9)"); 
-                grad.addColorStop(1, "rgba(255, 215, 0, 0)");
-            }
-
-            // --- 3：直接畫上覆蓋全文字的矩形 ---
-            ctx.fillStyle = grad;
-            // 這裡畫的是矩形，但因為 source-atop，它只會顯示在文字形狀上
-            ctx.fillRect(x - 10, y - fontSize - 10, w + 20, fontSize + 20);
-
-        } finally {
-            ctx.restore(); // 務必還原混合模式，否則後面畫的東西全都會消失
+        if (isSilver) {
+            grad.addColorStop(0, "rgba(255, 255, 255, 0)");
+            grad.addColorStop(0.5, "rgba(255, 255, 255, 0.85)"); 
+            grad.addColorStop(1, "rgba(255, 255, 255, 0)");
+        } else {
+            grad.addColorStop(0, "rgba(255, 215, 0, 0)");
+            grad.addColorStop(0.5, "rgba(255, 255, 230, 0.95)"); 
+            grad.addColorStop(1, "rgba(255, 215, 0, 0)");
         }
+
+        // --- 修正邏輯：先切換模式，再「填色」入文字筆劃 ---
+        ctx.globalCompositeOperation = "source-atop";
+        ctx.fillStyle = grad;
+        ctx.shadowBlur = 0; // 高光本身不帶陰影
+        
+        // 直接塗抹在文字區域
+        ctx.fillRect(x - 20, y - fontSize - 20, w + 40, fontSize + 40);
+
+        ctx.restore();
     }
 }
