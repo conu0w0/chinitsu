@@ -1,217 +1,272 @@
 /**
  * inputHandler.js
- * 處理滑鼠點擊輸入，並呼叫 GameState 對應方法
+ * 負責處理 Canvas 的滑鼠交互 (點擊、移動、按壓狀態)
+ * 並將操作轉發給 GameState 或 Renderer
  */
 export class InputHandler {
     constructor(canvas, state, renderer) {
         this.canvas = canvas;
         this.state = state;
         this.renderer = renderer;
-        
-        // 綁定點擊事件
-        this.canvas.addEventListener("click", (e) => this._onCanvasClick(e));
-        
-        // 追蹤移動事件
-        this.canvas.addEventListener("mousemove", (e) => this._onCanvasMove(e));
+
+        this._setupEventListeners();
     }
 
-    /* ======================
-       處理 Canvas 點擊
-       ====================== */
-    _onCanvasClick(event) {
-        const rect = this.canvas.getBoundingClientRect();
-        
-        // 處理 Canvas縮放 (如果 CSS 尺寸跟 Render 尺寸不同)
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
+    /**
+     * 初始化事件監聽
+     */
+    _setupEventListeners() {
+        // 1. 按下：記錄按壓狀態 (UI 按鈕回饋)
+        this.canvas.addEventListener("mousedown", (e) => this._onMouseDown(e));
 
-        const px = (event.clientX - rect.left) * scaleX;
-        const py = (event.clientY - rect.top) * scaleY;
+        // 2. 彈起：主要邏輯觸發點 (確認點擊有效)
+        this.canvas.addEventListener("mouseup", (e) => this._onMouseUp(e));
 
-        // 1. 遊戲尚未開始 (INIT) -> 點擊開始 (隨機起莊)
-        if (this.state.phase === "INIT") {
-            this.state.startGame();
-            return;
-        }
+        // 3. 移動：Hover 效果與提示
+        this.canvas.addEventListener("mousemove", (e) => this._onMouseMove(e));
 
-        // 2. 結算畫面 (ROUND_END) -> 點擊下一局 (判定輪莊)
-        if (this.state.phase === "ROUND_END") {
-            const res = this.renderer.resultRenderer;
-            
-            // A. 階段 0：文字動畫跑完後，點擊進入「增減動畫」
-            if (this.state.resultClickStage === 0) {
-                if (res.isReadyForNext) { 
-                    this.state.resultClickStage = 1; // 進入動畫階段
-                    this.state.applyResultPoints();  // 雖然點數變了，但 Renderer 會跑動畫慢慢追
-                    console.log("嗷嗚！役種確認完畢，點數移動！");
-                }
-                return;
-            }
-            
-            // B. 階段 1：正在跳數字中，點擊可直接跳過動畫
-            if (this.state.resultClickStage === 1) {
-                this.renderer.visualPoints = this.state.players.map(p => p.points);
-                this.state.resultClickStage = 2; // 直接解鎖下一局點擊
-                console.log("嗷嗚！跳過動畫，直接看結果！");
-                return;
-            }
-            
-            // C. 階段 2：動畫結束了，再次點擊進入下一局
-            if (this.state.resultClickStage === 2) {
-                res._resetAnimationState()
-                this.renderer.animations = [];
-                
-                this.state.nextKyoku();
-            }
-            return;
-        }
-
-        // 3. UI 按鈕優先判定 (吃碰槓胡、取消)
-        if (this._handleUIButtonClick(px, py)) {
-            return;
-        }
-
-        // 4. 手牌點擊判定 (切牌)
-        this._handlePlayerHandClick(px, py);
+        // 4. 離開：清除所有暫存狀態 (避免滑鼠按著拖出去後卡住)
+        this.canvas.addEventListener("mouseleave", () => {
+            this.renderer.pressedButtonIndex = -1;
+            this.renderer.hoveredIndex = -1;
+        });
     }
 
-    /* ======================
-       偵測游標移動
-       ====================== */    
-    // 新增滑鼠移動處理
-    _onCanvasMove(event) {
-        const rect = this.canvas.getBoundingClientRect();
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
-        const px = (event.clientX - rect.left) * scaleX;
-        const py = (event.clientY - rect.top) * scaleY;
+    /* =================================================================
+       Event Handlers (事件入口)
+       ================================================================= */
+
+    _onMouseDown(event) {
+        const { x, y } = this._getMousePos(event);
+        const buttons = this.renderer.uiButtons || [];
+
+        // 檢查是否按下 UI 按鈕
+        for (let i = 0; i < buttons.length; i++) {
+            const btn = buttons[i];
+            if (this._hit(x, y, btn.x, btn.y, btn.w, btn.h)) {
+                this.renderer.pressedButtonIndex = i; // 通知 Renderer 繪製「按下」效果
+                return;
+            }
+        }
+    }
+
+    _onMouseUp(event) {
+        const { x, y } = this._getMousePos(event);
         
-        // 檢查是否指著手牌
+        // 1. 總是先重置按壓狀態
+        const pressedBtnIndex = this.renderer.pressedButtonIndex;
+        this.renderer.pressedButtonIndex = -1;
+
+        // 2. 根據遊戲階段分流處理
+        switch (this.state.phase) {
+            case "INIT":
+                this._handleInitPhase();
+                break;
+
+            case "ROUND_END":
+                this._handleRoundEndPhase();
+                break;
+
+            default:
+                // 3. 遊戲進行中：處理 UI 按鈕或手牌點擊
+                this._handleInGameInteract(x, y, pressedBtnIndex);
+                break;
+        }
+    }
+
+    _onMouseMove(event) {
+        const { x, y } = this._getMousePos(event);
+        
+        // 處理手牌 Hover 效果
+        this._handleHandHover(x, y);
+    }
+
+    /* =================================================================
+       Phase Handlers (各階段邏輯)
+       ================================================================= */
+
+    /**
+     * 階段：INIT (遊戲尚未開始)
+     */
+    _handleInitPhase() {
+        this.state.startGame();
+    }
+
+    /**
+     * 階段：ROUND_END (單局結算)
+     * 處理點數動畫與下一局的切換
+     */
+    _handleRoundEndPhase() {
+        const res = this.renderer.resultRenderer;
+        const stage = this.state.resultClickStage;
+
+        // A. 階段 0：文字動畫跑完後，點擊進入「點數增減動畫」
+        if (stage === 0) {
+            if (res.isReadyForNext) { 
+                this.state.resultClickStage = 1;
+                this.state.applyResultPoints(); // 更新邏輯點數，Renderer 開始跑動畫
+                console.log("嗷嗚！役種確認完畢，點數移動！");
+            }
+            return;
+        }
+        
+        // B. 階段 1：動畫中，點擊則「跳過動畫」
+        if (stage === 1) {
+            const finalPoints = this.state.players.map(p => p.points);
+            this.renderer.visualPoints = [...finalPoints];             
+            if (this.renderer.displayPoints) this.renderer.displayPoints = [...finalPoints];
+            this.state.resultClickStage = 2; // 直接跳到「可點擊下一局」的狀態
+            console.log("嗷嗚！玩家點擊跳過，點數移動完畢！");
+            return;
+        }
+        
+        // C. 階段 2：動畫結束，點擊進入「下一局」
+        if (stage === 2) {
+            res._resetAnimationState();
+            this.renderer.animations = [];
+            this.state.nextKyoku();
+        }
+    }
+
+    /**
+     * 階段：遊戲中 (處理 UI 按鈕與手牌交互)
+     * @param {number} x 滑鼠 X
+     * @param {number} y 滑鼠 Y
+     * @param {number} pressedBtnIndex 剛才 MouseDown 的按鈕索引 (用於防呆)
+     */
+    _handleInGameInteract(x, y, pressedBtnIndex) {
+        // 優先權 1：UI 按鈕 (吃、碰、槓、胡、取消)
+        // 嚴格判定：必須在同一顆按鈕上「按下」且「放開」才算觸發
+        const buttons = this.renderer.uiButtons || [];
+        if (pressedBtnIndex !== -1 && buttons[pressedBtnIndex]) {
+            const btn = buttons[pressedBtnIndex];
+            if (this._hit(x, y, btn.x, btn.y, btn.w, btn.h)) {
+                console.log("[Canvas UI] 觸發動作:", btn.action);
+                this.renderer.uiButtons = []; // 點擊後清空 UI 防止連點
+                this.state.applyAction(0, btn.action);
+                return;
+            }
+        }
+
+        // 優先權 2：點擊手牌 (切牌)
+        // 如果剛才沒有點擊任何 UI 按鈕，才檢測手牌
+        if (pressedBtnIndex === -1) {
+            this._handleHandTileClick(x, y);
+        }
+    }
+
+    /* =================================================================
+       Feature Logics (具體功能邏輯)
+       ================================================================= */
+
+    /**
+     * 處理手牌點擊 (切牌)
+     */
+    _handleHandTileClick(px, py) {
+        // 1. 權限檢查
+        if (!this._canPlayerDiscard()) return;
+
         const player = this.state.players[0];
         const zone = this.renderer.ZONES.playerHand;
-        const tileW = this.renderer.tileWidth;
-        const tileH = this.renderer.tileHeight;
-        const gap = this.renderer.tileGap;
-        const drawGap = this.renderer.drawGap;
-        
-        const isTsumo = (player.tepai.length % 3 === 2);
+        const { tileW, tileH, gap, drawGap, isTsumo, lastIndex } = this._getHandRenderParams(player);
+
+        // 2. 遍歷手牌檢測碰撞
+        for (let i = 0; i < player.tepai.length; i++) {
+            let x = zone.x + i * (tileW + gap);
+            if (isTsumo && i === lastIndex) x += drawGap; // 摸牌位移
+
+            if (this._hit(px, py, x, zone.y, tileW, tileH)) {
+                
+                // 3. 特殊規則：立直後只能切摸到的牌
+                if (player.isReach && i !== lastIndex) {
+                    console.warn("[Input] 立直中，只能切摸到的牌！");
+                    return;
+                }
+
+                // 4. 執行切牌
+                this.renderer.uiButtons = []; // 切牌時隱藏 UI
+                this.state.playerDiscard(0, i);
+                return;
+            }
+        }
+    }
+
+    /**
+     * 處理手牌 Hover (滑鼠移動偵測)
+     */
+    _handleHandHover(px, py) {
         let hoveredIndex = -1;
-        
-        // 只有玩家能出牌的階段才計算 Hover
+
+        // 只有在玩家能操作時才計算 Hover，節省效能
         if (this._canPlayerDiscard()) {
+            const player = this.state.players[0];
+            const zone = this.renderer.ZONES.playerHand;
+            const { tileW, tileH, gap, drawGap, isTsumo, lastIndex } = this._getHandRenderParams(player);
+
             for (let i = 0; i < player.tepai.length; i++) {
                 let x = zone.x + i * (tileW + gap);
-                if (isTsumo && i === player.tepai.length - 1) x += drawGap;
-                
-                // 這裡判定 y 稍微往下偏移一點，避免彈起時滑鼠滑出判定區
+                if (isTsumo && i === lastIndex) x += drawGap;
+
+                // y 軸判定稍微寬容一點 (zone.y - 20, h + 20)
                 if (this._hit(px, py, x, zone.y - 20, tileW, tileH + 20)) {
                     hoveredIndex = i;
                     break;
                 }
             }
         }
-        
-        // 將選中的 Index 傳回給 Renderer
+
         this.renderer.hoveredIndex = hoveredIndex;
     }
 
-    /* ======================
-       Canvas UI 按鈕判定
-       ====================== */
-    _handleUIButtonClick(px, py) {
-        const buttons = this.renderer.uiButtons;
-        
-        // 如果沒有按鈕，直接跳過
-        if (!buttons || buttons.length === 0) return false;
+    /* =================================================================
+       Helpers (輔助函式)
+       ================================================================= */
 
-        for (const btn of buttons) {
-            if (this._hit(px, py, btn.x, btn.y, btn.w, btn.h)) {
-                console.log("[Canvas UI] 觸發動作:", btn.action);
-
-                // ★ 點擊後立刻清空按鈕，避免連點
-                this.renderer.uiButtons = [];
-
-                // 執行動作
-                this.state.applyAction(0, btn.action);
-                return true;
-            }
-        }
-        return false;
+    /**
+     * 取得標準化後的滑鼠座標 (處理 Canvas CSS 縮放)
+     */
+    _getMousePos(event) {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        return {
+            x: (event.clientX - rect.left) * scaleX,
+            y: (event.clientY - rect.top) * scaleY
+        };
     }
 
-    /* ======================
-       判定玩家手牌 (含摸牌間距)
-       ====================== */
-    _handlePlayerHandClick(px, py) {
-        const state = this.state;
-
-        // 檢查是否輪到玩家操作
-        if (!this._canPlayerDiscard()) return;
-
-        const player = state.players[0];
-        const zone = this.renderer.ZONES.playerHand;
-
-        // 取得渲染參數 (從 Renderer 拿或是用預設值)
-        const tileW = this.renderer.tileWidth;
-        const tileH = this.renderer.tileHeight;
-        const gap = this.renderer.tileGap ?? 2;
-        const drawGap = this.renderer.drawGap ?? tileW; // 摸牌與手牌的距離
-        
-        // 判斷是否為摸牌狀態 (14張)
-        const isTsumo = (player.tepai.length % 3 === 2);
-        const lastIndex = player.tepai.length - 1;
-
-        for (let i = 0; i < player.tepai.length; i++) {
-            // 計算每張牌的 X 座標
-            let x = zone.x + i * (tileW + gap);
-            
-            // 如果是摸牌狀態，最後一張要往右推一點
-            if (isTsumo && i === lastIndex) {
-                x += drawGap;
-            }
-
-            // 碰撞檢測
-            if (!this._hit(px, py, x, zone.y, tileW, tileH)) continue;
-
-            // === 特殊規則檢查 ===
-            
-            // 立直後限制：只能切剛摸到的那張牌 (最後一張)
-            if (player.isReach) {
-                const isTsumoTile = (i === lastIndex);
-                if (!isTsumoTile) {
-                    console.warn("[Input] 立直中，只能切摸到的牌！");
-                    return;
-                }
-            }
-
-            // 點擊成功 -> 執行切牌
-            this.renderer.uiButtons = []; // 切牌時隱藏所有 UI
-            state.playerDiscard(0, i);
-            return;
-        }
-    }
-
-    /* ======================
-       工具
-       ====================== */
-    
-    // 矩形碰撞檢測
+    /**
+     * 矩形碰撞檢測
+     */
     _hit(px, py, x, y, w, h) {
         return px >= x && px <= x + w && py >= y && py <= y + h;
     }
 
-    // 檢測能否出牌
+    /**
+     * 判斷玩家當前是否允許切牌
+     */
     _canPlayerDiscard() {
         const state = this.state;
-        
-        // 必須輪到玩家 (Turn 0)
         if (state.turn !== 0) return false;
 
-        // 必須是以下階段才能切牌
         return (
-            state.phase === "PLAYER_DECISION" ||  // 一般出牌
-            state.phase === "DISCARD_ONLY" ||     // 取消特殊動作後
-            state.phase === "RIICHI_DECLARATION"  // 立直宣言後需要切牌
+            state.phase === "PLAYER_DECISION" || // 一般回合
+            state.phase === "DISCARD_ONLY" ||    // 取消吃碰後
+            state.phase === "RIICHI_DECLARATION" // 立直宣言後
         );
+    }
+
+    /**
+     * 取得手牌渲染參數 (避免在 Loop 中重複解構)
+     */
+    _getHandRenderParams(player) {
+        return {
+            tileW: this.renderer.tileWidth,
+            tileH: this.renderer.tileHeight,
+            gap: this.renderer.tileGap ?? 2,
+            drawGap: this.renderer.drawGap ?? this.renderer.tileWidth,
+            isTsumo: (player.tepai.length % 3 === 2),
+            lastIndex: player.tepai.length - 1
+        };
     }
 }
