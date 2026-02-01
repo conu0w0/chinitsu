@@ -132,17 +132,17 @@ export class ResultLayout {
         
         r.drawTile(winTile, finalWinX, startY, tileW, tileH);
         
-        // 繪製外框與標籤，座標對齊 finalWinX
-        ctx.lineWidth = 4;
-        ctx.strokeStyle = highlightColor;
-        ctx.strokeRect(finalWinX, startY, tileW, tileH);
-        
-        ctx.fillStyle = highlightColor;
-        ctx.font = `bold 20px ${r.config.fontFamily}`; 
-        ctx.textAlign = "center";
-        ctx.textBaseline = "top";
-        // 標籤文字座標修正
-        ctx.fillText(isChombo ? "錯和" : "和了", finalWinX + tileW / 2, startY + tileH + 10);
+        if (!options.isHideLabel) {
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = highlightColor;
+            ctx.strokeRect(finalWinX, startY, tileW, tileH);
+            
+            ctx.fillStyle = highlightColor;
+            ctx.font = `bold 20px ${r.config.fontFamily}`; 
+            ctx.textAlign = "center";
+            ctx.textBaseline = "top";
+            ctx.fillText(isChombo ? "錯和" : "和了", finalWinX + tileW / 2, startY + tileH + 10);
+        }
         
         return handLeftX;
     }
