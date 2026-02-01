@@ -203,7 +203,7 @@ export class ResultRenderer {
             this._renderScoreAndLevel(now, H * 0.68 - 45);
 
             if (sm.state === RESULT_STATE.LEVEL && this.resultLevelLocked) {
-                if (now - sm.stateEnterTime > (this.TIMING.LEVEL_TO_HINT || 1000)) {
+                if (now - sm.stateEnterTime > 1500) {
                     this._enterState(RESULT_STATE.HINT);
                 }
             }
@@ -355,12 +355,10 @@ export class ResultRenderer {
             const targetY = this.resultYakuBaseY + row * yakuLineHeight;
             // X 軸偏移：從右側 40px 滑動到 0px
             const currentX = targetX + (1 - ease) * 40;
-
-            ctx.save();
+            
             ctx.globalAlpha = ease; // 淡入
             ctx.fillStyle = "#ffffff"; 
             ctx.fillText(anim.text, currentX, targetY);
-            ctx.restore();
         });
 
         // 檢查是否所有役種都播完了，播完就切換狀態
