@@ -111,13 +111,21 @@ export class ResultRenderer {
 
         // 罰符資訊
         const isParent = (result.offenderIndex === this.r.gameState.parentIndex);
-        const roleText = isParent ? "親" : "子";
         const who = (result.offenderIndex === 0) ? "玩家" : "COM";
+        
+        // 組合字串： [親] 玩家 罰符 ...
+        const roleText = isParent ? "[親]" : "[子]";
+        const textLabel = `${roleText} ${who} 罰符`;
 
-        this._drawPenaltyInfo(`${who}(${roleText}) 罰符 `, `-${result.score.total} 點`, CX, H * 0.48);
+        this._drawPenaltyInfo(textLabel, `${result.score.total} 點`, CX, H * 0.48);
 
-        // 手牌與聽牌 (使用 Layout 模組)
-        layout.drawWaitList(result.offender?.waits || [], CX, H * 0.58, this._getChomboLabel(result));
+        // 手牌與聽牌
+        layout.drawWaitList(
+            result.offender?.waits || [], 
+            CX, 
+            H * 0.58, 
+            result.offender?.isFuriten || false // 傳入是否振聽
+        );
         this.resultHandLeftX = layout.drawResultHand(result, CX, H * 0.72, true);
 
         this.isReadyForNext = true;
