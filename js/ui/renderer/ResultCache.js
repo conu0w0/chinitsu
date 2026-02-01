@@ -27,8 +27,12 @@ export class ResultCache {
         // 1. 先重置
         const data = this._createDefaultCacheData();
 
-        if (!result || !result.score) return;
+        if (!result || !result.score) {
+            this.data = data;
+            return;
+        }
 
+        // --- 基本分數 ---
         data.han = result.score.han || 0;
         data.fu = result.score.fu || 0;
         data.scoreTotal = result.score.total || 0;
@@ -76,6 +80,7 @@ export class ResultCache {
 
         // --- 計算顏色 ---
         this.data.limitColor = this._getLimitColor({ han, isYakuman, isKazoeYakuman });
+        this.data = data;
     }
 
     _getLimitColor({ han, isYakuman, isKazoeYakuman }) {
