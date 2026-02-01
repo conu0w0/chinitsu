@@ -1,7 +1,7 @@
 /**
  * renderer.js
- * 負責將 GameState 繪製到 Canvas 上
- * 包含：背景、手牌、牌河、UI 按鈕、動畫效果
+ * 負責將 GameState 視覺化繪製到 Canvas 上
+ * 包含：背景、手牌管理、動畫系統、UI 交互繪製
  */
 import { ResultRenderer } from "./renderer/resultRenderer.js";
 
@@ -12,477 +12,579 @@ export class Renderer {
         this.gameState = gameState;
         this.assets = assets;
 
-        this.fontFamily = "'M PLUS Rounded 1c', 'Microsoft JhengHei', sans-serif";
-
-        // === 狀態追蹤 ===
-        this.uiButtons = [];
-        this.animations = [];
-        this.lastHandLength = 0;
-        this.lastComHandLength = 0;
-        this.hoveredIndex = -1;
-        this.handYOffsets = new Array(14).fill(0);
-
-        // === 分數跳動動畫 ===
-        this.visualPoints = [150000, 150000];
-        this.displayPoints = [this.gameState.players[0].points, this.gameState.players[1].points];
-
-        // === 解析度設定 ===
-        this.canvas.width = 1024;
-        this.canvas.height = 1024;
-
-        // === 尺寸參數 (Tile Dimensions) ===
-        this.tileWidth = 48;
-        this.tileHeight = 76;
-        this.tileGap = 2;
-        this.drawGap = 20;
-
-        this.riverTileWidth = 40;
-        this.riverTileHeight = 56;
-
-        this.meldWidth = 36;  // 副露牌寬
-        this.meldHeight = 56; // 副露牌高
-
-        // === 佈局計算 (Layout Calculations) ===
-        const infoBoxW = 260;
-        const infoBoxH = 120;
-        const infoBoxGap = 25;
-        const riverTotalWidth = (5 * this.riverTileWidth) + this.riverTileHeight;
-
-        const W = this.canvas.width;
-        const H = this.canvas.height;
-        const CX = W / 2;
-        const CY = H / 2;
-
-        const riverX = CX - (riverTotalWidth / 2);
-        const playerRiverY = CY + (infoBoxH / 2) + infoBoxGap - (0.2 * this.riverTileHeight);
-        const comRiverY = CY - (infoBoxH / 2) - infoBoxGap - (0.8 * this.riverTileHeight);
-
-        // === 繪製區域定義 (ZONES) ===
-        this.ZONES = {
-            playerHand: { x: W * 0.15, y: H * 0.80 },
-            playerRiver: { x: riverX, y: playerRiverY, cols: 6 },
-            playerMeld: { x: W * 0.88, y: H * 0.80 + (76 - 56) },
-
-            comHand: { x: W * 0.80, y: H * 0.15 },
-            comRiver: { x: riverX, y: comRiverY, cols: 6 },
-            comMeld: { x: W * 0.15, y: H * 0.15 + (76 - 56) }
+        // === 1. 基礎配置 (Config) ===
+        this.config = {
+            width: 1024,
+            height: 1024,
+            fontFamily: "'M PLUS Rounded 1c', 'Microsoft JhengHei', sans-serif",
+            tile: { w: 48, h: 76, gap: 2, drawGap: 20 },
+            river: { w: 40, h: 56 },
+            meld: { w: 36, h: 56 },
+            colors: {
+                text: "#ffffff",
+                highlight: "#ffcc00",
+                buttonBase: [74, 120, 90], // RGB
+                buttonPressed: [30, 50, 40]
+            }
         };
 
+        // 設定 Canvas 解析度
+        this.canvas.width = this.config.width;
+        this.canvas.height = this.config.height;
+
+        // === 2. 佈局計算 (Layout) ===
+        this._initLayout();
+
+        // === 3. 狀態追蹤 (State Tracking) ===
+        this.uiButtons = [];      // 存儲當前幀的按鈕區域
+        this.animations = [];     // 存儲進行中的動畫
+        this.hoveredIndex = -1;   // 滑鼠懸停的手牌 Index
+        this.pressedButtonIndex = -1; // 滑鼠按下的按鈕 Index
+
+        // 手牌動畫狀態
+        this.handState = {
+            lastLen0: 0, // 玩家手牌長度紀錄
+            lastLen1: 0, // COM 手牌長度紀錄
+            yOffsets: new Array(14).fill(0) // 玩家手牌懸浮動畫位移
+        };
+
+        // 分數跳動狀態
+        this.scoreState = {
+            visual: [150000, 150000], // 當前顯示的分數 (動畫用)
+            display: [0, 0]           // 最終渲染整數
+        };
+
+        // 子渲染器
         this.resultRenderer = new ResultRenderer(this);
     }
 
-    /* =========================================
-       1. 主繪製循環 (Main Draw Loop)
-       ========================================= */
+    /**
+     * 初始化佈局座標
+     * 集中管理所有物件的 x, y 座標計算
+     */
+    _initLayout() {
+        const { width: W, height: H } = this.config;
+        const CX = W / 2;
+        const CY = H / 2;
+        const riverW = (5 * this.config.river.w) + this.config.river.h; // 預估一行寬度
+        const infoBoxH = 120;
+        const infoGap = 25;
+
+        this.ZONES = {
+            // 玩家區域
+            playerHand:  { x: W * 0.15, y: H * 0.80 },
+            playerRiver: { x: CX - (riverW / 2), y: CY + (infoBoxH / 2) + infoGap, cols: 6 },
+            playerMeld:  { x: W * 0.88, y: H * 0.80 + (76 - 56) },
+
+            // COM 區域
+            comHand:     { x: W * 0.80, y: H * 0.15 },
+            comRiver:    { x: CX - (riverW / 2), y: CY - (infoBoxH / 2) - infoGap - (0.8 * 56), cols: 6 },
+            comMeld:     { x: W * 0.15, y: H * 0.15 + (76 - 56) }
+        };
+    }
+
+    /* =================================================================
+       Core Loop (核心繪製循環)
+       ================================================================= */
+
     draw() {
-        // 1. 邏輯更新
-        this._checkHandChanges();
-        this._checkComHandChanges();
-        this._updateDisplayPoints();
+        // 1. 邏輯狀態更新 (動畫步進、手牌偵測)
+        this._updateState();
 
+        // 2. 清空畫布
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        this._drawBackground();
-        this.drawRivers();
-        this._renderAnimations();
 
-        // 3. 處理結算與 UI 層級
-        if (this.gameState.phase === "ROUND_END") {
-            // --- 結算階段 ---
-            if (this.gameState.resultClickStage === 0) {
-                // 畫黑幕與役名 (此時不畫 Info，所以 Info 會被擋住/不顯示)
-                if (this.resultRenderer) {
-                    this.resultRenderer.draw(this.gameState.lastResult);
-                }
+        // 3. 繪製場景 (背景、牌局)
+        this._renderScene();
+
+        // 4. 繪製 UI 層 (按鈕、結算畫面)
+        this._renderOverlay();
+    }
+
+    /* =================================================================
+       State Updates (邏輯更新)
+       ================================================================= */
+
+    _updateState() {
+        // 檢查手牌變化 (觸發抽牌動畫)
+        this._checkHandChanges();
+        
+        // 更新分數跳動
+        this._updateScoreAnimation();
+        
+        // 更新手牌懸浮效果 (Hover Animation)
+        this._updateHandHoverEffects();
+    }
+
+    // 更新分數顯示邏輯
+    _updateScoreAnimation() {
+        const players = this.gameState.players;
+        let allFinished = true;
+
+        players.forEach((p, i) => {
+            const target = p.points;
+            const current = this.scoreState.visual[i];
+            const diff = target - current;
+
+            if (Math.abs(diff) > 0.1) {
+                allFinished = false;
+                // 動態步進：差距越大跳越快，最小步進 100
+                const step = Math.max(100, Math.abs(diff) * 0.15);
+                const move = Math.min(step, Math.abs(diff)); // 防止過頭
+                this.scoreState.visual[i] += Math.sign(diff) * move;
             } else {
-                // 點擊一次後 (Stage 1 或 2)，黑幕消失，顯現 Info 讓玩家看跳分
-                this.drawInfo();
+                this.scoreState.visual[i] = target;
             }
-        } else {
-            // --- 一般遊戲階段 ---
-            this.renderUI(); // 畫操作按鈕 (吃碰槓胡)
-            this.drawInfo(); // 正常顯示分數
+        });
+
+        this.scoreState.display = this.scoreState.visual.map(Math.round);
+
+        // 如果是結算階段且動畫跑完，自動進入下一階段
+        if (this.gameState.phase === "ROUND_END" && 
+            this.gameState.resultClickStage === 1 && 
+            allFinished) {
+            this.gameState.resultClickStage = 2;
         }
+    }
+
+    // 檢查是否需要新增「摸牌動畫」
+    _checkHandChanges() {
+        // 輔助函式：處理單個玩家的動畫檢查
+        const check = (playerIdx, lastLenProp, zoneKey, isCom) => {
+            const player = this.gameState.players[playerIdx];
+            const currentLen = player.tepai.length;
+            const lastLen = this.handState[lastLenProp];
+            
+            // 只有在特定階段且牌數增加時才觸發
+            const validPhases = ["DEALING", "DRAW", "PLAYER_DECISION", "COM_DECISION", "ROUND_END"];
+            
+            if (validPhases.includes(this.gameState.phase) && currentLen > lastLen) {
+                const diff = currentLen - lastLen;
+                const isDealing = (this.gameState.phase === "DEALING");
+                const isDrawState = !isDealing && (currentLen % 3 === 2); // 判斷是否為摸牌動作
+
+                for (let i = 0; i < diff; i++) {
+                    const idx = lastLen + i;
+                    // 避免重複添加
+                    if (this.animations.some(a => a.isCom === isCom && a.index === idx)) continue;
+
+                    // 計算目標位置
+                    const zone = this.ZONES[zoneKey];
+                    const cfg = this.config.tile;
+                    let tx;
+                    
+                    if (!isCom) {
+                        tx = zone.x + idx * (cfg.w + cfg.gap);
+                        if (isDrawState && idx === currentLen - 1) tx += cfg.drawGap;
+                    } else {
+                        tx = zone.x - idx * (cfg.w + 2); // COM 向左排
+                        if (isDrawState && idx === currentLen - 1) tx -= cfg.drawGap;
+                    }
+
+                    // 添加動畫物件
+                    this.animations.push({
+                        type: "draw",
+                        isCom: isCom,
+                        tile: isCom ? -1 : player.tepai[idx],
+                        index: idx,
+                        x: tx, y: zone.y,           // 終點
+                        startX: tx, startY: zone.y + (isCom ? 150 : -150), // 起點 (從畫面外飛入)
+                        startTime: performance.now(),
+                        duration: 400
+                    });
+                }
+            }
+            this.handState[lastLenProp] = currentLen;
+        };
+
+        check(0, "lastLen0", "playerHand", false); // Player
+        check(1, "lastLen1", "comHand", true);     // COM
+    }
+
+    _updateHandHoverEffects() {
+        const offsetTarget = -16; // 懸浮高度
+        this.handState.yOffsets.forEach((val, i) => {
+            const target = (this.hoveredIndex === i) ? offsetTarget : 0;
+            // 線性插值 (Lerp) 平滑移動
+            this.handState.yOffsets[i] = val * 0.7 + target * 0.3;
+        });
+    }
+
+    /* =================================================================
+       Render Scene (場景繪製)
+       ================================================================= */
+
+    _renderScene() {
+        this._drawBackground();
+        this._drawRivers();
+        this._drawHands();
+        this._drawAnimations(); // 繪製飛行中的牌
     }
 
     _drawBackground() {
-        const ctx = this.ctx;
-        const W = this.canvas.width;
-        const H = this.canvas.height;
-
+        const { width: W, height: H } = this.canvas;
         if (this.assets.table) {
-            ctx.drawImage(this.assets.table, 0, 0, W, H);
+            this.ctx.drawImage(this.assets.table, 0, 0, W, H);
         } else {
-            // --- 1. 深色桌布漸層 (模擬聚光燈) ---
-            const cx = W / 2;
-            const cy = H / 2;
-            const grad = ctx.createRadialGradient(cx, cy, 100, cx, cy, 700);
-            grad.addColorStop(0, "#1e4d3e"); // 中心：較亮的墨綠
-            grad.addColorStop(1, "#0a1a15"); // 邊緣：深沉的黑綠        
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, W, H);
-
-            // --- 2. 邊緣外框 ---
-            ctx.strokeStyle = "rgba(212, 175, 55, 0.4)"; // 帶透明度的金
-            ctx.lineWidth = 15;
-            ctx.strokeRect(0, 0, W, H);
-        }
-    }
-
-    /* =========================================
-       2. 狀態偵測與更新 (State Updates)
-       ========================================= */
-    
-    // === 偵測玩家手牌變化 (產生抽牌動畫) ===
-    _checkHandChanges() {
-        const player = this.gameState.players[0];
-        const currentLen = player.tepai.length;
-        const validPhases = ["DEALING", "DRAW", "PLAYER_DECISION", "ROUND_END"];
-        const isDealing = (this.gameState.phase === "DEALING"); // ★ 判斷是否發牌中
-
-        if (validPhases.includes(this.gameState.phase) && currentLen > this.lastHandLength) {
-            const diff = currentLen - this.lastHandLength;
-            // 發牌階段不計算摸牌間隙，避免動畫跳動
-            const isDrawState = !isDealing && (currentLen % 3 === 2);
-
-            for (let i = 0; i < diff; i++) {
-                const tileIndex = this.lastHandLength + i;
-                if (this.animations.some(a => !a.isCom && a.index === tileIndex)) continue;
-
-                const tileVal = player.tepai[tileIndex];
-                const zone = this.ZONES.playerHand;
-                let targetX = zone.x + tileIndex * (this.tileWidth + this.tileGap);
-
-                // 只有非發牌階段且是摸牌位，才加間隔
-                if (isDrawState && tileIndex === currentLen - 1) {
-                    targetX += this.drawGap;
-                }
-
-                this.animations.push({
-                    type: "draw",
-                    isCom: false,
-                    tile: tileVal,
-                    index: tileIndex,
-                    x: targetX,
-                    y: zone.y,
-                    startX: targetX,
-                    startY: zone.y - 150,
-                    startTime: performance.now(),
-                    duration: 400
-                });
-            }
-        }
-        this.lastHandLength = currentLen;
-    }
-
-    // === 偵測 COM 手牌變化 ===
-    _checkComHandChanges() {
-        const com = this.gameState.players[1];
-        const currentLen = com.tepai.length;
-        const validPhases = ["DEALING", "DRAW", "COM_DECISION", "ROUND_END"];
-        const isDealing = (this.gameState.phase === "DEALING");
-
-        if (validPhases.includes(this.gameState.phase) && currentLen > this.lastComHandLength) {
-            const diff = currentLen - this.lastComHandLength;
-
-            // 發牌階段忽略間隙
-            const isDrawState = !isDealing && (currentLen % 3 === 2);
-
-            for (let i = 0; i < diff; i++) {
-                const tileIndex = this.lastComHandLength + i;
-                if (this.animations.some(a => a.isCom && a.index === tileIndex)) continue;
-                const zone = this.ZONES.comHand;
-                const w = 48;
-
-                let targetX = zone.x - tileIndex * (w + 2);
-
-                // 鏡像邏輯：剛摸的那張牌放在最左邊
-                if (isDrawState && tileIndex === currentLen - 1) {
-                    targetX -= this.drawGap;
-                }
-
-                this.animations.push({
-                    type: "draw",
-                    isCom: true,
-                    tile: -1,
-                    index: tileIndex,
-                    x: targetX,
-                    y: zone.y,
-                    startX: targetX,
-                    startY: zone.y + 150,
-                    startTime: performance.now(),
-                    duration: 400
-                });
-            }
-        }
-        this.lastComHandLength = currentLen;
-    }
-
-    // === 分數跳動更新 ===
-    updateDisplayPoints() {
-    const players = this.gameState.players;
-    if (!this.visualPoints) this.visualPoints = players.map(p => p.points);
-
-    let allFinished = true;
-
-    players.forEach((p, i) => {
-        const target = p.points;
-        const current = this.visualPoints[i];
-        const diff = target - current;
-
-        if (Math.abs(diff) > 0.1) {
-            allFinished = false;
-
-            // --- 核心邏輯：動態步進 ---
-            // 1. 基礎速度：確保小差距也能快速對齊 (例如每次至少跳 50 點)
-            // 2. 比例速度：大差距時按比例 (15%) 飛速前進
-            // 3. 方向性：使用 Math.sign 確保加減號正確
+            // 預設漸層背景
+            const cx = W / 2, cy = H / 2;
+            const grad = this.ctx.createRadialGradient(cx, cy, 100, cx, cy, 700);
+            grad.addColorStop(0, "#1e4d3e");
+            grad.addColorStop(1, "#0a1a15");
+            this.ctx.fillStyle = grad;
+            this.ctx.fillRect(0, 0, W, H);
             
-            const baseStep = 100; // 基礎跳動值 (可調整，例如日麻通常以 100 為單位)
-            const ratioStep = Math.abs(diff) * 0.15; // 比例跳動
-            
-            // 實際步進 = 取兩者較大值，但不能超過剩下的距離
-            let step = Math.max(baseStep, ratioStep);
-            
-            if (step > Math.abs(diff)) {
-                step = Math.abs(diff); // 防止衝過頭
-            }
-
-            this.visualPoints[i] += Math.sign(diff) * step;
-        } else {
-            this.visualPoints[i] = target;
-        }
-    });
-
-    // 四捨五入取整，讓 UI 顯示漂亮的整數
-    this.displayPoints = this.visualPoints.map(v => Math.round(v));
-
-    // 自動切換階段
-    if (this.gameState.phase === "ROUND_END" && this.gameState.resultClickStage === 1) {
-        if (allFinished) {
-            this.gameState.resultClickStage = 2;
-            console.log("嗷嗚！點數移動完成汪！");
-        }
-    }
-}
-
-    /* =========================================
-       3. 手牌與副露繪製 (Hands & Melds)
-       ========================================= */
-    drawHands() {
-        this._drawPlayerHand();
-        this._drawPlayerMelds();
-        this._drawComHand();
-        this._drawComMelds();
-    }
-
-    _drawPlayerHand() {
-        const player = this.gameState.players[0];
-        const zone = this.ZONES.playerHand;
-        const globalFaceDown = player.handFaceDown;
-
-        // 發牌階段忽略間隙
-        const isDealing = (this.gameState.phase === "DEALING");
-        const isDrawState = !isDealing && (player.tepai.length % 3 === 2);
-
-        player.tepai.forEach((tile, i) => {
-            const isAnimating = this.animations.some(anim => !anim.isCom && anim.index === i);
-            if (isAnimating) return;
-
-            let x = zone.x + i * (this.tileWidth + this.tileGap);
-
-            // 只有最後一張且是摸牌狀態才加空隙
-            if (isDrawState && i === player.tepai.length - 1) x += this.drawGap;
-
-            // 如果是被指著的牌，目標高度是 -16，否則是 0
-            const targetOffset = (this.hoveredIndex === i) ? -16 : 0;
-            // 簡單的線性插值，讓牌「升起」跟「降落」有過程感
-            this.handYOffsets[i] = (this.handYOffsets[i] || 0) * 0.7 + targetOffset * 0.3;
-
-            const drawY = zone.y + this.handYOffsets[i];
-
-            this.drawTile(tile, x, drawY, this.tileWidth, this.tileHeight, {
-                faceDown: globalFaceDown,
-                selected: (this.hoveredIndex === i)
-            });
-        });
-    }
-
-    _drawPlayerMelds() {
-        const player = this.gameState.players[0];
-        const melds = player.fulu;
-        if (!melds || melds.length === 0) return;
-
-        // 起始點：螢幕右側錨點
-        let currentX = this.ZONES.playerMeld.x;
-        const y = this.ZONES.playerMeld.y;
-
-        // 遍歷副露 (順序：先槓的在最右邊)
-        melds.forEach((meld) => {
-            // 1. 先計算這個副露的總寬度 (不要畫，只算寬度)
-            const width = this._calculateMeldWidth(meld, this.meldWidth);
-
-            // 2. 因為是往左長，所以起點 x 要扣掉寬度
-            const drawX = currentX - width;
-
-            // 3. 畫在這個位置
-            this._drawSingleMeld(meld, drawX, y, this.meldWidth, this.meldHeight);
-
-            // 4. 更新下一個副露的起點 (再往左移，並加上一點間隙)
-            currentX -= (width + 10);
-        });
-    }
-
-    _drawComHand() {
-        const com = this.gameState.players[1];
-        const zone = this.ZONES.comHand;
-        const w = 48;
-        const h = 76;
-
-        const isDealing = (this.gameState.phase === "DEALING");
-        const isDrawState = !isDealing && (com.tepai.length % 3 === 2);
-
-        for (let i = 0; i < com.tepai.length; i++) {
-            const isAnimating = this.animations.some(anim => anim.isCom && anim.index === i);
-            if (isAnimating) continue;
-
-            let x = zone.x - i * (w + 2);
-            if (isDrawState && i === com.tepai.length - 1) {
-                x -= this.drawGap;
-            }
-            this.drawTile(-1, x, zone.y, w, h, { faceDown: true });
+            // 金色邊框
+            this.ctx.strokeStyle = "rgba(212, 175, 55, 0.4)";
+            this.ctx.lineWidth = 15;
+            this.ctx.strokeRect(0, 0, W, H);
         }
     }
 
-    _drawComMelds() {
-        const com = this.gameState.players[1];
-        const melds = com.fulu;
-        if (!melds || melds.length === 0) return;
-
-        // 起始點：螢幕左側錨點
-        let currentX = this.ZONES.comMeld.x;
-        const y = this.ZONES.comMeld.y;
-
-        melds.forEach((meld) => {
-            // 1. 直接從左邊開始畫
-            const width = this._drawSingleMeld(meld, currentX, y, this.meldWidth, this.meldHeight);
-
-            // 2. 更新下一個起點 (往右移)
-            currentX += (width + 10);
-        });
-    }
-
-    // 輔助：計算副露寬度 (不繪製)
-    _calculateMeldWidth(meld, w) {
-        if (meld.type === "ankan") {
-            return 4 * (w + 2);
-        } else {
-            return 3 * (w + 2);
-        }
-    }
-
-    // 繪製單個副露 (返回佔用的寬度)
-    _drawSingleMeld(meld, x, y, w, h) {
-        if (meld.type === "ankan") {
-            for (let i = 0; i < 4; i++) {
-                const faceDown = (i === 0 || i === 3);
-                this.drawTile(meld.tile, x + i * (w + 2), y, w, h, { faceDown });
-            }
-            return 4 * (w + 2);
-        } else {
-            const count = 3;
-            for (let i = 0; i < count; i++) {
-                this.drawTile(meld.tile, x + i * (w + 2), y, w, h);
-            }
-            return count * (w + 2);
-        }
-    }
-
-    /* =========================================
-       4. 牌河繪製 (Rivers)
-       ========================================= */
-    drawRivers() {
+    // === 牌河繪製 ===
+    _drawRivers() {
         this._drawRiverGroup(this.gameState.players[0].river, this.ZONES.playerRiver, false);
         this._drawRiverGroup(this.gameState.players[1].river, this.ZONES.comRiver, true);
     }
 
     _drawRiverGroup(riverData, zone, isCom) {
-        const w = this.riverTileWidth;
-        const h = this.riverTileHeight;
-
-        // 用來記錄當前這一行，已經累積了多少 X 軸的偏移量
-        let currentRowX = 0;
-        let currentRow = 0;
+        const { w, h } = this.config.river;
+        let curRow = 0;
+        let curXOffset = 0;
 
         riverData.forEach((item, i) => {
-            // === 1. 換行判斷 ===
-            // 每 6 張牌換一行 (除了第 0 張)
+            // 換行邏輯
             if (i > 0 && i % zone.cols === 0) {
-                currentRow++;
-                currentRowX = 0; // 換行後，X 偏移歸零
+                curRow++;
+                curXOffset = 0;
             }
 
-            // === 2. 計算這張牌佔用的「視覺寬度」 ===
             const tileSpace = item.isRiichi ? h : w;
-
-            // === 3. 計算繪圖座標 (DrawX) ===
-            let drawX;
-
-            if (isCom) {
-                // COM 的牌河：從右向左排列
-                const lineStartRight = zone.x + (zone.cols * w);
-                drawX = lineStartRight - currentRowX - tileSpace;
-            } else {
-                // 玩家 的牌河：從左向右排列
-                drawX = zone.x + currentRowX;
-            }
-
-            // Y 軸位置 (加上立直的微調)
-            let drawY = zone.y + currentRow * h;
-
-            // 設定旋轉角度
             const rotate = item.isRiichi ? (isCom ? 90 : -90) : 0;
+            
+            // 計算繪製座標
+            let dx = isCom 
+                ? (zone.x + zone.cols * w) - curXOffset - tileSpace // COM 從右往左
+                : zone.x + curXOffset;                              // Player 從左往右
+            
+            let dy = zone.y + curRow * h;
 
+            // 立直牌的位置微調 (置中旋轉)
             if (rotate !== 0) {
                 const offset = (h - w) / 2;
-                drawX += offset;
-                drawY += offset;
+                dx += offset; dy += offset;
             }
 
-            // === 4. 繪製牌 ===
-            const isLast = (this.gameState.lastDiscard &&
-                this.gameState.lastDiscard.fromPlayer === (isCom ? 1 : 0) &&
-                i === riverData.length - 1);
+            // 標記最後一張打出的牌
+            const isLast = (this.gameState.lastDiscard?.fromPlayer === (isCom ? 1 : 0) && i === riverData.length - 1);
 
-            this.drawTile(item.tile, drawX, drawY, w, h, { rotate, marked: isLast });
-
-            // === 5. 為了「下一張牌」更新累積偏移量 ===
-            currentRowX += tileSpace;
+            this.drawTile(item.tile, dx, dy, w, h, { rotate, marked: isLast });
+            curXOffset += tileSpace;
         });
     }
 
-    /* =========================================
-       5. 單張牌繪製核心 (Tile Rendering)
-       ========================================= */
-    drawTile(tileVal, x, y, w, h, options = {}) {
-        const { faceDown = false, highlight = false, selected = false, marked = false, rotate = 0 } = options;
-        const img = faceDown ? this.assets.back : this.assets.tiles?.[tileVal];
+    // === 手牌與副露繪製 ===
+    _drawHands() {
+        this._renderPlayerHand();
+        this._renderComHand();
+        this._renderMelds(0); // Player Melds
+        this._renderMelds(1); // COM Melds
+    }
+
+    _renderPlayerHand() {
+        const player = this.gameState.players[0];
+        const zone = this.ZONES.playerHand;
+        const cfg = this.config.tile;
+        const isDealing = (this.gameState.phase === "DEALING");
+        const isDrawState = !isDealing && (player.tepai.length % 3 === 2);
+
+        player.tepai.forEach((tile, i) => {
+            // 如果這張牌正在動畫中，跳過靜態繪製
+            if (this.animations.some(a => !a.isCom && a.index === i)) return;
+
+            let x = zone.x + i * (cfg.w + cfg.gap);
+            if (isDrawState && i === player.tepai.length - 1) x += cfg.drawGap;
+
+            const y = zone.y + this.handState.yOffsets[i];
+
+            this.drawTile(tile, x, y, cfg.w, cfg.h, {
+                faceDown: player.handFaceDown,
+                selected: (this.hoveredIndex === i)
+            });
+        });
+    }
+
+    _renderComHand() {
+        const com = this.gameState.players[1];
+        const zone = this.ZONES.comHand;
+        const cfg = this.config.tile;
+        const isDealing = (this.gameState.phase === "DEALING");
+        const isDrawState = !isDealing && (com.tepai.length % 3 === 2);
+
+        for (let i = 0; i < com.tepai.length; i++) {
+            if (this.animations.some(a => a.isCom && a.index === i)) continue;
+
+            let x = zone.x - i * (cfg.w + 2);
+            if (isDrawState && i === com.tepai.length - 1) x -= cfg.drawGap;
+
+            this.drawTile(-1, x, zone.y, cfg.w, cfg.h, { faceDown: true });
+        }
+    }
+
+    _renderMelds(playerIdx) {
+        const player = this.gameState.players[playerIdx];
+        if (!player.fulu.length) return;
+
+        const zone = playerIdx === 0 ? this.ZONES.playerMeld : this.ZONES.comMeld;
+        const { w, h } = this.config.meld;
+        let curX = zone.x;
+
+        // 玩家副露靠右向左長，COM 副露靠左向右長
+        player.fulu.forEach(meld => {
+            const isAnkan = meld.type === "ankan";
+            const tileCount = isAnkan ? 4 : 3;
+            const meldWidth = tileCount * (w + 2);
+
+            let drawX = (playerIdx === 0) ? curX - meldWidth : curX;
+
+            // 繪製副露中的每張牌
+            for (let i = 0; i < tileCount; i++) {
+                const isFaceDown = isAnkan && (i === 0 || i === 3);
+                this.drawTile(meld.tile, drawX + i * (w + 2), zone.y, w, h, { faceDown: isFaceDown });
+            }
+
+            // 更新下一組副露的起點
+            if (playerIdx === 0) curX -= (meldWidth + 10);
+            else curX += (meldWidth + 10);
+        });
+    }
+
+    // === 動畫物件繪製 ===
+    _drawAnimations() {
+        const now = performance.now();
+        const { w, h } = this.config.tile;
+
+        // 過濾已完成的動畫，並繪製進行中的
+        this.animations = this.animations.filter(anim => {
+            const elapsed = now - anim.startTime;
+            const progress = Math.min(elapsed / anim.duration, 1);
+            
+            // easeOutQuad 緩動效果
+            const ease = progress * (2 - progress);
+            const cx = anim.startX + (anim.x - anim.startX) * ease;
+            const cy = anim.startY + (anim.y - anim.startY) * ease;
+
+            this.ctx.save();
+            const isFaceDown = anim.isCom && anim.type === "draw";
+            this.drawTile(anim.tile, cx, cy, w, h, { faceDown: isFaceDown });
+            this.ctx.restore();
+
+            return progress < 1;
+        });
+    }
+
+    /* =================================================================
+       Render Overlay (UI 與結算層)
+       ================================================================= */
+
+    _renderOverlay() {
+        const phase = this.gameState.phase;
+
+        if (phase === "ROUND_END") {
+            // 結算畫面邏輯
+            if (this.gameState.resultClickStage === 0) {
+                this.resultRenderer?.draw(this.gameState.lastResult);
+            } else {
+                // 動畫跑完後顯示 Info 讓玩家看分數
+                this._drawInfoBox();
+            }
+        } else {
+            // 一般遊戲中
+            this._drawUIButtons();
+            this._drawInfoBox();
+        }
+    }
+
+    _drawInfoBox() {
         const ctx = this.ctx;
+        const { width: W, height: H } = this.canvas;
+        const cx = W / 2, cy = H / 2;
+        const boxW = 260, boxH = 120;
+        
+        // 畫框框背景
+        const x = cx - boxW / 2, y = cy - boxH / 2;
+        const pulse = Math.sin(Date.now() / 500) * 0.2 + 0.8; 
+        
+        // 外發光框 (餘牌警示)
+        ctx.strokeStyle = `rgba(255, 204, 0, ${pulse * 0.4})`;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x - 2, y - 2, boxW + 4, boxH + 4);
+
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+        ctx.fillRect(x, y, boxW, boxH);
+        
+        // 文字內容
+        const parentIdx = this.gameState.parentIndex;
+        const role = (idx) => (parentIdx === idx ? "[親]" : "[子]");
+        const score = (idx) => Math.floor(this.scoreState.display[idx]);
+
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        
+        // COM
+        ctx.font = `bold 20px ${this.config.fontFamily}`;
+        ctx.fillStyle = this.config.colors.text;
+        ctx.fillText(`${role(1)} COM：${score(1)}`, cx, cy - 35);
+
+        // 餘牌
+        ctx.font = `bold 24px ${this.config.fontFamily}`;
+        ctx.fillStyle = this.config.colors.highlight;
+        ctx.fillText(`余：${this.gameState.yama.length}`, cx, cy + 2);
+
+        // Player
+        ctx.font = `bold 20px ${this.config.fontFamily}`;
+        ctx.fillStyle = this.config.colors.text;
+        ctx.fillText(`${role(0)} 玩家：${score(0)}`, cx, cy + 40);
+
+        // 分數變動箭頭提示
+        this._drawScoreChangeIndicator(cx + 80, cy - 35, 1); // COM
+        this._drawScoreChangeIndicator(cx + 80, cy + 40, 0); // Player
+    }
+
+    _drawScoreChangeIndicator(x, y, playerIdx) {
+        const realScore = this.gameState.players[playerIdx].points;
+        const visualScore = this.scoreState.display[playerIdx];
+        
+        if (Math.abs(realScore - visualScore) > 1) {
+            this.ctx.fillStyle = this.config.colors.highlight;
+            this.ctx.font = "bold 14px " + this.config.fontFamily;
+            this.ctx.fillText(realScore > visualScore ? "↑" : "↓", x, y);
+        }
+    }
+
+    _drawUIButtons() {
+        this.uiButtons = []; // 重置點擊區域
+        if (!this._isPlayerInteractive()) return;
+
+        const actions = this.gameState.getLegalActions(0);
+        const buttons = this._generateButtonList(actions);
+        if (buttons.length === 0) return;
+
+        // 排版設定
+        const btnW = 100, btnH = 50, gap = 15;
+        const anchorRight = this.ZONES.playerHand.x + 13 * (this.config.tile.w + this.config.tile.gap);
+        let currentX = anchorRight - btnW;
+        const startY = this.ZONES.playerHand.y - btnH - 25;
+
+        // 倒序繪製 (從右往左排)
+        for (let i = buttons.length - 1; i >= 0; i--) {
+            const btn = buttons[i];
+            const isPressed = (this.pressedButtonIndex === i);
+
+            this._drawSingleButton(currentX, startY, btnW, btnH, btn, isPressed);
+            
+            // 註冊感應區
+            this.uiButtons.push({ 
+                x: currentX, y: startY, w: btnW, h: btnH, 
+                action: btn.action, index: i 
+            });
+            
+            currentX -= (btnW + gap);
+        }
+    }
+
+    // 根據當前狀態生成按鈕列表
+    _generateButtonList(actions) {
+        const state = this.gameState;
+        const list = [];
+        const phase = state.phase;
+
+        if (phase === "PLAYER_DECISION") {
+            if (actions.canAnkan) list.push({ text: "槓", action: { type: "TRY_ANKAN" } });
+            if (actions.canRiichi) list.push({ text: "立直", action: { type: "RIICHI" } });
+            if (actions.canTsumo) list.push({ text: "自摸", action: { type: "TSUMO" } });
+            if (list.length > 0) list.push({ text: "跳過", action: { type: "CANCEL" } });
+        } 
+        else if (phase === "ANKAN_SELECTION") {
+            const player = state.players[0];
+            const kanList = state.logic.getAnkanTiles(player.tepai, player.fulu.length, player.isReach ? player.riichiWaitSet : null);
+            kanList.forEach(t => list.push({ tileIcon: t, action: { type: "ANKAN", tile: t } }));
+            list.push({ text: "返回", action: { type: "CANCEL" } });
+        } 
+        else if (phase === "RIICHI_DECLARATION") {
+            list.push({ text: "返回", action: { type: "CANCEL" } });
+        } 
+        else if (phase === "REACTION_DECISION") {
+            if (actions.canRon) list.push({ text: "榮和", action: { type: "RON" } });
+            list.push({ text: "跳過", action: { type: "CANCEL" } });
+        }
+        return list;
+    }
+
+    _drawSingleButton(x, y, w, h, btnData, isPressed) {
+        const ctx = this.ctx;
+        ctx.save();
+        
+        const offset = isPressed ? 3 : 0;
+        const drawY = y + offset;
+
+        // 陰影 (未按下時顯示厚度)
+        if (!isPressed) {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+            this._fillRoundedRect(x, y + 4, w, h, 8);
+        }
+
+        // 漸層本體
+        const grad = ctx.createLinearGradient(x, drawY, x, drawY + h);
+        const [r, g, b] = isPressed ? this.config.colors.buttonPressed : this.config.colors.buttonBase;
+        grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.8)`);
+        grad.addColorStop(1, `rgba(${r-30}, ${g-30}, ${b-30}, 1.0)`);
+        ctx.fillStyle = grad;
+        this._fillRoundedRect(x, drawY, w, h, 8);
+
+        // 邊框
+        ctx.strokeStyle = isPressed ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.3)";
+        ctx.lineWidth = 2;
+        this._strokeRoundedRect(x, drawY, w, h, 8);
+
+        // 內容 (圖標或文字)
+        if (btnData.tileIcon !== undefined) {
+            this.drawTile(btnData.tileIcon, x + (w - 30)/2, drawY + (h - 42)/2, 30, 42);
+        } else {
+            ctx.fillStyle = isPressed ? "#bbbbbb" : "#ffffff";
+            ctx.font = `bold 22px ${this.config.fontFamily}`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(btnData.text, x + w/2, drawY + h/2);
+        }
+        ctx.restore();
+    }
+
+    /* =================================================================
+       Core Drawing Helper (單張牌繪製核心)
+       ================================================================= */
+
+    drawTile(tileVal, x, y, w, h, options = {}) {
+        const { faceDown, highlight, selected, marked, rotate = 0 } = options;
+        const ctx = this.ctx;
+        const img = faceDown ? this.assets.back : this.assets.tiles?.[tileVal];
 
         ctx.save();
 
-        // --- 1. 座標轉換 (包含牌面、框框) ---
+        // 1. 座標轉換 (處理旋轉)
         if (rotate !== 0) {
             ctx.translate(x + w / 2, y + h / 2);
             ctx.rotate((rotate * Math.PI) / 180);
             ctx.translate(-(x + w / 2), -(y + h / 2));
         }
 
-        // --- 2. 繪製牌體 ---
+        // 2. 陰影設定
         ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
         ctx.shadowBlur = 4;
         ctx.shadowOffsetX = 2;
         ctx.shadowOffsetY = 3;
 
+        // 3. 繪製圖片或色塊
         if (img) {
             ctx.drawImage(img, x, y, w, h);
         } else {
@@ -490,345 +592,80 @@ export class Renderer {
             ctx.fillRect(x, y, w, h);
             ctx.strokeRect(x, y, w, h);
         }
+        ctx.shadowColor = "transparent"; // 關閉陰影以免影響邊框
 
-        ctx.shadowColor = "transparent";
+        // 4. 各種高亮框 (Highlighter)
+        const drawBorder = (color, lw) => {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = lw;
+            this._strokeRoundedRect(x, y, w, h, 5);
+        };
 
-        // --- 3. 繪製框框 (在旋轉的座標系內，所以會跟著轉) ---
-        if (highlight) {
-            ctx.strokeStyle = "#ff4444";
-            ctx.lineWidth = 4;
-            this._strokeRoundedRect(ctx, x, y, w, h, 5);
-        }
-        if (selected) {
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
-            ctx.lineWidth = 4;
-            this._strokeRoundedRect(ctx, x, y, w, h, 5);
-        }
+        if (highlight) drawBorder("#ff4444", 4);
+        if (selected) drawBorder("rgba(255, 255, 255, 0.7)", 4);
+        
+        // 5. 特殊標記 (呼吸燈效果)
         if (marked) {
-            // 這是牌面上的「呼吸紅框」，必須跟著牌轉
             const bounce = Math.sin(Date.now() / 200) * 5;
-            ctx.strokeStyle = `rgba(255, 120, 150, ${0.5 + bounce / 10})`;
-            ctx.lineWidth = 3;
-            this._strokeRoundedRect(ctx, x, y, w, h, 5);
+            drawBorder(`rgba(255, 120, 150, ${0.5 + bounce / 10})`, 3);
         }
 
-        ctx.restore(); // ★ 座標系在此回正！
+        ctx.restore(); // ★ 還原座標系 (旋轉結束)
 
-        // --- 4. 繪製肉球 (在回正後的座標系，永遠頭朝上) ---
+        // 6. 繪製肉球標記 (確保永遠頭朝上，不受旋轉影響)
         if (marked) {
-            ctx.save();
-            const bounce = Math.sin(Date.now() / 200) * 5;
-
-            // 取得旋轉後的視覺高度
-            // 如果轉 90/-90 度，視覺高度就是原本的寬度 (w)
-            const visualHeight = (rotate !== 0) ? w : h;
-
-            // 取得牌的視覺中心 Y
-            const centerY = y + h / 2;
-
-            // --- 核心修正點 ---
-            // pawY = 中心點 - (視覺高度的一半) - (固定的安全距離) + 跳動
-            // 這裡把安全距離從 15 加大到 25，確保不壓牌
-            const pawY = centerY - (visualHeight / 2) - 25 + bounce;
-            const pawX = x + w / 2;
-
-            ctx.fillStyle = "rgba(255, 120, 150, 0.9)";
-            ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
-            ctx.shadowBlur = 4;
-
-            // 畫肉球...
-            ctx.beginPath();
-            ctx.arc(pawX, pawY, 10, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.beginPath();
-            ctx.arc(pawX - 8, pawY - 8, 4, 0, Math.PI * 2);
-            ctx.arc(pawX, pawY - 11, 4, 0, Math.PI * 2);
-            ctx.arc(pawX + 8, pawY - 8, 4, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.restore();
+            this._drawPawMarker(x, y, w, h, rotate);
         }
     }
 
-    /* =========================================
-       6. 動畫渲染 (Animations)
-       ========================================= */
-    _renderAnimations() {
-        const now = performance.now();
-        const { ctx, tileWidth, tileHeight } = this;
-
-        // 只過濾並執行純粹的牌型位移動畫
-        this.animations = this.animations.filter(anim => {
-            const elapsed = now - anim.startTime;
-            const progress = Math.min(elapsed / anim.duration, 1);
-
-            // 使用簡單的 easeOutQuad 緩動
-            const ease = progress * (2 - progress);
-
-            // 計算當前座標
-            const currentX = anim.startX + (anim.x - anim.startX) * ease;
-            const currentY = anim.startY + (anim.y - anim.startY) * ease;
-
-            ctx.save();
-            // 如果是電腦摸牌，通常會畫背面
-            const isFaceDown = anim.isCom && anim.type === "draw";
-
-            this.drawTile(
-                anim.tile,
-                currentX,
-                currentY,
-                tileWidth,
-                tileHeight,
-                { faceDown: isFaceDown }
-            );
-            ctx.restore();
-
-            return progress < 1; // 動畫未完則保留
-        });
-    }
-
-    /* =========================================
-       7. UI 介面與資訊框 (UI & Info)
-       ========================================= */
-    
-    // === 資訊面板 (Info Box) ===
-    drawInfo() {
+    _drawPawMarker(x, y, w, h, rotate) {
         const ctx = this.ctx;
-        const state = this.gameState;
+        const bounce = Math.sin(Date.now() / 200) * 5;
+        const visualH = (rotate !== 0) ? w : h; // 旋轉後的視覺高度
+        const centerY = y + h / 2;
+        
+        const pawX = x + w / 2;
+        const pawY = centerY - (visualH / 2) - 25 + bounce;
 
-        // 1. 取得螢幕中心
-        const cx = this.canvas.width / 2;
-        const cy = this.canvas.height / 2;
+        ctx.save();
+        ctx.fillStyle = "rgba(255, 120, 150, 0.9)";
+        ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
+        ctx.shadowBlur = 4;
 
-        // 2. 定義資訊框大小
-        const boxWidth = 260;
-        const boxHeight = 120;
-        const x = cx - boxWidth / 2;
-        const y = cy - boxHeight / 2;
+        ctx.beginPath();
+        ctx.arc(pawX, pawY, 10, 0, Math.PI * 2); // 掌心
+        ctx.fill();
 
-        const pulse = Math.sin(Date.now() / 500) * 0.2 + 0.8; // 產生 0.6 ~ 1.0 的波動
-        ctx.strokeStyle = `rgba(255, 204, 0, ${pulse * 0.4})`; // 山牌餘量警示色
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x - 2, y - 2, boxWidth + 4, boxHeight + 4);
-
-        // === 畫背景 (半透明黑底 + 細邊框) ===
-        ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-        ctx.fillRect(x, y, boxWidth, boxHeight);
-
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(x, y, boxWidth, boxHeight);
-
-        const parentIdx = state.parentIndex;
-
-        // 判斷親/子稱號
-        const p0Role = (parentIdx === 0) ? "[親]" : "[子]"; // 玩家
-        const p1Role = (parentIdx === 1) ? "[親]" : "[子]"; // COM
-
-        // 取得分數
-        const p0Display = Math.floor(this.displayPoints[0]);
-        const p1Display = Math.floor(this.displayPoints[1]);
-
-        // 取得餘牌
-        const yamaCount = state.yama.length;
-
-        // === 畫文字 (置中) ===
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-
-        // 上行：COM 資訊
-        ctx.font = `bold 20px ${this.fontFamily}`;
-        ctx.fillStyle = "#ffffff";
-        ctx.fillText(`${p1Role} COM：${p1Display}`, cx, cy - 35);
-
-        // 中行：餘牌 (黃色高亮)
-        ctx.font = `bold 24px ${this.fontFamily}`;
-        ctx.fillStyle = "#ffcc00";
-        ctx.fillText(`余：${yamaCount}`, cx, cy + 2);
-
-        // 下行：玩家資訊
-        ctx.font = `bold 20px ${this.fontFamily}`;
-        ctx.fillStyle = "#ffffff";
-        ctx.fillText(`${p0Role} 玩家：${p0Display}`, cx, cy + 40);
-
-        // --- COM 的分數變動提示 ---
-        if (Math.abs(state.players[1].points - this.displayPoints[1]) > 1) {
-            ctx.fillStyle = "#ffcc00";
-            ctx.font = "bold 14px " + this.fontFamily;
-            ctx.fillText(state.players[1].points > this.displayPoints[1] ? "↑" : "↓", cx + 80, cy - 35);
-        }
-
-        // --- 玩家的分數變動提示 ---
-        if (Math.abs(this.gameState.players[0].points - this.displayPoints[0]) > 1) {
-            ctx.fillStyle = "#ffcc00";
-            ctx.font = "bold 14px " + this.fontFamily;
-            ctx.fillText(this.gameState.players[0].points > this.displayPoints[0] ? "↑" : "↓", cx + 80, cy + 40);
-        }
+        [[0, -11], [-8, -8], [8, -8]].forEach(([ox, oy]) => { // 手指
+            ctx.beginPath();
+            ctx.arc(pawX + ox, pawY + oy, 4, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        ctx.restore();
     }
 
-    // === 操作按鈕 (UI Buttons) ===
-    renderUI() {
-        this.uiButtons = [];
-        const state = this.gameState;
+    /* =================================================================
+       Helpers (工具函式)
+       ================================================================= */
 
-        if (!this._isPlayerControllablePhase()) return;
-
-        const actions = state.getLegalActions(0);
-        const buttons = [];
-        const handZone = this.ZONES.playerHand;
-
-        const btnW = 100;
-        const btnH = 50;
-        const gap = 15;
-        // 動態計算按鈕位置 (避開手牌)
-        const anchorRight = handZone.x + 13 * (this.tileWidth + this.tileGap);
-        const y = handZone.y - btnH - 25;
-
-        if (state.phase === "PLAYER_DECISION") {
-            if (actions.canAnkan) buttons.push({ text: "槓", action: { type: "TRY_ANKAN" } });
-            if (actions.canRiichi) buttons.push({ text: "立直", action: { type: "RIICHI" } });
-            if (actions.canTsumo) buttons.push({ text: "自摸", action: { type: "TSUMO" } });
-            if (buttons.length > 0) buttons.push({ text: "跳過", action: { type: "CANCEL" } });
-        }
-        else if (state.phase === "ANKAN_SELECTION") {
-            const player = state.players[0];
-            const currentAnkanCount = player.fulu.filter(m => m.type === "ankan").length;
-            const kanList = state.logic.getAnkanTiles(
-                player.tepai,
-                currentAnkanCount,
-                player.isReach ? player.riichiWaitSet : null
-            );
-
-            kanList.forEach(tile => {
-                buttons.push({
-                    text: "",
-                    tileIcon: tile,
-                    action: { type: "ANKAN", tile: tile }
-                });
-            });
-            buttons.push({ text: "返回", action: { type: "CANCEL" } });
-        }
-        else if (state.phase === "RIICHI_DECLARATION") {
-            buttons.push({ text: "返回", action: { type: "CANCEL" } });
-        }
-        else if (state.phase === "REACTION_DECISION") {
-            if (actions.canRon) buttons.push({ text: "榮和", action: { type: "RON" } });
-            buttons.push({ text: "跳過", action: { type: "CANCEL" } });
-        }
-
-        if (buttons.length === 0) return;
-
-        let x = anchorRight - btnW;
-        for (let i = buttons.length - 1; i >= 0; i--) {
-            const btn = buttons[i];
-            const isPressed = (this.pressedButtonIndex === i); // 判斷是否是被按下的那顆
-            
-            this.drawUIButton(x, y, btnW, btnH, btn.text, btn.tileIcon, isPressed);
-            
-            // 存入 uiButtons 供點擊偵測
-            this.uiButtons.push({ x, y, w: btnW, h: btnH, action: btn.action, index: i });
-            x -= (btnW + gap);
-        }
+    _fillRoundedRect(x, y, w, h, r) {
+        this.ctx.beginPath();
+        this.ctx.roundRect(x, y, w, h, r);
+        this.ctx.fill();
     }
 
-    _isPlayerControllablePhase() {
+    _strokeRoundedRect(x, y, w, h, r) {
+        this.ctx.beginPath();
+        this.ctx.roundRect(x, y, w, h, r);
+        this.ctx.stroke();
+    }
+
+    _isPlayerInteractive() {
         const state = this.gameState;
         if (state.phase === "PLAYER_DECISION" && state.turn === 0) return true;
         if (state.phase === "ANKAN_SELECTION" && state.turn === 0) return true;
         if (state.phase === "RIICHI_DECLARATION") return true;
-        if (state.phase === "REACTION_DECISION") {
-            if (state.lastDiscard && state.lastDiscard.fromPlayer !== 0) return true;
-        }
+        if (state.phase === "REACTION_DECISION" && state.lastDiscard?.fromPlayer !== 0) return true;
         return false;
-    }
-
-    drawUIButton(x, y, w, h, text, tileIcon = null, isPressed = false) {
-        const ctx = this.ctx;
-        ctx.save();
-
-        // --- 1. 物理位移計算 ---
-        // 如果被按下，整個按鈕的內容稍微往下掉 3px
-        const offset = isPressed ? 3 : 0;
-        const currentY = y + offset;
-
-        // --- 2. 繪製底部投影 (按下去時投影要變小) ---
-        if (!isPressed) {
-            ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-            this._fillRoundedRect(ctx, x, y + 4, w, h, 8); // 這是按鈕沒按時的「厚度」
-        }
-
-        // --- 3. 繪製按鈕主體 ---
-        const gradient = ctx.createLinearGradient(x, currentY, x, currentY + h);
-        if (isPressed) {
-            // 按下時顏色變深
-            gradient.addColorStop(0, "rgba(30, 50, 40, 0.9)"); 
-            gradient.addColorStop(1, "rgba(20, 35, 25, 1.0)");
-        } else {
-            gradient.addColorStop(0, "rgba(74, 120, 90, 0.8)");
-            gradient.addColorStop(1, "rgba(40, 70, 50, 0.9)");
-        }
-
-        ctx.fillStyle = gradient;
-        this._fillRoundedRect(ctx, x, currentY, w, h, 8);
-
-        // --- 4. 邊框與內發光 ---
-        ctx.strokeStyle = isPressed ? "rgba(255, 255, 255, 0.1)" : "rgba(255, 255, 255, 0.3)";
-        ctx.lineWidth = 2;
-        this._strokeRoundedRect(ctx, x, currentY, w, h, 8);
-
-        // --- 5. 繪製文字或圖標 (也要跟著 offset) ---
-        if (tileIcon !== null && tileIcon !== undefined) {
-            const tileW = 30;
-            const tileH = 42;
-            const tileX = x + (w - tileW) / 2;
-            const tileY = currentY + (h - tileH) / 2;
-
-            if (!isPressed) {
-                ctx.shadowColor = "rgba(255, 255, 255, 0.5)";
-                ctx.shadowBlur = 10;
-            }
-            this.drawTile(tileIcon, tileX, tileY, tileW, tileH);
-        } else {
-            ctx.fillStyle = isPressed ? "#bbbbbb" : "#ffffff"; // 按下時文字稍微變暗
-            ctx.font = `bold 22px ${this.fontFamily}`;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(text, x + w / 2, currentY + h / 2);
-        }
-
-        ctx.restore();
-    }
-
-    getUIAction(x, y) {
-        for (const btn of this.uiButtons) {
-            if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
-                return btn.action;
-            }
-        }
-        return null;
-    }
-
-    // === 輔助方法：圓角矩形繪製 ===
-    _fillRoundedRect(ctx, x, y, w, h, r) {
-        ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.arcTo(x + w, y, x + w, y + h, r);
-        ctx.arcTo(x + w, y + h, x, y + h, r);
-        ctx.arcTo(x, y + h, x, y, r);
-        ctx.arcTo(x, y, x + w, y, r);
-        ctx.closePath();
-        ctx.fill();
-    }
-
-    _strokeRoundedRect(ctx, x, y, w, h, r) {
-        ctx.beginPath();
-        ctx.moveTo(x + r, y);
-        ctx.arcTo(x + w, y, x + w, y + h, r);
-        ctx.arcTo(x + w, y + h, x, y + h, r);
-        ctx.arcTo(x, y + h, x, y, r);
-        ctx.arcTo(x, y, x + w, y, r);
-        ctx.closePath();
-        ctx.stroke();
     }
 }
