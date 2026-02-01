@@ -134,25 +134,22 @@ export class InputHandler {
      * @param {number} y 滑鼠 Y
      * @param {number} pressedBtnIndex 剛才 MouseDown 的按鈕索引 (用於防呆)
      */
-    _handleInGameInteract(x, y, pressedBtnIndex) {
-        // 優先權 1：UI 按鈕 (吃、碰、槓、胡、取消)
-        // 嚴格判定：必須在同一顆按鈕上「按下」且「放開」才算觸發
+    _handleInGameInteract(x, y, pressedBtnIndex) {    
         const buttons = this.renderer.uiButtons || [];
+        let uiTriggered = false;
+        
         if (pressedBtnIndex !== -1 && buttons[pressedBtnIndex]) {
             const btn = buttons[pressedBtnIndex];
             if (this._hit(x, y, btn.x, btn.y, btn.w, btn.h)) {
-                console.log("[Canvas UI] 觸發動作:", btn.action);
-                this.renderer.uiButtons = []; // 點擊後清空 UI 防止連點
+                console.log("[Canvas UI] 觸發:", btn.action);
+                this.renderer.uiButtons = []; 
                 this.state.applyAction(0, btn.action);
-                return;
+                uiTriggered = true; // 標記 UI 已觸發
             }
         }
-
-        // 優先權 2：點擊手牌 (切牌)
+        
         // 如果剛才沒有點擊任何 UI 按鈕，才檢測手牌
-        if (pressedBtnIndex === -1) {
-            this._handleHandTileClick(x, y);
-        }
+        if (!uiTriggered) this._handleHandTileClick(x, y);
     }
 
     /* =================================================================
