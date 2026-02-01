@@ -1086,6 +1086,54 @@ export class GameState {
        };
     }
 
+   // 在 GameState.js 的 class GameState 裡面加入這個方法
+
+    /**
+     * 結算畫面結束後，將分數變動應用到玩家身上
+     */
+    applyResultPoints() {
+        const result = this.lastResult;
+        if (!result) return;
+
+        // 1. 如果 result 裡面已經計算好 deltas (分數變動陣列 [-1000, 1000...])
+        if (result.deltas) {
+            this.players.forEach((player, index) => {
+                player.score += result.deltas[index];
+            });
+        } 
+        // 2. 如果沒有 deltas，嘗試用 winnerIndex 和 total 手動計算 (簡單版 fallback)
+        else if (result.score && typeof result.score.total === 'number') {
+            const points = result.score.total;
+            
+            // 處理和牌 (Agari)
+            if (result.winnerIndex !== undefined) {
+                // 贏家加分
+                this.players[result.winnerIndex].score += points;
+                
+                // 輸家扣分 (如果是自摸，通常需要在 Scorer 裡算好 deltas，這邊假設是簡單榮和或 1v1)
+                // 注意：如果有 loserIndex (放槍者)，就扣他的分
+                if (result.loserIndex !== undefined && result.loserIndex !== -1) {
+                    this.players[result.loserIndex].score -= points;
+                } else {
+                    // 如果是自摸，其他玩家均分扣分 (或是 1v1 對家扣分)
+                    // 這裡建議你的 Scorer 最好都要回傳 deltas，不然這邊邏輯會很複雜
+                    // 暫時假設是 1v1 對戰：
+                    const loserIdx = result.winnerIndex === 0 ? 1 : 0;
+                    this.players[loserIdx].score -= points;
+                }
+            }
+            // 處理錯和 (Chombo)
+            else if (result.offenderIndex !== undefined) {
+                this.players[result.offenderIndex].score -= points;
+                // 1v1 對家加分
+                const otherIdx = result.offenderIndex === 0 ? 1 : 0;
+                this.players[otherIdx].score += points;
+            }
+        }
+
+        console.log("分數已更新:", this.players.map(p => p.score));
+    }
+
     _shuffle(array) {
         for (let i = array.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
