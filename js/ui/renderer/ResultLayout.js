@@ -77,7 +77,6 @@ export class ResultLayout {
     drawResultHand(result, centerX, startY, options = {}) {
         const { r, ctx } = this;
         const isChombo = (typeof options === 'boolean') ? options : (options.isChombo || false);
-        const isHideLabel = (typeof options === 'object' && options.isHideLabel === true);
         
         const tileCfg = r.config.tile;
         const tileW = tileCfg.w;
@@ -99,14 +98,13 @@ export class ResultLayout {
             winTile = r.gameState.lastDiscard.tile;
         }
         
-        // 計算總寬度以置中
         const melds = player.fulu || [];
         let totalWidth = standingTiles.length * (tileW + gap);
         if (melds.length > 0) {
             totalWidth += sectionGap;
             melds.forEach(m => totalWidth += r._calculateMeldWidth(m, tileW) + 10);
         }
-        totalWidth += sectionGap + tileW; // 加上最後一張和了牌
+        totalWidth += sectionGap + tileW; 
         
         let currentX = centerX - (totalWidth / 2);
         const handLeftX = currentX;
@@ -126,26 +124,25 @@ export class ResultLayout {
             });
         }
         
-        // 3. 繪製和了牌 (確保 currentX 在這裡精確指向最後一張牌)
+        // 3. 繪製最後一張牌
         currentX += sectionGap;
-        const finalWinX = currentX; // 鎖定座標
+        const finalWinX = currentX; 
         const highlightColor = isChombo ? "#ff4444" : "#ffcc00";
         
         r.drawTile(winTile, finalWinX, startY, tileW, tileH);
         
-        if (!isHideLabel) {
-            ctx.save();
-            ctx.lineWidth = 4;
-            ctx.strokeStyle = highlightColor;
-            ctx.strokeRect(finalWinX, startY, tileW, tileH);
-            
-            ctx.fillStyle = highlightColor;
-            ctx.font = `bold 20px ${r.config.fontFamily}`; 
-            ctx.textAlign = "center";
-            ctx.textBaseline = "top";
-            ctx.fillText(isChombo ? "錯和" : "和了", finalWinX + tileW / 2, startY + tileH + 10);
-            ctx.restore();
-        }
+        // --- 結算專用的文字標籤 (這不是肉球，是結算 UI) ---
+        ctx.save();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = highlightColor;
+        ctx.strokeRect(finalWinX, startY, tileW, tileH);
+        
+        ctx.fillStyle = highlightColor;
+        ctx.font = `bold 20px ${r.config.fontFamily}`; 
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillText(isChombo ? "錯和" : "和了", finalWinX + tileW / 2, startY + tileH + 10);
+        ctx.restore();
         
         return handLeftX;
     }
