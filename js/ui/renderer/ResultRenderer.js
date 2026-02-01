@@ -5,7 +5,7 @@ import { ResultEffect } from "./ResultEffect.js";
 import { ResultCache } from "./ResultCache.js";
 
 /**
- * 負責麻將遊戲結算畫面的主渲染類別
+ * 負責遊戲結算畫面的主渲染類別
  * 採用狀態機驅動，並將邏輯分流至 Layout, Effect, Cache 模組
  */
 export class ResultRenderer {
