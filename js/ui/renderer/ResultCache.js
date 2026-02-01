@@ -10,7 +10,10 @@ export class ResultCache {
             yakumanCount: 0,
             isYakuman: false,
             isKazoeYakuman: false,
-            limitColor: "#fff"
+            limitColor: "#fff",
+            han: 0,
+            fu: 0,
+            scoreTotal: 0
         };
     }
 
@@ -22,9 +25,13 @@ export class ResultCache {
      */
     set(result, YAKU_ORDER, YAKUMAN_SET) {
         // 1. 先重置
-        this.data = this._createDefaultCacheData();
+        const data = this._createDefaultCacheData();
 
         if (!result || !result.score) return;
+
+        data.han = result.score.han || 0;
+        data.fu = result.score.fu || 0;
+        data.scoreTotal = result.score.total || 0;
 
         // --- 役種排序 ---
         if (result.score.yakus?.length) {
