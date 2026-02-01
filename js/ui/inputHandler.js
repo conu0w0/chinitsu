@@ -257,11 +257,13 @@ export class InputHandler {
      * 取得手牌渲染參數 (避免在 Loop 中重複解構)
      */
     _getHandRenderParams(player) {
+        const tileCfg = this.renderer.config.tile;
+        
         return {
-            tileW: this.renderer.tileWidth,
-            tileH: this.renderer.tileHeight,
-            gap: this.renderer.tileGap ?? 2,
-            drawGap: this.renderer.drawGap ?? this.renderer.tileWidth,
+            tileW: tileCfg.w,
+            tileH: tileCfg.h,
+            gap: tileCfg.tileGap ?? 2,
+            drawGap: tileCfg.drawGap ?? 20,
             isTsumo: (player.tepai.length % 3 === 2),
             lastIndex: player.tepai.length - 1
         };
