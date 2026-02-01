@@ -463,34 +463,34 @@ export class Renderer {
     }
 
     _drawUIButtons() {
-        this.uiButtons = []; // 重置點擊區域
+        this.uiButtons = []; // 每次重置
         if (!this._isPlayerInteractive()) return;
-
+        
         const actions = this.gameState.getLegalActions(0);
         const buttons = this._generateButtonList(actions);
         if (buttons.length === 0) return;
-
-        // 排版設定
+        
         const btnW = 100, btnH = 50, gap = 15;
-        const anchorRight = this.ZONES.playerHand.x + 13 * (this.config.tile.w + this.config.tile.gap);
-        let currentX = anchorRight - btnW;
-        const startY = this.ZONES.playerHand.y - btnH - 25;
-
-        // 倒序繪製 (從右往左排)
-        for (let i = buttons.length - 1; i >= 0; i--) {
-            const btn = buttons[i];
+        const totalW = buttons.length * btnW + (buttons.length - 1) * gap;
+        
+        // 讓按鈕群組在手牌上方靠右對齊
+        const startX = (this.ZONES.playerHand.x + 14 * (this.config.tile.w + this.config.tile.gap)) - totalW;
+        const drawY = this.ZONES.playerHand.y - btnH - 25;
+        
+        // 正序處理
+        buttons.forEach((btn, i) => {
+            const currentX = startX + i * (btnW + gap);
             const isPressed = (this.pressedButtonIndex === i);
-
-            this._drawSingleButton(currentX, startY, btnW, btnH, btn, isPressed);
             
-            // 註冊感應區
+            // 1. 繪製
+            this._drawSingleButton(currentX, drawY, btnW, btnH, btn, isPressed);
+            
+            // 2. 存入感應區 (順序跟 i 完全一致)
             this.uiButtons.push({ 
-                x: currentX, y: startY, w: btnW, h: btnH, 
-                action: btn.action, index: i 
+                x: currentX, y: drawY, w: btnW, h: btnH, 
+                action: btn.action 
             });
-            
-            currentX -= (btnW + gap);
-        }
+        });
     }
 
     // 根據當前狀態生成按鈕列表
