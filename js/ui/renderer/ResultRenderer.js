@@ -166,10 +166,6 @@ export class ResultRenderer {
         const [W, H, CX] = [r.canvas.width, r.canvas.height, r.canvas.width / 2];
         const { sortedYakus, limitName, isYakuman, isKazoeYakuman } = cache.data;
 
-        this.resultHandLeftX = layout.drawResultHand(result, CX, H * 0.68, { 
-            isStatic: sm.state < RESULT_STATE.HAND// 如果還沒到手牌階段，就畫靜態的
-        });
-
         // --- 0. INIT ---
         if (sm.state === RESULT_STATE.INIT) return this._enterState(RESULT_STATE.TITLE);
 
