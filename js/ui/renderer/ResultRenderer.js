@@ -357,25 +357,36 @@ export class ResultRenderer {
                 if (now < anim.startTime) return;
 
                 const t = Math.min((now - anim.startTime) / anim.duration, 1);
-                const ease = t * t * (3 - 2 * t);
+                const ease = 1 - Math.pow(1 - t, 3);
 
                 const row = anim.index % yakuItemsPerCol;
                 const col = Math.floor(anim.index / yakuItemsPerCol);
-
                 const targetX = baseX + col * yakuColWidth;
                 const targetY = this.resultYakuBaseY + row * yakuLineHeight;
                 // X 軸偏移：從右側 40px 滑動到 0px
                 const currentX = targetX + (1 - ease) * 40;
 
-                ctx.globalAlpha = ease; // 淡入
-                ctx.fillStyle = "#ffffff";
+                ctx.save();
+                ctx.globalAlpha = t;
+                
+                const isYakuman = this.YAKUMAN_SET.has(anim.text);
+                
+                if (isYakuman) {
+                    ctx.fillStyle = "#ffcc00"; // 役滿用金黃色
+                    ctx.shadowColor = "rgba(255, 200, 0, 0.6)";
+                } else {
+                    ctx.fillStyle = "#ffffff"; // 普通役用白色
+                    ctx.shadowColor = "rgba(255, 255, 255, 0.4)";
+                }
+                
+                ctx.shadowBlur = 10 * t;
+
                 ctx.fillText(anim.text, currentX, targetY);
+                ctx.restore();                
             });
 
             // 檢查是否所有役種都播完了，播完就切換狀態
-            if (now > this.resultYakuEndTime) {
-                this._enterState(RESULT_STATE.YAKU_STATIC);
-            }
+            if (now > this.resultYakuEndTime) this._enterState(RESULT_STATE.YAKU_STATIC);
         } else {
             // === 靜態階段：直接畫出所有文字 ===
             ctx.fillStyle = "#ddd";
