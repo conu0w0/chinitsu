@@ -6,13 +6,13 @@ import { ResultCache } from "./ResultCache.js";
 
 /**
  * 負責麻將遊戲結算畫面的主渲染類別
- * 採用狀態機驅動，並將邏輯分流至 Layout、Effect、Cache 模組
+ * 採用狀態機驅動，並將邏輯分流至 Layout, Effect, Cache 模組
  */
 export class ResultRenderer {
     constructor(renderer) {
         this.r = renderer;
         this.ctx = renderer.ctx;
-        
+
         // --- 配置參數注入 ---
         this.TIMING = RESULT_TIMING;
         this.RESULT_LAYOUT = RESULT_LAYOUT_CONFIG;
@@ -21,16 +21,17 @@ export class ResultRenderer {
 
         // --- 核心模組初始化 ---
         this.stateMachine = new ResultStateMachine();
-        this.layout       = new ResultLayout(renderer);
-        this.effect       = new ResultEffect(renderer);
-        this.cache        = new ResultCache();
-        this.yakuAnimations = [];
-        this.isReadyForNext = false;
+        this.layout = new ResultLayout(renderer);
+        this.effect = new ResultEffect(renderer);
+        this.cache = new ResultCache();
         
         // --- 持久引用儲存 ---
         this._lastResultRef = null;
-
+        
         // --- 初始化動畫狀態 ---
+        this.yakuAnimations = [];
+        this.isReadyForNext = false;
+        
         // 呼叫這個方法來建立所有需要的動畫變數
         this._resetAnimationState();
     }
@@ -60,7 +61,7 @@ export class ResultRenderer {
         this.scorePhase = 0;            // 0: 飜符淡入, 1: 顯示點數與稱號
         this.resultPointLocked = false; // 點數蓋章是否完成
         this.resultLevelLocked = false; // 稱號蓋章是否完成
-        
+
         // 5. 其他
         this.resultYakuEndTime = 0;
         this.yakuAnimations = [];
@@ -71,10 +72,11 @@ export class ResultRenderer {
      */
     draw(result) {
         if (!result) return;
-        
+
         const { ctx, r } = this;
 
         ctx.save();
+        
         // 1. 背景遮罩
         ctx.fillStyle = "rgba(0, 0, 0, 0.92)";
         ctx.fillRect(0, 0, r.canvas.width, r.canvas.height);
@@ -110,8 +112,8 @@ export class ResultRenderer {
         // 罰符資訊
         const isParent = (result.offenderIndex === this.r.gameState.parentIndex);
         const roleText = isParent ? "親" : "子";
-        const who      = (result.offenderIndex === 0) ? "玩家" : "COM";
-        
+        const who = (result.offenderIndex === 0) ? "玩家" : "COM";
+
         this._drawPenaltyInfo(`${who}(${roleText}) 罰符 `, `-${result.score.total} 點`, CX, H * 0.48);
 
         // 手牌與聽牌 (使用 Layout 模組)
@@ -157,11 +159,14 @@ export class ResultRenderer {
         const { sortedYakus, limitName, isYakuman, isKazoeYakuman } = cache.data;
 
         // --- 0. INIT ---
-        if (sm.state === RESULT_STATE.INIT) return this._enterState(RESULT_STATE.TITLE);
+        if (sm.state === RESULT_STATE.INIT) {
+            return this._enterState(RESULT_STATE.TITLE);
+        }
 
         // --- 1. TITLE ---
         if (sm.state >= RESULT_STATE.TITLE) {
             this._drawCenteredTitle("本局結束", CX, H * 0.18, 64);
+            
             if (sm.state === RESULT_STATE.TITLE && (now - sm.stateEnterTime > this.TIMING.TITLE_TO_WINNER)) {
                 this._enterState(RESULT_STATE.WINNER);
             }
@@ -171,6 +176,7 @@ export class ResultRenderer {
         if (sm.state >= RESULT_STATE.WINNER) {
             const winnerText = this._getWinnerText(result);
             this._drawCenteredTitle(winnerText, CX, H * 0.28, 42);
+            
             if (sm.state === RESULT_STATE.WINNER && (now - sm.stateEnterTime > this.TIMING.WINNER_TO_YAKU)) {
                 this._enterState(RESULT_STATE.YAKU_ANIM);
             }
@@ -185,6 +191,7 @@ export class ResultRenderer {
         // --- 4. YAKU STATIC ---
         if (sm.state >= RESULT_STATE.YAKU_STATIC) {
             this._drawYakuList(sortedYakus, CX);
+            
             if (sm.state === RESULT_STATE.YAKU_STATIC && (now - sm.stateEnterTime > this.TIMING.YAKU_TO_HAND)) {
                 this._enterState(RESULT_STATE.HAND);
             }
@@ -193,6 +200,7 @@ export class ResultRenderer {
         // --- 5. HAND ---
         if (sm.state >= RESULT_STATE.HAND) {
             this.resultHandLeftX = layout.drawResultHand(result, CX, H * 0.68);
+            
             if (sm.state === RESULT_STATE.HAND && (now - sm.stateEnterTime > this.TIMING.HAND_TO_SCORE)) {
                 this._enterState(RESULT_STATE.SCORE);
             }
@@ -209,13 +217,13 @@ export class ResultRenderer {
             }
         }
 
-       // --- 7. HINT ---
+        // --- 7. HINT ---
         if (sm.state >= RESULT_STATE.HINT) {
             this._drawSubTitle("— 點擊任意處繼續 —", CX, H * 0.9, "#888", 24);
-            this.isReadyForNext = true; 
+            this.isReadyForNext = true;
         } else {
             // 尚未到達 HINT 前，禁止點擊下一局
-            this.isReadyForNext = false; 
+            this.isReadyForNext = false;
         }
     }
 
@@ -228,12 +236,13 @@ export class ResultRenderer {
         this.stateMachine.enter(state);
 
         // 根據進入的狀態，初始化該階段的動畫起點
-        switch(state) {
+        switch (state) {
             case RESULT_STATE.YAKU_ANIM:
-                this.yakuAnimations = []; 
-                this.resultYakuAnimated = false; 
+                this.yakuAnimations = [];
+                this.resultYakuAnimated = false;
                 break;
             case RESULT_STATE.SCORE:
+                this._scoreLayoutCache = null;
                 this.resultHanfuStartTime = now;
                 this.resultScoreStartTime = now + this.TIMING.PHASE0_TO_PHASE1;
                 break;
@@ -270,120 +279,120 @@ export class ResultRenderer {
     _getChomboLabel(result) {
         const offender = result.offender;
         const type = result.chomboType;
-        
+
         if (type === "wrong_agari") return "錯和";
         if (type === "furiten") return "振聽";
         if (!offender?.isTenpai) return "未聽牌";
         return "違規";
     }
-    
+
     /**
-    * 繪製錯和的罰符資訊 (處理不同顏色的文字組合)
-    */
+     * 繪製錯和的罰符資訊 (處理不同顏色的文字組合)
+     */
     _drawPenaltyInfo(textPart, numPart, x, y) {
         const { ctx, r } = this;
         ctx.font = `bold 50px ${r.fontFamily}`;
-        
+
         const textWidth = ctx.measureText(textPart).width;
         const numWidth = ctx.measureText(numPart).width;
         const totalWidth = textWidth + numWidth;
-        
+
         let drawX = x - totalWidth / 2;
-        
+
         ctx.textAlign = "left";
         ctx.fillStyle = "#ffffff";
         ctx.fillText(textPart, drawX, y);
-        
+
         ctx.fillStyle = "#ff4444"; // 扣分用紅色
         ctx.fillText(numPart, drawX + textWidth, y);
         ctx.textAlign = "center"; // 恢復對齊
     }
-    
+
     /**
-    * 處理「役」清單的動畫觸發邏輯
-    */
-    _handleYakuAnimation(sortedYakus, baseY) {        
-    const { TIMING } = this;
-    if (this.resultYakuAnimated || !sortedYakus.length) return;
-    
-    this.resultYakuAnimated = true;
-    this.resultYakuBaseY = baseY;
-    
-    const nowT = performance.now();
-    sortedYakus.forEach((yaku, i) => {
-        this.yakuAnimations.push({
-            text: yaku,
-            index: i,
-            startTime: nowT + i * TIMING.YAKU_INTERVAL,
-            duration: TIMING.YAKU_DURATION,
-        });
-    });
+     * 處理「役」清單的動畫觸發邏輯
+     */
+    _handleYakuAnimation(sortedYakus, baseY) {
+        const { TIMING } = this;
+        if (this.resultYakuAnimated || !sortedYakus.length) return;
 
-    const lastIndex = sortedYakus.length - 1;
-    this.resultYakuEndTime = nowT + lastIndex * TIMING.YAKU_INTERVAL + TIMING.YAKU_DURATION;
-}
-    
-    /**
-    * 繪製靜態的「役」列表 (分欄顯示)
-    */
-    _drawYakuList(sortedYakus, cx) {
-    const { ctx, r, RESULT_LAYOUT, stateMachine: sm } = this;
-    const { yakuLineHeight, yakuItemsPerCol, yakuColWidth } = RESULT_LAYOUT;
-    const now = performance.now();
+        this.resultYakuAnimated = true;
+        this.resultYakuBaseY = baseY;
 
-    const totalCols = Math.ceil(sortedYakus.length / yakuItemsPerCol);
-    const totalWidth = (Math.max(1, totalCols) - 1) * yakuColWidth;
-    const baseX = cx - totalWidth / 2;
-
-        ctx.save();    
-    ctx.font = `30px ${r.fontFamily}`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "alphabetic";
-
-    if (sm.state === RESULT_STATE.YAKU_ANIM) {
-        // === 動態階段：處理飛入效果 ===
-        this.yakuAnimations.forEach(anim => {
-            if (now < anim.startTime) return; 
-
-            const t = Math.min((now - anim.startTime) / anim.duration, 1);
-            const ease = t * t * (3 - 2 * t);
-
-            const row = anim.index % yakuItemsPerCol;
-            const col = Math.floor(anim.index / yakuItemsPerCol);
-            
-            const targetX = baseX + col * yakuColWidth;
-            const targetY = this.resultYakuBaseY + row * yakuLineHeight;
-            // X 軸偏移：從右側 40px 滑動到 0px
-            const currentX = targetX + (1 - ease) * 40;
-            
-            ctx.globalAlpha = ease; // 淡入
-            ctx.fillStyle = "#ffffff"; 
-            ctx.fillText(anim.text, currentX, targetY);
-        });
-
-        // 檢查是否所有役種都播完了，播完就切換狀態
-        if (now > this.resultYakuEndTime) {
-            this._enterState(RESULT_STATE.YAKU_STATIC);
-        }
-    } else {
-        // === 靜態階段：直接畫出所有文字 ===
-        ctx.fillStyle = "#ddd";
+        const nowT = performance.now();
         sortedYakus.forEach((yaku, i) => {
-            const row = i % yakuItemsPerCol;
-            const col = Math.floor(i / yakuItemsPerCol);
-            ctx.fillText(
-                yaku,
-                baseX + col * yakuColWidth,
-                this.resultYakuBaseY + row * yakuLineHeight
-            );
+            this.yakuAnimations.push({
+                text: yaku,
+                index: i,
+                startTime: nowT + i * TIMING.YAKU_INTERVAL,
+                duration: TIMING.YAKU_DURATION,
+            });
         });
+
+        const lastIndex = sortedYakus.length - 1;
+        this.resultYakuEndTime = nowT + lastIndex * TIMING.YAKU_INTERVAL + TIMING.YAKU_DURATION;
     }
-        ctx.restore();
-}
-    
+
     /**
-    * 取得勝者描述文字
-    */
+     * 繪製靜態的「役」列表 (分欄顯示)
+     */
+    _drawYakuList(sortedYakus, cx) {
+        const { ctx, r, RESULT_LAYOUT, stateMachine: sm } = this;
+        const { yakuLineHeight, yakuItemsPerCol, yakuColWidth } = RESULT_LAYOUT;
+        const now = performance.now();
+
+        const totalCols = Math.ceil(sortedYakus.length / yakuItemsPerCol);
+        const totalWidth = (Math.max(1, totalCols) - 1) * yakuColWidth;
+        const baseX = cx - totalWidth / 2;
+
+        ctx.save();
+        ctx.font = `30px ${r.fontFamily}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "alphabetic";
+
+        if (sm.state === RESULT_STATE.YAKU_ANIM) {
+            // === 動態階段：處理飛入效果 ===
+            this.yakuAnimations.forEach(anim => {
+                if (now < anim.startTime) return;
+
+                const t = Math.min((now - anim.startTime) / anim.duration, 1);
+                const ease = t * t * (3 - 2 * t);
+
+                const row = anim.index % yakuItemsPerCol;
+                const col = Math.floor(anim.index / yakuItemsPerCol);
+
+                const targetX = baseX + col * yakuColWidth;
+                const targetY = this.resultYakuBaseY + row * yakuLineHeight;
+                // X 軸偏移：從右側 40px 滑動到 0px
+                const currentX = targetX + (1 - ease) * 40;
+
+                ctx.globalAlpha = ease; // 淡入
+                ctx.fillStyle = "#ffffff";
+                ctx.fillText(anim.text, currentX, targetY);
+            });
+
+            // 檢查是否所有役種都播完了，播完就切換狀態
+            if (now > this.resultYakuEndTime) {
+                this._enterState(RESULT_STATE.YAKU_STATIC);
+            }
+        } else {
+            // === 靜態階段：直接畫出所有文字 ===
+            ctx.fillStyle = "#ddd";
+            sortedYakus.forEach((yaku, i) => {
+                const row = i % yakuItemsPerCol;
+                const col = Math.floor(i / yakuItemsPerCol);
+                ctx.fillText(
+                    yaku,
+                    baseX + col * yakuColWidth,
+                    this.resultYakuBaseY + row * yakuLineHeight
+                );
+            });
+        }
+        ctx.restore();
+    }
+
+    /**
+     * 取得勝者描述文字
+     */
     _getWinnerText(result) {
         const isParent = (result.winnerIndex === this.r.gameState.parentIndex);
         const roleText = isParent ? "親" : "子";
@@ -400,7 +409,7 @@ export class ResultRenderer {
         const { han, fu, scoreTotal, limitName, isYakuman, isKazoeYakuman, yakumanCount } = cache.data;
 
         // 1. 建立或讀取排版快取
-        if (!this._scoreLayoutCache) {
+        if (!this._scoreLayoutCache && this.resultHandLeftX !== null) {
             const isYakumanOnly = isYakuman && !isKazoeYakuman;
             const rowItems = [];
 
@@ -433,6 +442,7 @@ export class ResultRenderer {
             this._scoreLayoutCache = layout.layoutScoreRow(this.resultHandLeftX, scoreY, rowItems);
             if (isYakumanOnly) this.scorePhase = 1;
         }
+        if (!this._scoreLayoutCache) return;
 
         const row = this._scoreLayoutCache;
 
@@ -441,8 +451,11 @@ export class ResultRenderer {
         if (hanfu) {
             if (this.scorePhase === 0) {
                 effect.fadeInText({
-                    text: hanfu.text, x: hanfu.x, y: hanfu.y,
-                    font: hanfu.font, startTime: this.resultHanfuStartTime
+                    text: hanfu.text,
+                    x: hanfu.x,
+                    y: hanfu.y,
+                    font: hanfu.font,
+                    startTime: this.resultHanfuStartTime
                 });
                 if (now - this.resultHanfuStartTime > TIMING.PHASE0_TO_PHASE1) this.scorePhase = 1;
             } else {
@@ -455,11 +468,19 @@ export class ResultRenderer {
         if (point && this.scorePhase >= 1) {
             if (!this.resultPointLocked) {
                 effect.stampText({
-                    text: point.text, x: point.x, y: point.y,
-                    font: point.font, startTime: this.resultScoreStartTime,
+                    text: point.text,
+                    x: point.x,
+                    y: point.y,
+                    font: point.font,
+                    startTime: this.resultScoreStartTime,
                     dropHeight: 48
                 });
-                if (now - this.resultScoreStartTime >= 500) this.resultPointLocked = true;
+                if (now - this.resultScoreStartTime >= 500) {
+                    this.resultPointLocked = true;
+                    if (this.stateMachine.state === RESULT_STATE.SCORE) {
+                        this._enterState(RESULT_STATE.LEVEL);
+                    }
+                }
             } else {
                 this._drawStaticText(point.text, point.x, point.y, point.font);
             }
@@ -470,22 +491,29 @@ export class ResultRenderer {
         if (level && this.stateMachine.state >= RESULT_STATE.LEVEL) {
             if (!this.resultLevelLocked) {
                 effect.stampText({
-                    text: level.text, x: level.x, y: level.y,
-                    font: level.font, startTime: this.resultLevelStartTime,
+                    text: level.text,
+                    x: level.x,
+                    y: level.y,
+                    font: level.font,
+                    startTime: this.resultLevelStartTime,
                     duration: TIMING.LEVEL_STAMP_DURATION,
                     dropHeight: TIMING.LEVEL_STAMP_DROP
                 });
                 if (now - this.resultLevelStartTime >= TIMING.LEVEL_STAMP_DURATION) this.resultLevelLocked = true;
             } else {
                 this._drawStaticText(level.text, level.x, level.y, level.font);
-                
+
                 // 役滿高光特效
                 const highlightStart = this.resultLevelStartTime + TIMING.LEVEL_HIGHLIGHT_DELAY;
                 const isMultipleYakuman = yakumanCount >= 2;
+                
                 if ((isYakuman || isKazoeYakuman) && now >= highlightStart) {
                     effect.diagonalHighlight({
-                        text: level.text, x: level.x, y: level.y,
-                        font: level.font, startTime: highlightStart,
+                        text: level.text,
+                        x: level.x,
+                        y: level.y,
+                        font: level.font,
+                        startTime: highlightStart,
                         angle: isMultipleYakuman ? 25 : 45,
                         isSilver: isKazoeYakuman
                     });
