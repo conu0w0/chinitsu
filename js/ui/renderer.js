@@ -73,7 +73,7 @@ export class Renderer {
         const { w: rW, h: rH, gap: rGap = 0 } = this.config.river;
         const riverW = (5 * rW) + rH + (5 * rGap);
         const infoBoxH = 120;
-        const infoGap = 25;
+        const infoGap = 15;
 
         this.ZONES = {
             // 玩家區域
@@ -83,7 +83,7 @@ export class Renderer {
 
             // COM 區域
             comHand:     { x: W * 0.80, y: H * 0.15 },
-            comRiver:    { x: CX - (riverW / 2), y: CY - (infoBoxH / 2) - infoGap - (0.8 * 56), cols: 6, width: riverW },
+            comRiver:    { x: CX - (riverW / 2), y: CY - (infoBoxH / 2) - infoGap - rH, cols: 6, width: riverW },
             comMeld:     { x: W * 0.12, y: H * 0.15 + (76 - 56) }
         };
     }
@@ -96,14 +96,23 @@ export class Renderer {
         this._updateState();
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // --- 調整後的順序 ---
+        // 1. 最底層：背景
         this._drawBackground();
-        this.();     
+        
+        // 2. 中層：靜態遊戲物件 (牌河與手牌)
         this._drawRivers();   
         this._drawHands();
-        this._drawAnimations();
         
-        this._renderOverlay();  // 只有 UI 按鈕跟結算畫面會在最頂層
+        // 3. UI 層：資訊框與按鈕 (原本在 _renderOverlay 裡)
+        this._renderOverlay(); 
+        
+        // 4. 最頂層：所有動畫與動態標記
+        this._drawAnimations();
+
+        if (this._lastMarkedPos) {
+            const { x, y, w, h, rotate } = this._lastMarkedPos;
+            this._drawPawMarker(x, y, w, h, rotate);
+        }
     }
 
     /* =================================================================
@@ -336,7 +345,14 @@ export class Renderer {
                 dx = zone.x + curXOffset;
             } 
             
-            let dy = zone.y + curRow * (h + gap);
+            let dy;
+            if (isCom) {
+                // COM 第一行在最下方(靠近 Info)，第二行往上推
+                dy = zone.y - curRow * (h + gap);
+            } else {
+                // 玩家第一行在最上方(靠近 Info)，第二行往下推
+                dy = zone.y + curRow * (h + gap);
+            }
 
             // 立直牌的位置微調 (置中旋轉)
             if (rotate !== 0) {
@@ -347,8 +363,8 @@ export class Renderer {
 
             // 標記最後一張打出的牌
             const isLast = (this.gameState.lastDiscard?.fromPlayer === (isCom ? 1 : 0) && i === riverData.length - 1);
-
             this.drawTile(item.tile, dx, dy, w, h, { rotate, marked: isLast });
+            if (isLast) this._lastMarkedPos = { x: dx, y: dy, w, h, rotate };
             curXOffset += (tileSpace + gap);
         });
     }
@@ -654,7 +670,7 @@ export class Renderer {
 
         // 內容 (圖標或文字)
         if (btnData.tileIcon !== undefined) {
-            this.drawTile(btnData.tileIcon, x + (w - 30)/2, drawY + (h - 42)/2, 30, 42);
+            this.drawTile(btnData.tileIcon, x + (w - 30)/2, drawY + (h - 42)/2, 30, 42, { noShadow: true });
         } else {
             ctx.fillStyle = isPressed ? "#bbbbbb" : "#ffffff";
             ctx.font = `bold 22px ${this.config.fontFamily}`;
@@ -670,7 +686,7 @@ export class Renderer {
        ================================================================= */
 
     drawTile(tileVal, x, y, w, h, options = {}) {
-        const { faceDown, highlight, selected, marked, rotate = 0 } = options;
+        const { faceDown, highlight, selected, marked, rotate = 0, noShadow = false } = options;
         const ctx = this.ctx;
         const img = faceDown ? this.assets.back : this.assets.tiles?.[tileVal];
 
@@ -684,10 +700,12 @@ export class Renderer {
         }
 
         // 2. 陰影設定
-        ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetX = 2;
-        ctx.shadowOffsetY = 3;
+        if (!noShadow) {
+            ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+            ctx.shadowBlur = 4;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 3;
+        }
 
         // 3. 繪製圖片或色塊
         if (img) {
