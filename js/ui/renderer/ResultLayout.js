@@ -119,7 +119,7 @@ export class ResultLayout {
     if (melds.length > 0) {
         currentX += sectionGap;
         melds.forEach(m => {
-            const w = r._drawSingleMeld(m, currentX, safeStartY, tileW, tileH);
+            const w = this.r._drawSingleMeld(m, currentX, safeStartY, tileW, tileH);
             currentX += w + 10;
         });
     }
