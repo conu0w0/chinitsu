@@ -438,7 +438,7 @@ export class ResultRenderer {
      */
     _renderScoreAndLevel(now, scoreY) {
         const { ctx, r, layout, effect, cache, TIMING } = this;
-        const { han, fu, scoreTotal, limitName, isYakuman, isKazoeYakuman, yakumanCount } = cache.data;
+        const { han, fu, scoreTotal, limitName, isYakuman, isKazoeYakuman, yakumanCount, limitColor } = cache.data;
 
         // 1. 建立或讀取排版快取
         if (!this._scoreLayoutCache && this.resultHandLeftX !== null) {
@@ -450,7 +450,8 @@ export class ResultRenderer {
                 rowItems.push({
                     key: "hanfu",
                     text: `${han} 飜 ${fu} 符`,
-                    font: `bold 42px ${this.r.config.fontFamily}`
+                    font: `bold 42px ${this.r.config.fontFamily}`,
+                    color: "#ffffff" // 飜符維持白色
                 });
             }
 
@@ -458,7 +459,8 @@ export class ResultRenderer {
             rowItems.push({
                 key: "point",
                 text: `${scoreTotal} 點`,
-                font: `bold ${isYakumanOnly ? 64 : 48}px ${this.r.config.fontFamily}`
+                font: `bold ${isYakumanOnly ? 64 : 48}px ${this.r.config.fontFamily}`,
+                color: (isYakuman || han >= 13) ? limitColor : "#ffffff" // 役滿點數也套色
             });
 
             // 滿貫稱號 (如：滿貫、跳滿、役滿)
@@ -467,7 +469,8 @@ export class ResultRenderer {
                     key: "level",
                     text: limitName,
                     font: `bold 52px ${this.r.config.fontFamily}`,
-                    reserved: true // 預留位置，蓋章動畫會用到
+                    color: limitColor, // 稱號使用 Cache 算的顏色
+                    reserved: true 
                 });
             }
 
@@ -487,11 +490,12 @@ export class ResultRenderer {
                     x: hanfu.x,
                     y: hanfu.y,
                     font: hanfu.font,
+                    color: hanfu.color,
                     startTime: this.resultHanfuStartTime
                 });
                 if (now - this.resultHanfuStartTime > TIMING.PHASE0_TO_PHASE1) this.scorePhase = 1;
             } else {
-                this._drawStaticText(hanfu.text, hanfu.x, hanfu.y, hanfu.font);
+                this._drawStaticText(hanfu.text, hanfu.x, hanfu.y, hanfu.font, hanfu.color);
             }
         }
 
@@ -504,6 +508,7 @@ export class ResultRenderer {
                     x: point.x,
                     y: point.y,
                     font: point.font,
+                    color: point.color,
                     startTime: this.resultScoreStartTime,
                     dropHeight: 48
                 });
@@ -514,7 +519,7 @@ export class ResultRenderer {
                     }
                 }
             } else {
-                this._drawStaticText(point.text, point.x, point.y, point.font);
+                this._drawStaticText(point.text, point.x, point.y, point.font, point.color);
             }
         }
 
@@ -527,13 +532,14 @@ export class ResultRenderer {
                     x: level.x,
                     y: level.y,
                     font: level.font,
+                    color: level.color, // 這裡帶入 limitColor
                     startTime: this.resultLevelStartTime,
                     duration: TIMING.LEVEL_STAMP_DURATION,
                     dropHeight: TIMING.LEVEL_STAMP_DROP
                 });
                 if (now - this.resultLevelStartTime >= TIMING.LEVEL_STAMP_DURATION) this.resultLevelLocked = true;
             } else {
-                this._drawStaticText(level.text, level.x, level.y, level.font);
+                this._drawStaticText(level.text, level.x, level.y, level.font, level.color);
 
                 // 役滿高光特效
                 const highlightStart = this.resultLevelStartTime + TIMING.LEVEL_HIGHLIGHT_DELAY;
@@ -563,7 +569,13 @@ export class ResultRenderer {
         this.ctx.fillStyle = color;
         this.ctx.textAlign = "left";
         this.ctx.textBaseline = "alphabetic";
+        
+        // 如果是特殊顏色（非白色），加一點點發光感
+        if (color !== "#fff" && color !== "#ffffff") {
+            this.ctx.shadowColor = color;
+            this.ctx.shadowBlur = 10;
+        }
+
         this.ctx.fillText(text, x, y);
         this.ctx.restore();
     }
-}
