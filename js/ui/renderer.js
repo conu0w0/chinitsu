@@ -98,7 +98,7 @@ export class Renderer {
         
         // --- 調整後的順序 ---
         this._drawBackground();
-        this._drawInfoBox();     
+        this.();     
         this._drawRivers();   
         this._drawHands();
         this._drawAnimations();
@@ -524,55 +524,47 @@ export class Renderer {
         const cx = W / 2, cy = H / 2;
         const boxW = 260, boxH = 120;
         
-        // 畫框框背景
+        // 背景框
         const x = cx - boxW / 2, y = cy - boxH / 2;
         const pulse = Math.sin(Date.now() / 500) * 0.2 + 0.8; 
         
-        // 外發光框 (餘牌警示)
         ctx.strokeStyle = `rgba(255, 204, 0, ${pulse * 0.4})`;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 4;
         ctx.strokeRect(x - 2, y - 2, boxW + 4, boxH + 4);
-
+        
         ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
         ctx.fillRect(x, y, boxW, boxH);
         
-        // 文字內容
         const parentIdx = this.gameState.parentIndex;
         const role = (idx) => (parentIdx === idx ? "[親]" : "[子]");
-        const score = (idx) => Math.floor(this.scoreState.display[idx]);
-
+        const scoreValue = (idx) => Math.floor(this.scoreState.display[idx]);
+        
+        // 輔助函式：判斷顏色
+        const getScoreColor = (playerIdx) => {
+            const target = this.gameState.players[playerIdx].points;
+            const current = this.scoreState.display[playerIdx];
+            if (target > current + 1) return "#ffcc00"; // 增加中 (黃色)
+            if (target < current - 1) return "#ff4444"; // 減少中 (紅色)
+            return this.config.colors.text; // 無變動 (白色)
+        };
+        
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         
-        // COM
+        // 1. COM 資訊
         ctx.font = `bold 20px ${this.config.fontFamily}`;
-        ctx.fillStyle = this.config.colors.text;
-        ctx.fillText(`${role(1)} COM：${score(1)}`, cx, cy - 35);
-
-        // 餘牌
+        ctx.fillStyle = getScoreColor(1); // 動態顏色
+        ctx.fillText(`${role(1)} COM：${scoreValue(1)}`, cx, cy - 35);
+        
+        // 2. 餘牌 (固定高亮色)
         ctx.font = `bold 24px ${this.config.fontFamily}`;
         ctx.fillStyle = this.config.colors.highlight;
         ctx.fillText(`余：${this.gameState.yama.length}`, cx, cy + 2);
-
-        // Player
-        ctx.font = `bold 20px ${this.config.fontFamily}`;
-        ctx.fillStyle = this.config.colors.text;
-        ctx.fillText(`${role(0)} 玩家：${score(0)}`, cx, cy + 40);
-
-        // 分數變動箭頭提示
-        this._drawScoreChangeIndicator(cx + 80, cy - 35, 1); // COM
-        this._drawScoreChangeIndicator(cx + 80, cy + 40, 0); // Player
-    }
-
-    _drawScoreChangeIndicator(x, y, playerIdx) {
-        const realScore = this.gameState.players[playerIdx].points;
-        const visualScore = this.scoreState.display[playerIdx];
         
-        if (Math.abs(realScore - visualScore) > 1) {
-            this.ctx.fillStyle = this.config.colors.highlight;
-            this.ctx.font = "bold 14px " + this.config.fontFamily;
-            this.ctx.fillText(realScore > visualScore ? "↑" : "↓", x, y);
-        }
+        // 3. 玩家資訊
+        ctx.font = `bold 20px ${this.config.fontFamily}`;
+        ctx.fillStyle = getScoreColor(0); // 動態顏色
+        ctx.fillText(`${role(0)} 玩家：${scoreValue(0)}`, cx, cy + 40);
     }
 
     _drawUIButtons() {
