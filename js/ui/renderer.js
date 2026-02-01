@@ -218,35 +218,52 @@ export class Renderer {
     }
 
     // === 分數跳動更新 ===
-    _updateDisplayPoints() {
-        const players = this.gameState.players;
-        if (!this.visualPoints) this.visualPoints = players.map(p => p.points);
+    updateDisplayPoints() {
+    const players = this.gameState.players;
+    if (!this.visualPoints) this.visualPoints = players.map(p => p.points);
 
-        let allFinished = true;
+    let allFinished = true;
 
-        players.forEach((p, i) => {
-            if (this.visualPoints[i] === undefined) this.visualPoints[i] = p.points;
+    players.forEach((p, i) => {
+        const target = p.points;
+        const current = this.visualPoints[i];
+        const diff = target - current;
 
-            const diff = p.points - this.visualPoints[i];
-            if (Math.abs(diff) > 0.5) {
-                this.visualPoints[i] += diff * 0.1; // 啪啪啪跳動中
-                allFinished = false;
-            } else {
-                this.visualPoints[i] = p.points;
+        if (Math.abs(diff) > 0.1) {
+            allFinished = false;
+
+            // --- 核心邏輯：動態步進 ---
+            // 1. 基礎速度：確保小差距也能快速對齊 (例如每次至少跳 50 點)
+            // 2. 比例速度：大差距時按比例 (15%) 飛速前進
+            // 3. 方向性：使用 Math.sign 確保加減號正確
+            
+            const baseStep = 100; // 基礎跳動值 (可調整，例如日麻通常以 100 為單位)
+            const ratioStep = Math.abs(diff) * 0.15; // 比例跳動
+            
+            // 實際步進 = 取兩者較大值，但不能超過剩下的距離
+            let step = Math.max(baseStep, ratioStep);
+            
+            if (step > Math.abs(diff)) {
+                step = Math.abs(diff); // 防止衝過頭
             }
-        });
-        
-        // 將計算後的視覺分數同步到 displayPoints
-        this.displayPoints = [...this.visualPoints];
 
-        // ★ 重點：如果正在動畫階段 (1) 且數字跳完了，自動轉跳到可重開階段 (2)
-        if (this.gameState.phase === "ROUND_END" && this.gameState.resultClickStage === 1) {
-            if (allFinished) {
-                this.gameState.resultClickStage = 2;
-                console.log("嗷嗚！點數移動完了，可以點擊下一局囉！");
-            }
+            this.visualPoints[i] += Math.sign(diff) * step;
+        } else {
+            this.visualPoints[i] = target;
+        }
+    });
+
+    // 四捨五入取整，讓 UI 顯示漂亮的整數
+    this.displayPoints = this.visualPoints.map(v => Math.round(v));
+
+    // 自動切換階段
+    if (this.gameState.phase === "ROUND_END" && this.gameState.resultClickStage === 1) {
+        if (allFinished) {
+            this.gameState.resultClickStage = 2;
+            console.log("嗷嗚！點數移動完成汪！");
         }
     }
+}
 
     /* =========================================
        3. 手牌與副露繪製 (Hands & Melds)
@@ -705,8 +722,12 @@ export class Renderer {
         let x = anchorRight - btnW;
         for (let i = buttons.length - 1; i >= 0; i--) {
             const btn = buttons[i];
-            this.drawUIButton(x, y, btnW, btnH, btn.text, btn.tileIcon);
-            this.uiButtons.push({ x, y, w: btnW, h: btnH, action: btn.action });
+            const isPressed = (this.pressedButtonIndex === i); // 判斷是否是被按下的那顆
+            
+            this.drawUIButton(x, y, btnW, btnH, btn.text, btn.tileIcon, isPressed);
+            
+            // 存入 uiButtons 供點擊偵測
+            this.uiButtons.push({ x, y, w: btnW, h: btnH, action: btn.action, index: i });
             x -= (btnW + gap);
         }
     }
@@ -722,44 +743,58 @@ export class Renderer {
         return false;
     }
 
-    drawUIButton(x, y, w, h, text, tileIcon = null) {
+    drawUIButton(x, y, w, h, text, tileIcon = null, isPressed = false) {
         const ctx = this.ctx;
-
         ctx.save();
 
-        // 1. 繪製按鈕主體 - 帶有半透明感的磨砂玻璃        
-        const gradient = ctx.createLinearGradient(x, y, x, y + h);
-        gradient.addColorStop(0, "rgba(74, 120, 90, 0.8)"); // 竹葉綠 (頂部)
-        gradient.addColorStop(1, "rgba(40, 70, 50, 0.9)");  // 深林綠 (底部)
+        // --- 1. 物理位移計算 ---
+        // 如果被按下，整個按鈕的內容稍微往下掉 3px
+        const offset = isPressed ? 3 : 0;
+        const currentY = y + offset;
+
+        // --- 2. 繪製底部投影 (按下去時投影要變小) ---
+        if (!isPressed) {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+            this._fillRoundedRect(ctx, x, y + 4, w, h, 8); // 這是按鈕沒按時的「厚度」
+        }
+
+        // --- 3. 繪製按鈕主體 ---
+        const gradient = ctx.createLinearGradient(x, currentY, x, currentY + h);
+        if (isPressed) {
+            // 按下時顏色變深
+            gradient.addColorStop(0, "rgba(30, 50, 40, 0.9)"); 
+            gradient.addColorStop(1, "rgba(20, 35, 25, 1.0)");
+        } else {
+            gradient.addColorStop(0, "rgba(74, 120, 90, 0.8)");
+            gradient.addColorStop(1, "rgba(40, 70, 50, 0.9)");
+        }
 
         ctx.fillStyle = gradient;
-        // 使用圓角矩形
-        this._fillRoundedRect(ctx, x, y, w, h, 8);
+        this._fillRoundedRect(ctx, x, currentY, w, h, 8);
 
-        // 2. 增加白色內發光 (模擬玻璃邊緣質感)
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+        // --- 4. 邊框與內發光 ---
+        ctx.strokeStyle = isPressed ? "rgba(255, 255, 255, 0.1)" : "rgba(255, 255, 255, 0.3)";
         ctx.lineWidth = 2;
-        this._strokeRoundedRect(ctx, x, y, w, h, 8);
+        this._strokeRoundedRect(ctx, x, currentY, w, h, 8);
 
-        // 3. 繪製內容
+        // --- 5. 繪製文字或圖標 (也要跟著 offset) ---
         if (tileIcon !== null && tileIcon !== undefined) {
             const tileW = 30;
             const tileH = 42;
             const tileX = x + (w - tileW) / 2;
-            const tileY = y + (h - tileH) / 2;
+            const tileY = currentY + (h - tileH) / 2;
 
-            // 畫圖標前稍微加一點發光
-            ctx.shadowColor = "rgba(255, 255, 255, 0.5)";
-            ctx.shadowBlur = 10;
+            if (!isPressed) {
+                ctx.shadowColor = "rgba(255, 255, 255, 0.5)";
+                ctx.shadowBlur = 10;
+            }
             this.drawTile(tileIcon, tileX, tileY, tileW, tileH);
         } else {
-            ctx.fillStyle = "#ffffff";
-            ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-            ctx.shadowBlur = 4;
+            ctx.fillStyle = isPressed ? "#bbbbbb" : "#ffffff"; // 按下時文字稍微變暗
             ctx.font = `bold 22px ${this.fontFamily}`;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            ctx.fillText(text, x + w / 2, y + h / 2);
+            ctx.fillText(text, x + w / 2, currentY + h / 2);
         }
 
         ctx.restore();
