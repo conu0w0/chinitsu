@@ -81,6 +81,10 @@ export class ResultEffect {
 
         ctx.save();
         try {
+            // 強制關閉陰影，避免高光滲透到文字陰影區
+            ctx.shadowBlur = 0;
+            ctx.shadowColor = "transparent";
+            
             // --- 1：先設定文字狀態，方便計算範圍 ---
             ctx.font = font;
             ctx.textAlign = "left";
