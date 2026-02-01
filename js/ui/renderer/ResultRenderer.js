@@ -293,7 +293,7 @@ export class ResultRenderer {
      */
     _drawPenaltyInfo(textPart, numPart, x, y) {
         const { ctx, r } = this;
-        ctx.font = `bold 50px ${r.fontFamily}`;
+        ctx.font = `bold 50px ${this.r.config.fontFamily}`;
 
         const textWidth = ctx.measureText(textPart).width;
         const numWidth = ctx.measureText(numPart).width;
@@ -347,7 +347,7 @@ export class ResultRenderer {
         const baseX = cx - totalWidth / 2;
 
         ctx.save();
-        ctx.font = `30px ${r.fontFamily}`;
+        ctx.font = `30px ${this.r.config.fontFamily}`;
         ctx.textAlign = "center";
         ctx.textBaseline = "alphabetic";
 
@@ -431,7 +431,7 @@ export class ResultRenderer {
                 rowItems.push({
                     key: "hanfu",
                     text: `${han} 飜 ${fu} 符`,
-                    font: `bold 42px ${r.fontFamily}`
+                    font: `bold 42px ${this.r.config.fontFamily}`
                 });
             }
 
@@ -439,7 +439,7 @@ export class ResultRenderer {
             rowItems.push({
                 key: "point",
                 text: `${scoreTotal} 點`,
-                font: `bold ${isYakumanOnly ? 64 : 48}px ${r.fontFamily}`
+                font: `bold ${isYakumanOnly ? 64 : 48}px ${this.r.config.fontFamily}`
             });
 
             // 滿貫稱號 (如：滿貫、跳滿、役滿)
@@ -447,7 +447,7 @@ export class ResultRenderer {
                 rowItems.push({
                     key: "level",
                     text: limitName,
-                    font: `bold 52px ${r.fontFamily}`,
+                    font: `bold 52px ${this.r.config.fontFamily}`,
                     reserved: true // 預留位置，蓋章動畫會用到
                 });
             }
