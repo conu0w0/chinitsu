@@ -539,9 +539,10 @@ export class ResultRenderer {
                 });
                 if (now - this.resultLevelStartTime >= TIMING.LEVEL_STAMP_DURATION) this.resultLevelLocked = true;
             } else {
+                // 1. 先畫出靜態底色文字 (帶有 shadowBlur 10 的發光感)
                 this._drawStaticText(level.text, level.x, level.y, level.font, level.color);
 
-                // 役滿高光特效
+                // 2. 只有役滿才跑高光
                 const highlightStart = this.resultLevelStartTime + TIMING.LEVEL_HIGHLIGHT_DELAY;
                 const isMultipleYakuman = yakumanCount >= 2;
                 
@@ -552,8 +553,8 @@ export class ResultRenderer {
                         y: level.y,
                         font: level.font,
                         startTime: highlightStart,
-                        angle: isMultipleYakuman ? 25 : 45,
-                        isSilver: isKazoeYakuman
+                        angle: isMultipleYakuman ? 25 : 45, // 多倍役滿角度更平，看起來更華麗
+                        isSilver: isKazoeYakuman            // 累計役滿用銀色高光
                     });
                 }
             }
