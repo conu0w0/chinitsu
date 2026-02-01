@@ -366,6 +366,49 @@ export class Renderer {
         });
     }
 
+    /**
+     * 計算單一組副露的總寬度
+     * @param {Object} meld 副露資料
+     * @param {Number} tileW 單張牌寬度
+     */
+    _calculateMeldWidth(meld, tileW) {
+        const isAnkan = meld.type === "ankan";
+        const count = isAnkan ? 4 : 3;
+        const gap = 2; // 副露內部牌與牌的間距
+        return count * (tileW + gap);
+    }
+
+    /**
+     * 繪製單一組副露
+     * @param {Object} meld 副露資料
+     * @param {Number} x 起始 X
+     * @param {Number} y 起始 Y
+     * @param {Number} tileW 牌寬
+     * @param {Number} tileH 牌高
+     * @returns {Number} 繪製的總寬度
+     */
+    _drawSingleMeld(meld, x, y, tileW, tileH) {
+        const isAnkan = meld.type === "ankan";
+        const count = isAnkan ? 4 : 3;
+        const gap = 2;
+
+        for (let i = 0; i < count; i++) {
+            // 暗槓：第 1 張 (index 0) 和第 4 張 (index 3) 蓋牌
+            const isFaceDown = isAnkan && (i === 0 || i === 3);
+            
+            this.drawTile(
+                meld.tile, 
+                x + i * (tileW + gap), 
+                y, 
+                tileW, 
+                tileH, 
+                { faceDown: isFaceDown }
+            );
+        }
+
+        return count * (tileW + gap);
+    }
+
     // === 動畫物件繪製 ===
     _drawAnimations() {
         const now = performance.now();
