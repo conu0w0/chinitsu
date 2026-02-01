@@ -549,13 +549,6 @@ export class ResultRenderer {
         this.ctx.fillStyle = color;
         this.ctx.textAlign = "left";
         this.ctx.textBaseline = "alphabetic";
-        
-        // 如果是特殊顏色（非白色），加一點點發光感
-        if (color !== "#fff" && color !== "#ffffff") {
-            this.ctx.shadowColor = color;
-            this.ctx.shadowBlur = 10;
-        }
-
         this.ctx.fillText(text, x, y);
         this.ctx.restore();
     }
