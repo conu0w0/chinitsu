@@ -559,3 +559,4 @@ export class ResultRenderer {
         this.ctx.fillText(text, x, y);
         this.ctx.restore();
     }
+}
