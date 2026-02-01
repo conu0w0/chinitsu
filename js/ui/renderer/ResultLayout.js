@@ -62,91 +62,87 @@ export class ResultLayout {
         });
     }
 
-    drawResultHand(result, centerX, startY, isChombo = false) {
-    // 1. 安全檢查：如果 startY 無效，預設放在畫布 40% 的高度
-    const safeStartY = (startY && startY > 0 && startY < this.r.config.height) 
-                       ? startY 
-                       : this.r.config.height * 0.4;     
+    drawResultHand(result, centerX, startY, options = {}) {
+    const { r, ctx } = this;
     
-    // 2. 修正屬性路徑 (統一使用新的 config 結構)
-    const tileCfg = this.r.config.tile;
+    // 1. 支援舊版傳 boolean (isChombo) 或是新版傳 object
+    const isChombo = (typeof options === 'boolean') ? options : (options.isChombo || false);
+    const isStatic = options.isStatic || false; // 未來擴充用：例如手牌還在飛，不畫靜態底
+
+    // 2. 座標安全檢查 (使用 Renderer 的 config)
+    const safeStartY = (Number.isFinite(startY)) ? startY : r.config.height * 0.7;
+    
+    // 3. 命名一致性修正 (關鍵汪！)
+    const tileCfg = r.config.tile;
     const tileW = tileCfg.w;
     const tileH = tileCfg.h;
     const gap = tileCfg.gap || 2;
-    const sectionGap = 30; // 稍微拉開距離更有質感
-    
-    // 3. 獲取獲勝者資訊
-    const idx = (result.type === "chombo") ? result.offenderIndex : result.winnerIndex;
-    const winner = this.r.gameState.players[idx];
-    if (!winner) return null;
+    const sectionGap = 30; 
 
-    // 4. 計算手牌與 winTile (這段維持你的邏輯)
-    const ankanCount = (winner.fulu ?? []).filter(f => f.type === "ankan").length;
-    const baseLen = 13 - ankanCount * 3;
-    const isHandFull = (winner.tepai.length === baseLen + 1);
+    // 4. 取得正確的玩家資料
+    const idx = isChombo ? result.offenderIndex : result.winnerIndex;
+    const player = r.gameState.players[idx];
+    if (!player) return null;
 
-    let standingTiles = [...winner.tepai];
+    // 5. 計算手牌與和了牌邏輯 (維持你原本精密的計算)
+    let standingTiles = [...player.tepai];
     let winTile = -1;
-
-    if (isHandFull) {
+    
+    // 如果是和牌且手牌是滿的，最後一張通常是和了牌
+    if (standingTiles.length % 3 === 2) {
         winTile = standingTiles.pop();
-    } else {
-        winTile = (this.r.gameState.lastDiscard) ? this.r.gameState.lastDiscard.tile : standingTiles.pop();
+    } else if (r.gameState.lastDiscard) {
+        winTile = r.gameState.lastDiscard.tile;
     }
 
-    if (winTile == null) return null;
-
-    // 5. 計算佈局總寬度 (確保居中)
-    const melds = winner.fulu || [];
+    // 6. 寬度與起始位置計算 (為了置中)
+    const melds = player.fulu || [];
     let totalWidth = standingTiles.length * (tileW + gap);
+    
     if (melds.length > 0) {
         totalWidth += sectionGap;
-        melds.forEach(m => totalWidth += this.r._calculateMeldWidth(m, tileW) + 10);
+        // 注意：這裡呼叫的是主 Renderer 的私有方法，建議維持 this.r._...
+        melds.forEach(m => totalWidth += r._calculateMeldWidth(m, tileW) + 10);
     }
-    totalWidth += sectionGap + tileW; // 加上最後一張和了牌
+    totalWidth += sectionGap + tileW;
 
     let currentX = centerX - (totalWidth / 2);
     const handLeftX = currentX;
 
-    // 6. 開始繪製 (注意：這裡全部改用 safeStartY)
+    // 7. 開始繪製手牌
     standingTiles.forEach(t => {
-        this.r.drawTile(t, currentX, safeStartY, tileW, tileH);
+        r.drawTile(t, currentX, safeStartY, tileW, tileH);
         currentX += tileW + gap;
     });
 
+    // 繪製副露 (吃碰槓)
     if (melds.length > 0) {
         currentX += sectionGap;
         melds.forEach(m => {
-            const w = this.r._drawSingleMeld(m, currentX, safeStartY, tileW, tileH);
+            const w = r._drawSingleMeld(m, currentX, safeStartY, tileW, tileH);
             currentX += w + 10;
         });
     }
 
-    // 7. 繪製和了牌與標記
+    // 8. 繪製和了牌 (加框與標籤)
     currentX += sectionGap;
     const highlightColor = isChombo ? "#ff4444" : "#ffcc00";
 
-    // 使用 safeStartY 繪製最後一張牌
-    this.r.drawTile(winTile, currentX, safeStartY, tileW, tileH, {
-        highlight: true // 如果你的 drawTile 有支援
-    });
+    r.drawTile(winTile, currentX, safeStartY, tileW, tileH);
 
-    // 畫出醒目的外框
-    this.ctx.lineWidth = 4;
-    this.ctx.strokeStyle = highlightColor;
-    this.ctx.strokeRect(currentX, safeStartY, tileW, tileH);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = highlightColor;
+    ctx.strokeRect(currentX, safeStartY, tileW, tileH);
 
-    // 畫文字標籤
-    this.ctx.fillStyle = highlightColor;
-    this.ctx.font = `bold 22px ${this.r.config.fontFamily}`; // 注意這裡的路徑
-    this.ctx.textAlign = "center";
+    ctx.fillStyle = highlightColor;
+    // 修正：使用正確的 fontFamily 路徑
+    ctx.font = `bold 20px ${r.config.fontFamily}`; 
+    ctx.textAlign = "center";
+    ctx.fillText(isChombo ? "錯和" : "和了", currentX + tileW / 2, safeStartY + tileH + 30);
 
-    let label = isChombo ? "錯和" : "和了";
-    this.ctx.fillText(label, currentX + tileW / 2, safeStartY + tileH + 35);
-
-    return handLeftX;
+    return handLeftX; // 回傳左邊座標給 ResultRenderer 算分數位置汪！
 }
-
+    
     drawStaticHand(player, centerX, startY, faceDown = false) {
         const tiles = player.tepai;
         const melds = player.fulu || [];
