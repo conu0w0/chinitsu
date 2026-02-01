@@ -40,16 +40,15 @@ export class InputHandler {
             
             // A. 階段 0：文字動畫跑完後，點擊進入「增減動畫」
             if (this.state.resultClickStage === 0) {
-                // 如果 Renderer 已經標記文字跑完 (你可以根據時間判定)
                 if (res.isReadyForNext) { 
                     this.state.resultClickStage = 1; // 進入動畫階段
                     this.state.applyResultPoints();  // 雖然點數變了，但 Renderer 會跑動畫慢慢追
-                    console.log("點數結算");
+                    console.log("嗷嗚！役種確認完畢，點數移動！");
                 }
                 return;
             }
             
-            // B. 階段 1：正在跳數字中，通常禁止點擊或直接跳過動畫
+            // B. 階段 1：正在跳數字中，點擊可直接跳過動畫
             if (this.state.resultClickStage === 1) {
                 this.renderer.visualPoints = this.state.players.map(p => p.points);
                 this.state.resultClickStage = 2; // 直接解鎖下一局點擊
@@ -59,8 +58,7 @@ export class InputHandler {
             
             // C. 階段 2：動畫結束了，再次點擊進入下一局
             if (this.state.resultClickStage === 2) {
-                this.renderer.resultTimelineStart = 0;
-                this.renderer.resultYakuAnimated = false;
+                res._resetAnimationState()
                 this.renderer.animations = [];
                 
                 this.state.nextKyoku();
