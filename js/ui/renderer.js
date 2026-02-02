@@ -319,68 +319,88 @@ export class Renderer {
         }
     }
 
-    // === 牌河繪製 ===
+    /**
+     * 繪製雙方的牌河
+     */
+    _drawRivers() {
+        this._lastMarkedPaws = null; // 每一幀重置肉球位置
+
+        // 1. 繪製玩家牌河 (Player Index 0)
+        this._drawRiverGroup(
+            this.gameState.players[0].kawa, 
+            this.ZONES.playerRiver, 
+            false
+        );
+
+        // 2. 繪製電腦牌河 (Player Index 1)
+        this._drawRiverGroup(
+            this.gameState.players[1].kawa, 
+            this.ZONES.comRiver, 
+            true
+        );
+    }
+
+    /**
+     * 核心：處理單一區域的牌河渲染
+     */
     _drawRiverGroup(riverData, zone, isCom) {
-    if (!riverData || !Array.isArray(riverData)) return;
+        if (!riverData || !Array.isArray(riverData)) return;
 
-    const { w, h, gap = 2 } = this.config.river;
-    const dirX = zone.direction.x;
-    const dirY = zone.direction.y;
-    
-    // 每一列(row)的總高度偏移計算
-    riverData.forEach((item, i) => {
-        const tileVal = (typeof item === 'object') ? item.tile : item;
-        const isRiichi = (typeof item === 'object') ? item.isRiichi : false;
+        const { w, h, gap = 2 } = this.config.river;
+        const { cols } = zone;
 
-        if (tileVal === undefined || tileVal === null) return;
+        riverData.forEach((item, i) => {
+            // 牌河數據可能是數字，也可能是 {tile: 11, isRiichi: true}
+            const tileVal = (typeof item === 'object') ? item.tile : item;
+            const isRiichi = (typeof item === 'object') ? item.isRiichi : false;
 
-        // 計算當前是第幾行、第幾列
-        const row = Math.floor(i / zone.cols);
-        const col = i % zone.cols;
+            if (tileVal === undefined || tileVal === null) return;
 
-        // --- 核心計算：X 座標 ---
-        // 我們先算這張牌在這一行中的相對位置
-        // 注意：立直牌會變寬 (h)，這裡為了簡化，通常牌河會預留固定格子或動態累加
-        const tileSpace = isRiichi ? h : w;
-        
-        // 為了讓牌河整齊，我們可以用固定步進，或是像你之前用的 curXOffset
-        // 這裡示範固定步進(方便對齊)或動態累加：
-        let dx = zone.x;
-        if (dirX > 1) { // 玩家
-            dx += col * (w + gap); 
-        } else { // COM
-            // 從右邊邊界往回扣
-            dx += zone.width - (col * (w + gap)) - w;
-        }
+            // 1. 計算行列 (例如每 6 張換行)
+            const row = Math.floor(i / cols);
+            const col = i % cols;
 
-        // --- 核心計算：Y 座標 ---
-        let dy = zone.y;
-        const rowOffset = row * (h + gap);
-        dy += (dirY > 0) ? rowOffset : -rowOffset;
+            // 2. 基礎座標計算
+            let dx, dy;
+            if (!isCom) {
+                // 玩家：由左往右，由上往下
+                dx = zone.x + col * (w + gap);
+                dy = zone.y + row * (h + gap);
+            } else {
+                // COM：由右往左，由下往上 (鏡像感)
+                dx = (zone.x + zone.width - w) - col * (w + gap);
+                dy = zone.y - row * (h + gap);
+            }
 
-        // --- 旋轉修正 ---
-        const rotate = isRiichi ? (isCom ? 90 : -90) : 0;
-        
-        // 如果旋轉了，Canvas 是繞中心轉，所以要把座標偏移修正回來
-        let finalDx = dx;
-        let finalDy = dy;
-        if (isRiichi) {
-            // 補償橫放造成的位移差 (h-w)/2
-            finalDy += (h - w) / 2;
-        }
+            // 3. 立直旋轉處理
+            let rotate = 0;
+            if (isRiichi) {
+                // 玩家立直逆時針 90，COM 順時針 90 (或根據你素材設定)
+                rotate = isCom ? 90 : -90;
+                
+                // 修正座標：牌橫放後，中心點雖然不變，但視覺上會偏離格子。
+                // 我們稍微補償一點偏移量，讓橫牌看起來還是在那一列的中心。
+                const offset = (h - w) / 2;
+                dy += isCom ? -offset : offset;
+                dx += isCom ? -gap : gap; 
+            }
 
-        const isLast = (i === riverData.length - 1) && (this.gameState.lastDiscard?.fromPlayer === (isCom ? 1 : 0));
-        
-        this.drawTile(tileVal, finalDx, finalDy, w, h, { 
-            rotate, 
-            marked: isLast 
+            // 4. 判定是否為最新打出的牌 (顯示肉球)
+            const isLast = (i === riverData.length - 1) && 
+                           (this.gameState.lastDiscard?.fromPlayer === (isCom ? 1 : 0));
+
+            // 5. 繪製單張牌
+            this.drawTile(tileVal, dx, dy, w, h, { 
+                rotate, 
+                marked: isLast 
+            });
+
+            // 記錄最後一張牌的位置，供 Overlay 繪製肉球
+            if (isLast) {
+                this._lastMarkedPaws = { x: dx, y: dy, w, h, rotate };
+            }
         });
-
-        if (isLast) {
-            this._lastMarkedPaws = { x: finalDx, y: finalDy, w, h, rotate };
-        }
-    });
-}
+    }
 
     // === 手牌與副露繪製 ===
     _drawHands() {
@@ -449,24 +469,6 @@ export class Renderer {
             if (playerIdx === 0) curX -= (meldWidth + 10);
             else curX += (meldWidth + 10);
         });
-    }
-
-    _drawRivers() {
-        this._lastMarkedPaws = null;
-        
-        // 1. 繪製玩家牌河
-        this._drawRiverGroup(
-            this.gameState.players[0].kawa, 
-            this.ZONES.playerRiver, 
-            false
-        );
-
-        // 2. 繪製電腦牌河
-        this._drawRiverGroup(
-            this.gameState.players[1].kawa, 
-            this.ZONES.comRiver, 
-            true
-        );
     }
 
     /**
