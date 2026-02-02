@@ -606,7 +606,8 @@ export class GameState {
         };
 
         this.phase = "REACTION_DECISION";
-        console.log(`玩家切牌: ${tile + 1}s` + (this.actionContext.pendingRiichi ? " (立直宣言)" : ""));
+        const who = (playerIndex === 0) ? "玩家" : "COM";
+        console.log(`${who} 切牌: ${tile + 1}s` + (this.actionContext.pendingRiichi ? " (立直宣言)" : ""));
 
         // === 觸發 COM 回應 ===
         if (playerIndex === 0) {
