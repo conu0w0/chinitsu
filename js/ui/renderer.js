@@ -94,7 +94,6 @@ export class Renderer {
 
     draw() {
         this._updateState();
-        this._lastMarkedPaws = null;
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
         // 1. 最底層：背景
@@ -444,6 +443,8 @@ export class Renderer {
     }
 
     _drawRivers() {
+        this._lastMarkedPaws = null;
+        
         // 1. 繪製玩家牌河
         this._drawRiverGroup(
             this.gameState.players[0].kawa, 
