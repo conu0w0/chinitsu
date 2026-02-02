@@ -328,14 +328,14 @@ export class Renderer {
 
         // 1. 繪製玩家牌河 (Player Index 0)
         this._drawRiverGroup(
-            this.gameState.players[0].kawa, 
+            this.gameState.players[0].river, 
             this.ZONES.playerRiver, 
             false
         );
 
         // 2. 繪製電腦牌河 (Player Index 1)
         this._drawRiverGroup(
-            this.gameState.players[1].kawa, 
+            this.gameState.players[1].river, 
             this.ZONES.comRiver, 
             true
         );
@@ -345,9 +345,8 @@ export class Renderer {
      * 核心：處理單一區域的牌河渲染
      */
     _drawRiverGroup(riverData, zone, isCom) {
-        // 1. 防呆檢查：如果沒有數據，印出警告 (只印一次以免洗版，實作時可自行斟酌)
+        // 1. 防呆檢查：如果沒有數據，直接返回
         if (!riverData || !Array.isArray(riverData)) {
-            // console.warn(`[Renderer] 玩家 ${isCom ? 'COM' : 'Player'} 的 kawa 數據無效`, riverData);
             return;
         }
 
@@ -355,59 +354,66 @@ export class Renderer {
         const { cols } = zone;
 
         riverData.forEach((item, i) => {
-            // --- 修正點 1: 更強健的取值邏輯 ---
+            // --- 修正點：相容純數字與物件格式 ---
             let tileVal = item;
             let isRiichi = false;
 
+            // 如果 item 是物件 (例如 { tile: 12, isRiichi: true })
             if (typeof item === 'object' && item !== null) {
-                // 嘗試抓取常見的屬性名：tile, pai, value
-                tileVal = item.tile ?? item.pai ?? item.value; 
+                // 優先抓取 tile 屬性，若無則抓 value
+                tileVal = item.tile ?? item.value ?? item.pai; 
                 isRiichi = item.isRiichi || item.riichi || false;
             }
 
-            // 如果真的抓不到值，印出來看看是甚麼鬼東西
-            if (tileVal === undefined || tileVal === null) {
-                console.warn(`[Renderer] 無法識別的牌河數據 index: ${i}`, item);
+            // 如果這張牌數據有問題，就跳過不畫
+            if (tileVal === undefined || tileVal === null || tileVal < 0) {
                 return;
             }
 
+            // 計算行列 (6張一排)
             const row = Math.floor(i / cols);
             const col = i % cols;
 
             let dx, dy;
             if (!isCom) {
-                // 玩家：左 -> 右，上 -> 下
+                // 玩家：從左往右，從上往下 (從中央往外長)
                 dx = zone.x + col * (w + gap);
                 dy = zone.y + row * (h + gap);
             } else {
-                // COM：右 -> 左，下 -> 上
-                // 注意：這裡假設 zone.width 已經包含了每列的最大寬度
+                // COM：從右往左 (對手視角)，從下往上 (從中央往外長)
+                // zone.x + width 是右邊界，減去寬度往左畫
                 dx = (zone.x + zone.width - w) - col * (w + gap);
+                // zone.y 是 COM 區域的底部 (靠近中央)，減去高度往上畫
                 dy = zone.y - row * (h + gap);
             }
 
             // --- 立直處理 ---
             let rotate = 0;
             if (isRiichi) {
-                rotate = isCom ? 90 : -90;
-                // 補償偏移：讓橫放的牌中心點對齊格子中心
+                rotate = isCom ? 90 : -90; // 電腦轉90度，玩家轉-90度
+                
+                // 補償偏移：因為旋轉中心點改變，需要調整位置讓牌對齊格子
                 const offset = (h - w) / 2;
                 dy += isCom ? -offset : offset;
-                // 橫放後佔比較寬，稍微調整 X 讓視覺不重疊 (選用)
-                // dx += isCom ? -gap : gap; 
+                
+                // 視覺優化：立直牌因為橫放，可以稍微調整 X 讓它不要跟前後重疊太多 (可選)
+                // dx += isCom ? -2 : 2;
             }
 
-            const isLast = (i === riverData.length - 1) && 
-                           (this.gameState.lastDiscard?.fromPlayer === (isCom ? 1 : 0));
+            // 判斷是否為場上最後一張打出的牌 (用於畫肉球)
+            const lastDiscard = this.gameState.lastDiscard;
+            const isLast = lastDiscard && 
+                           (i === riverData.length - 1) && 
+                           (lastDiscard.fromPlayer === (isCom ? 1 : 0));
 
             // 繪製
             this.drawTile(tileVal, dx, dy, w, h, { 
                 rotate, 
                 marked: isLast,
-                // 如果是最後一張，稍微強調一下 z-index (透過後畫覆蓋)
                 noShadow: false
             });
 
+            // 如果是最後一張，記錄位置給 overlay 層畫肉球
             if (isLast) {
                 this._lastMarkedPaws = { x: dx, y: dy, w, h, rotate };
             }
