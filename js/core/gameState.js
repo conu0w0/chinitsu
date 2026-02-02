@@ -895,16 +895,14 @@ export class GameState {
     }
 
     _isDiscardFuriten(player) {
-       const ankanCount = this._getAnkanCount(player);
-       
-       let tiles = [...player.tepai];
-       if (tiles.length % 3 === 2) tiles.pop();
-       
-       const targetLen = 13 - ankanCount * 3;
-       tiles.length = Math.min(tiles.length, targetLen);
+        // 直接用正規化後的牌去查聽什麼
+        const pureHand = this._normalizeForWait(player.tepai);
+        const waits = this.logic.getWaitTiles(pureHand);
+        
+        if (waits.size === 0) return false;
 
-       const waits = this.logic.getWaitTiles(tiles);
-       return [...waits].some(t => player.river.some(r => r.tile === t));
+        // 檢查聽的牌是否曾經出現在自己的河裡 (捨牌振聽)
+        return [...waits].some(t => player.river.some(r => r.tile === t));
     }
 
     _handleChombo(playerIndex, reason, options = {}) {
