@@ -131,6 +131,27 @@ export class Renderer {
        ================================================================= */
 
     _updateState() {
+        // --- 1. 翻牌動畫觸發邏輯 (新增) ---
+        if (this.gameState.phase === "DEAL_FLIP") {
+            // 如果還沒觸發過翻牌，且是玩家，就觸發一次
+            if (!this._flipTriggered) {
+                this.startFlipHandAnimation(0); // 0 = 玩家
+                this._flipTriggered = true;     // 鎖住，避免每幀重複觸發
+            }
+
+            // 檢查動畫是否全部播完
+            const isFlipping = this.animations.some(a => a.type === "flip");
+            if (!isFlipping && this._flipTriggered) {
+                // 動畫播完後，強制把邏輯層的手牌設為正面
+                // 這樣動畫結束後銜接靜態繪製才不會閃爍
+                this.gameState.players[0].handFaceDown = false;
+            }
+        } else {
+            // 離開 DEAL_FLIP 階段後重置旗標，為下一局做準備
+            this._flipTriggered = false;
+        }
+
+        // --- 原本的邏輯 ---
         // 檢查手牌變化 (觸發抽牌動畫)
         this._checkHandChanges();
         
@@ -289,6 +310,36 @@ export class Renderer {
         });
     }
 
+    /**
+     * 啟動手牌翻轉動畫 (一次全翻版)
+     */
+    startFlipHandAnimation(playerIdx) {
+        const player = this.gameState.players[playerIdx];
+        const isCom = playerIdx === 1;
+        if (isCom) return; 
+
+        const zone = this.ZONES.playerHand;
+        const cfg = this.config.tile;
+        
+        const now = performance.now(); 
+        const startDelay = 250;
+
+        player.tepai.forEach((tile, i) => {
+            let x = zone.x + i * (cfg.w + cfg.gap);
+            const y = zone.y; 
+
+            this.animations.push({
+                type: "flip",
+                isCom: false,
+                tile,       
+                index: i,   
+                x, y,
+                startTime: now + startDelay, 
+                duration: 300 // 翻轉速度 (毫秒)
+            });
+        });
+    }
+
     /* =================================================================
        Render Scene (場景繪製)
        ================================================================= */
@@ -443,7 +494,7 @@ export class Renderer {
         
         player.tepai.forEach((tile, i) => {
             // 動畫中就不畫靜態牌
-            if (this.animations.some(a => a.isCom === isCom && a.index === i)) return;
+            if (this.animations.some(a => (a.isCom === isCom || a.type === "flip") && a.index === i)) return;
             
             // === X 計算（吃 direction）===
             let x;
@@ -543,7 +594,7 @@ export class Renderer {
         return count * (tileW + gap);
     }
 
-    // === 動畫物件繪製 ===
+    // === 動畫物件繪製 (含翻牌與飛行) ===
     _drawAnimations() {
         const now = performance.now();
         const { w, h } = this.config.tile;
@@ -551,15 +602,54 @@ export class Renderer {
         // 過濾已完成的動畫，並繪製進行中的
         this.animations = this.animations.filter(anim => {
             const elapsed = now - anim.startTime;
-            const progress = Math.min(elapsed / anim.duration, 1);
-            const ease = progress * (2 - progress);
             
+            // 如果還沒到開始時間 (stagger 效果)，就先保留但不畫 (或是畫背面等待)
+            if (elapsed < 0) return true;
+
+            const progress = Math.min(Math.max(elapsed / anim.duration, 0), 1);
+
+            // ===== A. 翻牌動畫 (Flip) =====
+            if (anim.type === "flip") {
+                const angle = progress * Math.PI; // 0 → π (0度到180度)
+                const scaleX = Math.cos(angle);   // 1 → -1
+
+                let scaleY = 1;
+                if (t > 0.5) {
+                    const bounceT = (t - 0.5) / 0.5; // 0 → 1
+                    scaleY = 1 + Math.sin(bounceT * Math.PI) * 0.08; // 8% 彈性
+                }
+
+                this.ctx.save();
+                this.ctx.translate(anim.x + w / 2, anim.y + h / 2);
+                this.ctx.scale(Math.abs(scaleX), 1); // 鏡像縮放
+                this.ctx.translate(-(anim.x + w / 2), -(anim.y + h / 2));
+
+                // 前半段(scaleX > 0)畫背面，後半段(scaleX < 0)畫正面
+                const showFaceDown = scaleX > 0; 
+                
+                this.drawTile(
+                    anim.tile,
+                    anim.x,
+                    anim.y,
+                    w,
+                    h,
+                    { faceDown: showFaceDown, noShadow: true } // 翻轉時不畫陰影比較自然
+                );
+
+                this.ctx.restore();
+                return progress < 1;
+            }
+
+            // ===== B. 原本的飛行動畫 (Draw) =====
+            const ease = progress * (2 - progress);
             const cx = anim.startX + (anim.x - anim.startX) * ease;
             const cy = anim.startY + (anim.y - anim.startY) * ease;
 
             this.ctx.save();
             const player = this.gameState.players[anim.isCom ? 1 : 0];
+            // 飛行中如果是 COM 或者玩家蓋牌狀態，顯示背面
             const isFaceDown = player.handFaceDown || (anim.isCom && anim.type === "draw");
+            
             this.drawTile(anim.tile, cx, cy, w, h, { faceDown: isFaceDown });
             this.ctx.restore();
 
