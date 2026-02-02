@@ -328,12 +328,23 @@ export class Renderer {
                 curXOffset = 0;
             }
             
-            const tileSpace = item.isRiichi ? h : w;
             const rotate = item.isRiichi ? (isCom ? 90 : -90) : 0;
+            const tileSpace = item.isRiichi ? h : w;
             
             // 2. 計算座標
-            let dx = isCom ? (zone.x + zone.width) - curXOffset - tileSpace : zone.x + curXOffset;      
-            let dy = isCom ? zone.y - curRow * (h + gap) : zone.y + curRow * (h + gap);
+            let dx, dy;
+            
+            if (isCom) {
+                // COM：從右往左排。zone.x 是左邊界，所以要加上 zone.width 再往回減
+                dx = (zone.x + zone.width) - curXOffset - tileSpace;
+                // COM：第一行在下面，第二行往「上」推
+                dy = zone.y - curRow * (h + gap);
+            } else {
+                // 玩家：從左往右排
+                dx = zone.x + curXOffset;
+                // 玩家：第一行在上面，第二行往「下」推
+                dy = zone.y + curRow * (h + gap);
+            }
             
             // 3. 立直旋轉位移微調
             if (rotate !== 0) {
