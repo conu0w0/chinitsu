@@ -71,20 +71,33 @@ export class Renderer {
         const CX = W / 2;
         const CY = H / 2;
         const { w: rW, h: rH, gap: rGap = 0 } = this.config.river;
-        const riverW = (5 * rW) + rH + (5 * rGap);
+        
+        const RIVER_MODEL = { normal: 5, riichi: 1, cols: 6 };
+        const riverW = (RIVER_MODEL.normal * rW) + (RIVER_MODEL.riichi * rH) + ((RIVER_MODEL.cols - 1) * rGap);
+
         const infoBoxH = 120;
         const infoGap = 15;
-
+        
         this.ZONES = {
-            // 玩家區域
-            playerHand:  { x: W * 0.15, y: H * 0.80 },
-            playerRiver: { x: CX - (riverW / 2), y: CY + (infoBoxH / 2) + infoGap, cols: 6, width: riverW },
-            playerMeld:  { x: W * 0.88, y: H * 0.80 + (76 - 56) },
-
-            // COM 區域
             comHand:     { x: W * 0.80, y: H * 0.15 },
-            comRiver:    { x: CX - (riverW / 2), y: CY - (infoBoxH / 2) - infoGap - rH, cols: 6, width: riverW },
-            comMeld:     { x: W * 0.12, y: H * 0.15 + (76 - 56) }
+            comRiver:    { 
+                x: CX - riverW / 2, 
+                y: CY - (infoBoxH / 2) - infoGap - rH, 
+                cols: RIVER_MODEL.cols, 
+                width: riverW,
+                direction: { x: -1, y: -1 } // COM：從右往左、從下往上
+                    },
+            comMeld:     { x: W * 0.12, y: H * 0.15 + (76 - 56) },
+            
+            playerHand:  { x: W * 0.15, y: H * 0.80 },
+            playerRiver: { 
+                x: CX - riverW / 2, 
+                y: CY + (infoBoxH / 2) + infoGap, 
+                cols: RIVER_MODEL.cols, 
+                width: riverW,
+                direction: { x: 1, y: 1 } // 玩家：從左往右、從上到下
+                    },
+            playerMeld:  { x: W * 0.88, y: H * 0.80 + (76 - 56) }          
         };
     }
 
@@ -182,16 +195,15 @@ export class Renderer {
     }
 
     // 檢查是否需要新增「摸牌動畫」
-    // 檢查是否需要新增「摸牌動畫」
+    /**
+    * 輔助函式：處理單個玩家的動畫檢查
+    * @param {number} playerIdx 玩家索引
+    * @param {string} lastLenProp 手牌長度紀錄屬性名
+    * @param {string} lastMeldProp 副露數量紀錄屬性名
+    * @param {string} zoneKey 區域 key
+    * @param {boolean} isCom 是否為電腦
+    */
     _checkHandChanges() {
-        /**
-         * 輔助函式：處理單個玩家的動畫檢查
-         * @param {number} playerIdx 玩家索引
-         * @param {string} lastLenProp 手牌長度紀錄屬性名
-         * @param {string} lastMeldProp 副露數量紀錄屬性名 (新增)
-         * @param {string} zoneKey 區域 key
-         * @param {boolean} isCom 是否為電腦
-         */
         const check = (playerIdx, lastLenProp, lastMeldProp, zoneKey, isCom) => {
             const player = this.gameState.players[playerIdx];
             const currentLen = player.tepai.length;
@@ -202,71 +214,66 @@ export class Renderer {
             
             const validPhases = ["DEALING", "DRAW", "PLAYER_DECISION", "COM_DECISION", "ROUND_END"];
             
-            // 判斷是否為「槓後補牌」的情況：
-            // 1. 副露變多了 (代表剛槓完)
-            // 2. 手牌張數模 3 餘 2 (代表現在是摸入牌的狀態，例如 14, 11, 8 張)
             const isKanDraw = (currentMeld > lastMeld) && (currentLen % 3 === 2);
-
-            // 觸發條件：(一般摸牌：長度增加) OR (槓後補牌)
+            
             if (validPhases.includes(this.gameState.phase) && (currentLen > lastLen || isKanDraw)) {
-                
-                // 決定要動畫的牌是哪些
                 let startIndex, count;
                 
                 if (isKanDraw) {
-                    // 如果是槓後補牌，只對「最後一張」做動畫
                     startIndex = currentLen - 1;
                     count = 1;
                 } else {
-                    // 一般摸牌，對「新增的那些牌」做動畫
                     startIndex = lastLen;
                     count = currentLen - lastLen;
                 }
-
+                
                 const isDealing = (this.gameState.phase === "DEALING");
-                // 判斷是否為需要留空隙的摸牌 (非發牌階段且是第 3n+2 張)
                 const isDrawState = !isDealing && (currentLen % 3 === 2);
-
+                
+                const zone = this.ZONES[zoneKey];
+                const cfg = this.config.tile;
+                const dirX = zone.direction?.x ?? (isCom ? -1 : 1); // 預設左右方向
+                const dirY = zone.direction?.y ?? (isCom ? -1 : 1); // 上下方向暫用（可做懸浮調整）
+                
                 for (let i = 0; i < count; i++) {
                     const idx = startIndex + i;
                     
-                    // 避免重複添加
                     if (this.animations.some(a => a.isCom === isCom && a.index === idx)) continue;
-
-                    // 計算目標位置
-                    const zone = this.ZONES[zoneKey];
-                    const cfg = this.config.tile;
-                    let tx;
                     
-                    if (!isCom) {
-                        tx = zone.x + idx * (cfg.w + cfg.gap);
+                    // ==== 使用 direction 計算 x ====
+                    let tx = zone.x;
+                    if (dirX > 0) {
+                        tx += idx * (cfg.w + cfg.gap);
                         if (isDrawState && idx === currentLen - 1) tx += cfg.drawGap;
                     } else {
-                        tx = zone.x - idx * (cfg.w + 2); // COM 向左排
+                        tx = zone.x + zone.width - (idx + 1) * (cfg.w + cfg.gap);
                         if (isDrawState && idx === currentLen - 1) tx -= cfg.drawGap;
                     }
-
-                    // 添加動畫物件
+                    
+                    // y 位置固定 zone.y，懸浮動畫靠 yOffsets
+                    const ty = zone.y;
+                    
+                    // === 動畫物件 ===
                     this.animations.push({
                         type: "draw",
-                        isCom: isCom,
+                        isCom,
                         tile: isCom ? -1 : player.tepai[idx],
                         index: idx,
-                        x: tx, y: zone.y,
-                        startX: tx, startY: zone.y + (isCom ? 150 : -150),
+                        x: tx, y: ty,
+                        startX: tx, 
+                        startY: ty + (dirY < 0 ? 150 : -150), // 從上方/下方飛入
                         startTime: performance.now(),
                         duration: 400
                     });
                 }
             }
             
-            // 更新狀態紀錄
             this.handState[lastLenProp] = currentLen;
             this.handState[lastMeldProp] = currentMeld;
         };
         
-        check(0, "lastLen0", "lastMeld0", "playerHand", false); // Player
-        check(1, "lastLen1", "lastMeld1", "comHand", true);     // COM
+        check(0, "lastLen0", "lastMeld0", "playerHand", false);
+        check(1, "lastLen1", "lastMeld1", "comHand", true);
     }
 
     _updateHandHoverEffects() {
@@ -315,103 +322,90 @@ export class Renderer {
         const { w, h, gap = 0 } = this.config.river;
         let curRow = 0;
         let curXOffset = 0;
-
-        // 取得全域最後一張打出的資訊
+        
+        const dirX = zone.direction.x;
+        const dirY = zone.direction.y;
+        
         const lastDiscard = this.gameState.lastDiscard;
         const isThisPlayerTurn = lastDiscard?.fromPlayer === (isCom ? 1 : 0);
         
+        // 計算 tile 空間：先預留「立直槽位」固定在第 RIVER_MODEL.normal 位置
+        const RIVER_MODEL = { normal: 5, riichi: 1, cols: 6 };
+        
         riverData.forEach((item, i) => {
-            // 1. 換行邏輯
+            // 換行邏輯
             if (i > 0 && i % zone.cols === 0) {
                 curRow++;
                 curXOffset = 0;
             }
             
-            const rotate = item.isRiichi ? (isCom ? 90 : -90) : 0;
+            // tile 占用空間
             const tileSpace = item.isRiichi ? h : w;
             
-            // 2. 計算座標
-            let dx, dy;
+            // 計算座標
+            let dx = zone.x;
+            let dy = zone.y;
             
-            if (isCom) {
-                // COM：從右往左排。zone.x 是左邊界，所以要加上 zone.width 再往回減
-                dx = (zone.x + zone.width) - curXOffset - tileSpace;
-                // COM：第一行在下面，第二行往「上」推
-                dy = zone.y - curRow * (h + gap);
-            } else {
-                // 玩家：從左往右排
-                dx = zone.x + curXOffset;
-                // 玩家：第一行在上面，第二行往「下」推
-                dy = zone.y + curRow * (h + gap);
-            }
+            dx += dirX > 0 ? curXOffset : zone.width - curXOffset - tileSpace;
+            dy += dirY > 0 ? curRow * (h + gap) : -curRow * (h + gap);
             
-            // 3. 立直旋轉位移微調
+            // 立直牌旋轉微調
+            const rotate = item.isRiichi ? (dirX < 0 ? 90 : -90) : 0;
             if (rotate !== 0) {
                 const offset = (h - w) / 2;
                 dx += offset; 
                 dy += offset;
             }
             
-            // 4. 嚴格判定是否為「全場最後一張」
-            // 只有當「打牌者身分對」且「是該玩家牌河最後一張」時才標記
             const isGlobalLast = isThisPlayerTurn && (i === riverData.length - 1);
             
-            // 5. 繪製牌（這裡的 marked 只負責畫那個紅框，不畫肉球）
             this.drawTile(item.tile, dx, dy, w, h, { rotate, marked: isGlobalLast });
             
-            // 6. 存下肉球座標，供後續在 _renderOverlay 繪製
             if (isGlobalLast) this._lastMarkedPaws = { x: dx, y: dy, w, h, rotate };
             
-            curXOffset += (tileSpace + gap);
+            curXOffset += tileSpace + gap;
         });
     }
 
     // === 手牌與副露繪製 ===
     _drawHands() {
-        this._renderPlayerHand();
-        this._renderComHand();
-        this._renderMelds(0); // Player Melds
-        this._renderMelds(1); // COM Melds
+        this._renderHand(0);  // 玩家 手牌
+        this._renderHand(1);  // COM 手牌
+        this._renderMelds(0); // 玩家 副露
+        this._renderMelds(1); // COM 副露
     }
 
-    _renderPlayerHand() {
-        const player = this.gameState.players[0];
-        const zone = this.ZONES.playerHand;
+    _renderHand(playerIdx) {
+        const player = this.gameState.players[playerIdx];
+        const isCom = playerIdx === 1;
+        const zone = isCom ? this.ZONES.comHand : this.ZONES.playerHand;
         const cfg = this.config.tile;
-        const isDealing = (this.gameState.phase === "DEALING");
+        const isDealing = this.gameState.phase === "DEALING";
         const isDrawState = !isDealing && (player.tepai.length % 3 === 2);
-
+        const dirX = zone.direction?.x ?? (isCom ? -1 : 1);
+        const dirY = zone.direction?.y ?? (isCom ? -1 : 1);
+        
         player.tepai.forEach((tile, i) => {
             // 如果這張牌正在動畫中，跳過靜態繪製
-            if (this.animations.some(a => !a.isCom && a.index === i)) return;
-
-            let x = zone.x + i * (cfg.w + cfg.gap);
-            if (isDrawState && i === player.tepai.length - 1) x += cfg.drawGap;
-
-            const y = zone.y + this.handState.yOffsets[i];
-
-            this.drawTile(tile, x, y, cfg.w, cfg.h, {
-                faceDown: player.handFaceDown,
-                selected: (this.hoveredIndex === i)
-            });
+            if (this.animations.some(a => a.isCom === isCom && a.index === i)) return;
+            
+            // 計算 x 座標
+            let x = zone.x;
+            if (dirX > 0) {
+                x += i * (cfg.w + cfg.gap);
+                if (isDrawState && i === player.tepai.length - 1) x += cfg.drawGap;
+            } else {
+                const zoneWidth = zone.width ?? (player.tepai.length * (cfg.w + cfg.gap));
+                x = zone.x + zoneWidth - (i + 1) * (cfg.w + cfg.gap);
+                if (isDrawState && i === player.tepai.length - 1) x -= cfg.drawGap;
+            }
+            
+            // y 座標
+            const y = zone.y + (isCom ? 0 : this.handState.yOffsets[i]); // 玩家懸浮效果
+            
+            // 繪製牌
+            this.drawTile(isCom ? -1 : tile, x, y, cfg.w, cfg.h, { faceDown: isCom, selected: !isCom && this.hoveredIndex === i });
         });
-    }
-
-    _renderComHand() {
-        const com = this.gameState.players[1];
-        const zone = this.ZONES.comHand;
-        const cfg = this.config.tile;
-        const isDealing = (this.gameState.phase === "DEALING");
-        const isDrawState = !isDealing && (com.tepai.length % 3 === 2);
-
-        for (let i = 0; i < com.tepai.length; i++) {
-            if (this.animations.some(a => a.isCom && a.index === i)) continue;
-
-            let x = zone.x - i * (cfg.w + 2);
-            if (isDrawState && i === com.tepai.length - 1) x -= cfg.drawGap;
-
-            this.drawTile(-1, x, zone.y, cfg.w, cfg.h, { faceDown: true });
-        }
     }
 
     _renderMelds(playerIdx) {
@@ -618,7 +612,7 @@ export class Renderer {
         const totalW = buttons.length * btnW + (buttons.length - 1) * gap;
         
         // 讓按鈕群組在手牌上方靠右對齊
-        const startX = (this.ZONES.playerHand.x + 14 * (this.config.tile.w + this.config.tile.gap)) - totalW;
+        const startX = (this.ZONES.playerHand.x + 13 * (this.config.tile.w + this.config.tile.gap)) - totalW;
         const drawY = this.ZONES.playerHand.y - btnH - 25;
         
         // 正序處理
