@@ -79,7 +79,7 @@ export class Renderer {
         const infoGap = 15;
         
         this.ZONES = {
-            comHand:     { x: W * 0.80, y: H * 0.15 },
+            comHand:     { x: W * 0.15, y: H * 0.80 },
             comRiver:    { 
                 x: CX - riverW / 2, 
                 y: CY - (infoBoxH / 2) - infoGap - rH, 
@@ -319,7 +319,7 @@ export class Renderer {
     // === 牌河繪製 ===
     _drawRiverGroup(riverData, zone, isCom) {
         if (!riverData || !Array.isArray(riverData)) return;
-        const { w, h, gap = 0 } = this.config.river;
+        const { w, h, gap = 2 } = this.config.river;
         let curRow = 0;
         let curXOffset = 0;
         
