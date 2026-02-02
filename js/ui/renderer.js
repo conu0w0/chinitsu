@@ -103,16 +103,11 @@ export class Renderer {
         this._drawRivers();   
         this._drawHands();
         
-        // 3. UI 層：資訊框與按鈕 (原本在 _renderOverlay 裡)
-        this._renderOverlay(); 
-        
-        // 4. 最頂層：所有動畫與動態標記
+        // 3. 飛行中的動畫 (牌)
         this._drawAnimations();
 
-        if (this._lastMarkedPos) {
-            const { x, y, w, h, rotate } = this._lastMarkedPos;
-            this._drawPawMarker(x, y, w, h, rotate);
-        }
+        // 4. UI 與標記層
+        this._renderOverlay(); 
     }
 
     /* =================================================================
@@ -519,12 +514,20 @@ export class Renderer {
     _renderOverlay() {
         const phase = this.gameState.phase;
 
+        // --- 處理肉球標記 (Paw Marker) ---
+        // 只有在「非結算階段」才顯示肉球
+        if (phase !== "ROUND_END" && this._lastMarkedPos) {
+            const { x, y, w, h, rotate } = this._lastMarkedPos;
+            this._drawPawMarker(x, y, w, h, rotate);
+        }
+
+        // --- 處理 UI 與 結算畫面 ---
         if (phase === "ROUND_END") {
             // 結算畫面邏輯
             if (this.gameState.resultClickStage === 0) {
+                // ResultRenderer 的 draw 會覆蓋在上面
                 this.resultRenderer?.draw(this.gameState.lastResult);
             } else {
-                // 動畫跑完後顯示 Info 讓玩家看分數
                 this._drawInfoBox();
             }
         } else {
@@ -730,15 +733,15 @@ export class Renderer {
         // 5. 特殊標記 (呼吸燈效果)
         if (marked) {
             const bounce = Math.sin(Date.now() / 200) * 5;
-            drawBorder(`rgba(255, 120, 150, ${0.5 + bounce / 10})`, 3);
+            this.ctx.strokeStyle = `rgba(255, 120, 150, ${0.5 + bounce / 10})`;
+            this.ctx.lineWidth = 3;
+            this._strokeRoundedRect(x, y, w, h, 5);
+            
+            // 這裡更新全域座標，供 _renderOverlay 使用
+            this._lastMarkedPos = { x, y, w, h, rotate };
         }
 
-        ctx.restore(); // ★ 還原座標系 (旋轉結束)
-
-        // 6. 繪製肉球標記 (確保永遠頭朝上，不受旋轉影響)
-        if (marked) {
-            this._drawPawMarker(x, y, w, h, rotate);
-        }
+        ctx.restore(); // 還原座標系 (旋轉結束)
     }
 
     _drawPawMarker(x, y, w, h, rotate) {
