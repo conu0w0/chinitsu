@@ -215,7 +215,8 @@ export class Renderer {
             const lastLen = this.handState[lastLenProp];
             const lastMeld = this.handState[lastMeldProp];
             
-            const validPhases = ["DEALING", "DRAW", "PLAYER_DECISION", "COM_DECISION", "ROUND_END"];
+            const validPhases = ["DEALING", "DEALING_WAIT", "DEAL_FLIP", "DRAW", 
+                                 "PLAYER_DECISION", "COM_DECISION", "ROUND_END"];
             
             const isKanDraw = (currentMeld > lastMeld) && (currentLen % 3 === 2);
             
@@ -426,31 +427,42 @@ export class Renderer {
         const isCom = playerIdx === 1;
         const zone = isCom ? this.ZONES.comHand : this.ZONES.playerHand;
         const cfg = this.config.tile;
+        
         const isDealing = this.gameState.phase === "DEALING";
         const isDrawState = !isDealing && (player.tepai.length % 3 === 2);
+        
         const dirX = zone.direction?.x ?? (isCom ? -1 : 1);
-        const dirY = zone.direction?.y ?? (isCom ? -1 : 1);
+        const dirY = zone.direction?.y ?? (isCom ? -1 : 1);        
+        const forceFaceDown = player.handFaceDown === true;
         
         player.tepai.forEach((tile, i) => {
-            // 如果這張牌正在動畫中，跳過靜態繪製
+            // 動畫中就不畫靜態牌
             if (this.animations.some(a => a.isCom === isCom && a.index === i)) return;
             
-            // 計算 x 座標
-            let x = zone.x;
+            // === X 計算（吃 direction）===
+            let x;
             if (dirX > 0) {
-                x += i * (cfg.w + cfg.gap);
+                x = zone.x + i * (cfg.w + cfg.gap);
                 if (isDrawState && i === player.tepai.length - 1) x += cfg.drawGap;
             } else {
-                const zoneWidth = zone.width ?? (player.tepai.length * (cfg.w + cfg.gap));
-                x = zone.x + zoneWidth - (i + 1) * (cfg.w + cfg.gap);
+                x = zone.x + zone.width - (i + 1) * (cfg.w + cfg.gap);
                 if (isDrawState && i === player.tepai.length - 1) x -= cfg.drawGap;
             }
             
-            // y 座標
-            const y = zone.y + (isCom ? 0 : this.handState.yOffsets[i]); // 玩家懸浮效果
+            // === Y 計算（玩家有 hover）===
+            const y = zone.y + (!isCom ? this.handState.yOffsets[i] : 0);
             
-            // 繪製牌
-            this.drawTile(isCom ? -1 : tile, x, y, cfg.w, cfg.h, { faceDown: isCom, selected: !isCom && this.hoveredIndex === i });
+            const faceDown = forceFaceDown || (isCom && !this.gameState.debugRevealCom); 
+            
+            this.drawTile(
+                faceDown ? -1 : tile,
+                x, y,
+                cfg.w, cfg.h,
+                {
+                    faceDown,
+                    selected: !isCom && !forceFaceDown && this.hoveredIndex === i
+                }
+            );
         });
     }
 
