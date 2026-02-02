@@ -94,6 +94,7 @@ export class Renderer {
 
     draw() {
         this._updateState();
+        this._lastMarkedPos = null;
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
         // 1. 最底層：背景
@@ -310,59 +311,59 @@ export class Renderer {
     }
 
     // === 牌河繪製 ===
-    _drawRivers() {
-        this._drawRiverGroup(this.gameState.players[0].river, this.ZONES.playerRiver, false);
-        this._drawRiverGroup(this.gameState.players[1].river, this.ZONES.comRiver, true);
-    }
-
     _drawRiverGroup(riverData, zone, isCom) {
-        const { w, h, gap = 0 } = this.config.river;
-        let curRow = 0;
-        let curXOffset = 0;
+    const { w, h, gap = 0 } = this.config.river;
+    let curRow = 0;
+    let curXOffset = 0;
 
-        riverData.forEach((item, i) => {
-            // 換行邏輯
-            if (i > 0 && i % zone.cols === 0) {
-                curRow++;
-                curXOffset = 0;
-            }
+    // 取得全域最後一張打出的資訊
+    const lastDiscard = this.gameState.lastDiscard;
+    const isThisPlayerTurn = lastDiscard?.fromPlayer === (isCom ? 1 : 0);
 
-            const tileSpace = item.isRiichi ? h : w;
-            const rotate = item.isRiichi ? (isCom ? 90 : -90) : 0;
-            
-            // 計算繪製座標
-            let dx;
-            if (isCom) {
-                // COM 從右往左
-                dx = (zone.x + zone.width) - curXOffset - tileSpace;
-            } else {
-                // Player 從左往右
-                dx = zone.x + curXOffset;
-            } 
-            
-            let dy;
-            if (isCom) {
-                // COM 第一行在最下方(靠近 Info)，第二行往上推
-                dy = zone.y - curRow * (h + gap);
-            } else {
-                // 玩家第一行在最上方(靠近 Info)，第二行往下推
-                dy = zone.y + curRow * (h + gap);
-            }
+    riverData.forEach((item, i) => {
+        // 1. 換行邏輯
+        if (i > 0 && i % zone.cols === 0) {
+            curRow++;
+            curXOffset = 0;
+        }
 
-            // 立直牌的位置微調 (置中旋轉)
-            if (rotate !== 0) {
-                const offset = (h - w) / 2;
-                dx += offset; 
-                dy += offset;
-            }
+        const tileSpace = item.isRiichi ? h : w;
+        const rotate = item.isRiichi ? (isCom ? 90 : -90) : 0;
+        
+        // 2. 計算座標
+        let dx = isCom 
+            ? (zone.x + zone.width) - curXOffset - tileSpace 
+            : zone.x + curXOffset;
+        
+        let dy = isCom 
+            ? zone.y - curRow * (h + gap) 
+            : zone.y + curRow * (h + gap);
 
-            // 標記最後一張打出的牌
-            const isLast = (this.gameState.lastDiscard?.fromPlayer === (isCom ? 1 : 0) && i === riverData.length - 1);
-            this.drawTile(item.tile, dx, dy, w, h, { rotate, marked: isLast });
-            if (isLast) this._lastMarkedPos = { x: dx, y: dy, w, h, rotate };
-            curXOffset += (tileSpace + gap);
+        // 3. 立直旋轉位移微調
+        if (rotate !== 0) {
+            const offset = (h - w) / 2;
+            dx += offset; 
+            dy += offset;
+        }
+
+        // 4. 嚴格判定是否為「全場最後一張」
+        // 只有當「打牌者身分對」且「是該玩家牌河最後一張」時才標記
+        const isGlobalLast = isThisPlayerTurn && (i === riverData.length - 1);
+
+        // 5. 繪製牌（這裡的 marked 只負責畫那個紅框，不畫肉球）
+        this.drawTile(item.tile, dx, dy, w, h, { 
+            rotate, 
+            marked: isGlobalLast 
         });
-    }
+
+        // 6. 存下肉球座標，供後續在 _renderOverlay 繪製
+        if (isGlobalLast) {
+            this._lastMarkedPos = { x: dx, y: dy, w, h, rotate };
+        }
+
+        curXOffset += (tileSpace + gap);
+    });
+}
 
     // === 手牌與副露繪製 ===
     _drawHands() {
@@ -733,12 +734,11 @@ export class Renderer {
         // 5. 特殊標記 (呼吸燈效果)
         if (marked) {
             const bounce = Math.sin(Date.now() / 200) * 5;
-            this.ctx.strokeStyle = `rgba(255, 120, 150, ${0.5 + bounce / 10})`;
-            this.ctx.lineWidth = 3;
+            ctx.save(); // 保護一下狀態
+            ctx.strokeStyle = `rgba(255, 120, 150, ${0.5 + bounce / 10})`;
+            ctx.lineWidth = 3;
             this._strokeRoundedRect(x, y, w, h, 5);
-            
-            // 這裡更新全域座標，供 _renderOverlay 使用
-            this._lastMarkedPos = { x, y, w, h, rotate };
+            ctx.restore();
         }
 
         ctx.restore(); // 還原座標系 (旋轉結束)
@@ -746,27 +746,41 @@ export class Renderer {
 
     _drawPawMarker(x, y, w, h, rotate) {
         const ctx = this.ctx;
-        const bounce = Math.sin(Date.now() / 200) * 5;
-        const visualH = (rotate !== 0) ? w : h; // 旋轉後的視覺高度
-        const centerY = y + h / 2;
+        const now = Date.now();
         
+        // 1. 動態計算
+        const bounce = Math.sin(now / 200) * 5; 
+        const opacity = 0.7 + Math.sin(now / 200) * 0.3; 
+        
+        const visualH = (rotate !== 0) ? w : h; 
+        const centerY = y + h / 2;
         const pawX = x + w / 2;
-        const pawY = centerY - (visualH / 2) - 25 + bounce;
-
+        // 稍微往上抬一點點，避免壓到牌的邊框
+        const pawY = centerY - (visualH / 2) - 30 + bounce;
+        
         ctx.save();
-        ctx.fillStyle = "rgba(255, 120, 150, 0.9)";
-        ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
+        ctx.globalAlpha = opacity; 
+        ctx.fillStyle = "rgba(255, 120, 150, 0.95)"; // 顏色稍微加深一點點
+        ctx.shadowColor = "rgba(0, 0, 0, 0.2)";
         ctx.shadowBlur = 4;
-
+        
+        // --- 繪製肉球核心 ---
+        
+        // 2. 掌心 (改成橢圓形更像肉墊)
         ctx.beginPath();
-        ctx.arc(pawX, pawY, 10, 0, Math.PI * 2); // 掌心
+        // ellipse(x, y, radiusX, radiusY, rotation, startAngle, endAngle)
+        ctx.ellipse(pawX, pawY + 2, 12, 9, 0, 0, Math.PI * 2);
         ctx.fill();
-
-        [[0, -11], [-8, -8], [8, -8]].forEach(([ox, oy]) => { // 手指
+        
+        // 3. 手指 (調整偏移量，讓中間那根高一點，兩側張開一點)
+        const toes = [ [0, -10], [-10, -5], [10, -5] ];
+        toes.forEach(([ox, oy]) => {
             ctx.beginPath();
-            ctx.arc(pawX + ox, pawY + oy, 4, 0, Math.PI * 2);
+            // 手指也改成稍微橢圓，或是維持正圓 (這裡用 4.5 徑長增加肉感)
+            ctx.arc(pawX + ox, pawY + oy, 4.5, 0, Math.PI * 2);
             ctx.fill();
         });
+        
         ctx.restore();
     }
 
