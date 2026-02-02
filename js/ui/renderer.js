@@ -546,14 +546,14 @@ export class Renderer {
         this.animations = this.animations.filter(anim => {
             const elapsed = now - anim.startTime;
             const progress = Math.min(elapsed / anim.duration, 1);
-            
-            // easeOutQuad 緩動效果
             const ease = progress * (2 - progress);
+            
             const cx = anim.startX + (anim.x - anim.startX) * ease;
             const cy = anim.startY + (anim.y - anim.startY) * ease;
 
             this.ctx.save();
-            const isFaceDown = anim.isCom && anim.type === "draw";
+            const player = this.gameState.players[anim.isCom ? 1 : 0];
+            const isFaceDown = player.handFaceDown || (anim.isCom && anim.type === "draw");
             this.drawTile(anim.tile, cx, cy, w, h, { faceDown: isFaceDown });
             this.ctx.restore();
 
