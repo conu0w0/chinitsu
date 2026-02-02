@@ -82,7 +82,7 @@ export class Renderer {
         const handWidth = 14 * (tileCfg.w + tileCfg.gap);
         
         this.ZONES = {
-            comHand:     { x: W * 0.20, y: H * 0.15, width: handWidth },
+            comHand:     { x: W * 0.15, y: H * 0.15, width: handWidth },
             comRiver:    { 
                 x: CX - riverW / 2, 
                 y: CY - (infoBoxH / 2) - infoGap - rH, 
