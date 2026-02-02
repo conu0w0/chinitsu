@@ -73,7 +73,7 @@ export class ResultEffect {
         ctx.textBaseline = "alphabetic";
 
         const metrics = ctx.measureText(text);
-        const fontSize = parseInt(font) || 48;
+        const fontSize = parseInt(font.match(/(\d+)px/)?.[1]) || 48;
         const w = metrics.width;
         
         const DURATION = isSilver ? 2200 : 1600;
