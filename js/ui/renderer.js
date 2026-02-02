@@ -94,7 +94,7 @@ export class Renderer {
 
     draw() {
         this._updateState();
-        this._lastMarkedPos = null;
+        this._lastMarkedPaws = null;
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
         // 1. 最底層：背景
@@ -358,7 +358,7 @@ export class Renderer {
 
         // 6. 存下肉球座標，供後續在 _renderOverlay 繪製
         if (isGlobalLast) {
-            this._lastMarkedPos = { x: dx, y: dy, w, h, rotate };
+            this._lastMarkedPaws = { x: dx, y: dy, w, h, rotate };
         }
 
         curXOffset += (tileSpace + gap);
@@ -517,8 +517,8 @@ export class Renderer {
 
         // --- 處理肉球標記 (Paw Marker) ---
         // 只有在「非結算階段」才顯示肉球
-        if (phase !== "ROUND_END" && this._lastMarkedPos) {
-            const { x, y, w, h, rotate } = this._lastMarkedPos;
+        if (phase !== "ROUND_END" && this._lastMarkedPaws) {
+            const { x, y, w, h, rotate } = this._lastMarkedPaws;
             this._drawPawMarker(x, y, w, h, rotate);
         }
 
