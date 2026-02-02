@@ -312,58 +312,49 @@ export class Renderer {
 
     // === 牌河繪製 ===
     _drawRiverGroup(riverData, zone, isCom) {
-    const { w, h, gap = 0 } = this.config.river;
-    let curRow = 0;
-    let curXOffset = 0;
+        if (!riverData || !Array.isArray(riverData)) return;
+        const { w, h, gap = 0 } = this.config.river;
+        let curRow = 0;
+        let curXOffset = 0;
 
-    // 取得全域最後一張打出的資訊
-    const lastDiscard = this.gameState.lastDiscard;
-    const isThisPlayerTurn = lastDiscard?.fromPlayer === (isCom ? 1 : 0);
-
-    riverData.forEach((item, i) => {
-        // 1. 換行邏輯
-        if (i > 0 && i % zone.cols === 0) {
-            curRow++;
-            curXOffset = 0;
-        }
-
-        const tileSpace = item.isRiichi ? h : w;
-        const rotate = item.isRiichi ? (isCom ? 90 : -90) : 0;
+        // 取得全域最後一張打出的資訊
+        const lastDiscard = this.gameState.lastDiscard;
+        const isThisPlayerTurn = lastDiscard?.fromPlayer === (isCom ? 1 : 0);
         
-        // 2. 計算座標
-        let dx = isCom 
-            ? (zone.x + zone.width) - curXOffset - tileSpace 
-            : zone.x + curXOffset;
-        
-        let dy = isCom 
-            ? zone.y - curRow * (h + gap) 
-            : zone.y + curRow * (h + gap);
-
-        // 3. 立直旋轉位移微調
-        if (rotate !== 0) {
-            const offset = (h - w) / 2;
-            dx += offset; 
-            dy += offset;
-        }
-
-        // 4. 嚴格判定是否為「全場最後一張」
-        // 只有當「打牌者身分對」且「是該玩家牌河最後一張」時才標記
-        const isGlobalLast = isThisPlayerTurn && (i === riverData.length - 1);
-
-        // 5. 繪製牌（這裡的 marked 只負責畫那個紅框，不畫肉球）
-        this.drawTile(item.tile, dx, dy, w, h, { 
-            rotate, 
-            marked: isGlobalLast 
+        riverData.forEach((item, i) => {
+            // 1. 換行邏輯
+            if (i > 0 && i % zone.cols === 0) {
+                curRow++;
+                curXOffset = 0;
+            }
+            
+            const tileSpace = item.isRiichi ? h : w;
+            const rotate = item.isRiichi ? (isCom ? 90 : -90) : 0;
+            
+            // 2. 計算座標
+            let dx = isCom ? (zone.x + zone.width) - curXOffset - tileSpace : zone.x + curXOffset;      
+            let dy = isCom ? zone.y - curRow * (h + gap) : zone.y + curRow * (h + gap);
+            
+            // 3. 立直旋轉位移微調
+            if (rotate !== 0) {
+                const offset = (h - w) / 2;
+                dx += offset; 
+                dy += offset;
+            }
+            
+            // 4. 嚴格判定是否為「全場最後一張」
+            // 只有當「打牌者身分對」且「是該玩家牌河最後一張」時才標記
+            const isGlobalLast = isThisPlayerTurn && (i === riverData.length - 1);
+            
+            // 5. 繪製牌（這裡的 marked 只負責畫那個紅框，不畫肉球）
+            this.drawTile(item.tile, dx, dy, w, h, { rotate, marked: isGlobalLast });
+            
+            // 6. 存下肉球座標，供後續在 _renderOverlay 繪製
+            if (isGlobalLast) this._lastMarkedPaws = { x: dx, y: dy, w, h, rotate };
+            
+            curXOffset += (tileSpace + gap);
         });
-
-        // 6. 存下肉球座標，供後續在 _renderOverlay 繪製
-        if (isGlobalLast) {
-            this._lastMarkedPaws = { x: dx, y: dy, w, h, rotate };
-        }
-
-        curXOffset += (tileSpace + gap);
-    });
-}
+    }
 
     // === 手牌與副露繪製 ===
     _drawHands() {
