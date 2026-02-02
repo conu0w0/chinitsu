@@ -51,12 +51,6 @@ export class ResultEffect {
         ctx.translate(centerX, centerY);
         ctx.scale(scale, scale);
         
-        ctx.fillStyle = color;
-        if (color !== "#fff" && color !== "#ffffff") {
-            ctx.shadowColor = color;
-            ctx.shadowBlur = 15 * t;
-        }
-
         // 位移回中心點繪製
         ctx.fillText(text, -metrics.width / 2, 20); 
         ctx.restore();
@@ -96,17 +90,17 @@ export class ResultEffect {
         const gradY = (y - fontSize / 2) + dy * offset;
         
         const grad = ctx.createLinearGradient(
-            gradX - dx * 40, gradY - dy * 40,
-            gradX + dx * 40, gradY + dy * 40
+            gradX - dx * 25, gradY - dy * 25,
+            gradX + dx * 25, gradY + dy * 25
         );
 
         if (isSilver) {
             grad.addColorStop(0, "rgba(255, 255, 255, 0)");
-            grad.addColorStop(0.5, "rgba(255, 255, 255, 0.85)"); 
+            grad.addColorStop(0.5, "rgba(255, 255, 255, 0.65)"); 
             grad.addColorStop(1, "rgba(255, 255, 255, 0)");
         } else {
             grad.addColorStop(0, "rgba(255, 215, 0, 0)");
-            grad.addColorStop(0.5, "rgba(255, 255, 230, 0.95)"); 
+            grad.addColorStop(0.5, "rgba(255, 255, 230, 0.75)"); 
             grad.addColorStop(1, "rgba(255, 215, 0, 0)");
         }
 
