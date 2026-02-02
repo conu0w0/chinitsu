@@ -441,6 +441,22 @@ export class Renderer {
         });
     }
 
+    _drawRivers() {
+        // 1. 繪製玩家牌河
+        this._drawRiverGroup(
+            this.gameState.players[0].kawa, 
+            this.ZONES.playerRiver, 
+            false
+        );
+
+        // 2. 繪製電腦牌河
+        this._drawRiverGroup(
+            this.gameState.players[1].kawa, 
+            this.ZONES.comRiver, 
+            true
+        );
+    }
+
     /**
      * 計算單一組副露的總寬度
      * @param {Object} meld 副露資料
