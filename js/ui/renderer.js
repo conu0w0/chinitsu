@@ -72,8 +72,8 @@ export class Renderer {
         const CY = H / 2;
         const { w: rW, h: rH, gap: rGap = 0 } = this.config.river;
         
-        const RIVER_MODEL = { normal: 5, riichi: 1, cols: 6 };
-        const riverW = (RIVER_MODEL.normal * rW) + (RIVER_MODEL.riichi * rH) + ((RIVER_MODEL.cols - 1) * rGap);
+        this.RIVER_MODEL = { normal: 5, riichi: 1, cols: 6 };
+        const riverW = (this.RIVER_MODEL.normal * rW) + (this.RIVER_MODEL.riichi * rH) + ((this.RIVER_MODEL.cols - 1) * rGap);
 
         const infoBoxH = 120;
         const infoGap = 15;
@@ -86,7 +86,7 @@ export class Renderer {
             comRiver:    { 
                 x: CX - riverW / 2, 
                 y: CY - (infoBoxH / 2) - infoGap - rH, 
-                cols: RIVER_MODEL.cols, 
+                cols: this.RIVER_MODEL.cols, 
                 width: riverW,
                 direction: { x: -1, y: -1 } // COM：從右往左、從下往上
                     },
@@ -96,7 +96,7 @@ export class Renderer {
             playerRiver: { 
                 x: CX - riverW / 2, 
                 y: CY + (infoBoxH / 2) + infoGap, 
-                cols: RIVER_MODEL.cols, 
+                cols: this.RIVER_MODEL.cols, 
                 width: riverW,
                 direction: { x: 1, y: 1 } // 玩家：從左往右、從上到下
                     },
@@ -321,51 +321,84 @@ export class Renderer {
 
     // === 牌河繪製 ===
     _drawRiverGroup(riverData, zone, isCom) {
+        // 安全檢查：如果沒有數據，直接返回，避免報錯
         if (!riverData || !Array.isArray(riverData)) return;
+
         const { w, h, gap = 2 } = this.config.river;
-        let curRow = 0;
-        let curXOffset = 0;
-        
         const dirX = zone.direction.x;
         const dirY = zone.direction.y;
         
+        let curRow = 0;
+        let curXOffset = 0;
+        
+        // 判斷是否為最後一張打出的牌（用於標記）
         const lastDiscard = this.gameState.lastDiscard;
-        const isThisPlayerTurn = lastDiscard?.fromPlayer === (isCom ? 1 : 0);
-        
-        // 計算 tile 空間：先預留「立直槽位」固定在第 RIVER_MODEL.normal 位置
-        const RIVER_MODEL = { normal: 5, riichi: 1, cols: 6 };
-        
+        // 注意：這裡假設 lastDiscard.fromPlayer 也是 0 或 1
+        const isTargetPlayer = (isCom ? 1 : 0);
+        const isLastDiscardOwner = lastDiscard?.fromPlayer === isTargetPlayer;
+
         riverData.forEach((item, i) => {
-            // 換行邏輯
+            // === 資料相容處理 (Data Compatibility) ===
+            // 如果 item 是物件 { tile: 12, isRiichi: true } 則取值
+            // 如果 item 只是數字 12，則直接用，並預設沒立直
+            const tileVal = (typeof item === 'object') ? item.tile : item;
+            const isRiichi = (typeof item === 'object') ? item.isRiichi : false;
+
+            // 如果 tileVal 無效，跳過不畫
+            if (tileVal === undefined || tileVal === null) return;
+
+            // === 換行邏輯 ===
             if (i > 0 && i % zone.cols === 0) {
                 curRow++;
                 curXOffset = 0;
             }
-            
-            // tile 占用空間
-            const tileSpace = item.isRiichi ? h : w;
-            
-            // 計算座標
+
+            // === 座標計算 ===
+            // 立直牌佔用的寬度是 h (因為橫過來放)，普通牌是 w
+            const tileSpace = isRiichi ? h : w;
+
+            // 基礎座標
             let dx = zone.x;
             let dy = zone.y;
-            
-            dx += dirX > 0 ? curXOffset : zone.width - curXOffset - tileSpace;
-            dy += dirY > 0 ? curRow * (h + gap) : -curRow * (h + gap);
-            
-            // 立直牌旋轉微調
-            const rotate = item.isRiichi ? (dirX < 0 ? 90 : -90) : 0;
-            if (rotate !== 0) {
-                const offset = (h - w) / 2;
-                dx += offset; 
-                dy += offset;
+
+            // X 軸偏移：
+            // 玩家(1)：從左向右長 (x + offset)
+            // COM(-1)：從右向左長 (x + width - offset - 當前牌寬)
+            if (dirX > 0) {
+                dx += curXOffset;
+            } else {
+                dx += zone.width - curXOffset - tileSpace;
             }
+
+            // Y 軸偏移：
+            // 玩家(1)：向下長 (y + rowHeight)
+            // COM(-1)：向上長 (y - rowHeight)
+            const rowHeight = curRow * (h + gap);
+            dy += (dirY > 0) ? rowHeight : -rowHeight;
+
+            // === 立直旋轉處理 ===
+            // 玩家立直轉 -90度(逆時針)，COM立直轉 90度(順時針)
+            const rotate = isRiichi ? (dirX < 0 ? 90 : -90) : 0;
             
-            const isGlobalLast = isThisPlayerTurn && (i === riverData.length - 1);
+            // 微調：因為旋轉是繞中心點，長寬不同會導致視覺偏移，這裡進行校正
+            if (isRiichi) {
+                const centerDiff = (h - w) / 2;
+                dx += centerDiff;
+                dy += centerDiff;
+            }
+
+            // === 標記最後一張打出的牌 ===
+            const isGlobalLast = isLastDiscardOwner && (i === riverData.length - 1);
             
-            this.drawTile(item.tile, dx, dy, w, h, { rotate, marked: isGlobalLast });
-            
-            if (isGlobalLast) this._lastMarkedPaws = { x: dx, y: dy, w, h, rotate };
-            
+            // 執行繪製
+            this.drawTile(tileVal, dx, dy, w, h, { rotate, marked: isGlobalLast });
+
+            // 紀錄最後一張牌的位置供肉球標記使用
+            if (isGlobalLast) {
+                this._lastMarkedPaws = { x: dx, y: dy, w, h, rotate };
+            }
+
+            // 累加 X 偏移量
             curXOffset += tileSpace + gap;
         });
     }
