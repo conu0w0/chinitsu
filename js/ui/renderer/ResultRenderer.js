@@ -68,7 +68,9 @@ export class ResultRenderer {
         this.yakuAnimations = [];
         
         // 確保重置時 Canvas 是乾淨的背景
-        this.ctx.clearRect(0, 0, this.r.canvas.width, this.r.canvas.height);
+        const W = this.r.viewport?.baseSize || this.r.config.width || 1024;
+        const H = this.r.viewport?.baseSize || this.r.config.height || 1024;
+        this.ctx.clearRect(0, 0, W, H);
     }
 
     /**
@@ -79,24 +81,38 @@ export class ResultRenderer {
 
         const { ctx, r } = this;
 
-        ctx.save();
-        
-        // 1. 背景遮罩
-        ctx.fillStyle = "rgba(0, 0, 0, 0.92)";
-        ctx.fillRect(0, 0, r.canvas.width, r.canvas.height);
-
-        // 2. 資料變更偵測與快取更新
+        // 資料變更偵測與快取更新
         if (this._lastResultRef !== result) {
             this._lastResultRef = result;
             this.cache.set(result, this.YAKU_ORDER, this.YAKUMAN_SET);
-            this._resetAnimationState(); // 確保重新開始
+            this._resetAnimationState();
         }
 
-        // 3. 場景分流渲染
+        const W = r.viewport?.baseSize || r.config.width || 1024;
+        const H = r.viewport?.baseSize || r.config.height || 1024;
+        const CX = W / 2;
+
+        ctx.save();
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = "source-over";
+        
+        // 背景遮罩
+        ctx.fillStyle = "rgba(0, 0, 0, 0.92)";
+        ctx.fillRect(0, 0, W, H);
+
+        // 場景分流渲染
+        const env = { W, H, CX };
+
         switch (result.type) {
-            case "chombo":    this.drawChombo(result);    break;
-            case "ryuukyoku": this.drawRyuukyoku(result); break;
-            default:          this.drawAgari(result);     break;
+            case "chombo":
+                this.drawChombo(result, env);
+                break;
+            case "ryuukyoku":
+                this.drawRyuukyoku(result, env);
+                break;
+            default:
+                this.drawAgari(result, env);
+                break;
         }
 
         ctx.restore();
@@ -105,9 +121,9 @@ export class ResultRenderer {
     // ================================================================
     // 渲染分支：錯和 (Chombo)
     // ================================================================
-    drawChombo(result) {
+    drawChombo(result, env) {
         const { ctx, r, layout } = this;
-        const [W, H, CX] = [r.canvas.width, r.canvas.height, r.canvas.width / 2];
+        const { W, H, CX } = env;
 
         // 標題與原因
         this._drawCenteredTitle("本局結束", CX, H * 0.25, 64);
@@ -116,44 +132,59 @@ export class ResultRenderer {
         // 罰符資訊
         const isParent = (result.offenderIndex === this.r.gameState.parentIndex);
         const who = (result.offenderIndex === 0) ? "玩家" : "COM";
-        
-        // 組合字串： [親] 玩家 罰符 ...
         const roleText = isParent ? "[親]" : "[子]";
         const textLabel = `${roleText} ${who} 罰符`;
 
         this._drawPenaltyInfo(textLabel, ` ${result.score.total} 點`, CX, H * 0.48);
 
-        // 手牌與聽牌
+        // 判定：如果原因包含「振聽」，則顯示紅色標籤
+        const isFuritenChombo = result.reason && result.reason.includes("振聽");
+        const offenderWaits = result.offender?.waits || [];
+        
         layout.drawWaitList(
-            result.offender?.waits || [], 
+            offenderWaits, 
             CX, 
             H * 0.58, 
-            result.offender?.isFuriten || false // 傳入是否振聽
+            isFuritenChombo, // 只有真的是振聽違規時才傳 true
+            true             // 錯和時啟用狀態顯示 (決定是顯示 聽牌/未聽牌/振聽)
         );
-        this.resultHandLeftX = layout.drawResultHand(result, CX, H * 0.72, true);
 
+        this.resultHandLeftX = layout.drawResultHand(result, CX, H * 0.72, true);
         this.isReadyForNext = true;
     }
 
     // ================================================================
     // 渲染分支：流局 (Ryuukyoku)
     // ================================================================
-    drawRyuukyoku(result) {
+    drawRyuukyoku(result, env) {
         const { ctx, r, layout } = this;
-        const [CX, H] = [r.canvas.width / 2, r.canvas.height];
+        const { W, H, CX } = env;
 
-        this._drawCenteredTitle("荒牌流局", CX, H * 0.46, 64, "#aaddff");
+        this._drawCenteredTitle("荒牌流局", CX, H * 0.56, 64, "#aaddff");
 
         const tenpaiInfo = result.tenpaiInfo ?? [];
 
         // --- COM (上方) ---
         const comInfo = tenpaiInfo.find(t => t.index === 1) ?? {};
+        // COM 手牌依據是否聽牌決定是否蓋牌
         layout.drawStaticHand(r.gameState.players[1], CX, H * 0.15, !comInfo.isTenpai);
-        layout.drawWaitList(comInfo.waits ?? [], CX, H * 0.28, comInfo.isTenpai ? "COM 聽牌" : "COM 未聽");
+        layout.drawWaitList(
+            comInfo.waits ?? [], 
+            CX, 
+            H * 0.28, 
+            false, // 流局不顯示振聽邏輯
+            false  // showFuriten: false 強制顯示灰色/白色標籤
+        );
 
         // --- 玩家 (下方) ---
         const playerInfo = tenpaiInfo.find(t => t.index === 0) ?? {};
-        layout.drawWaitList(playerInfo.waits ?? [], CX, H * 0.64, playerInfo.isTenpai ? "玩家 聽牌" : "玩家 未聽");
+        layout.drawWaitList(
+            playerInfo.waits ?? [], 
+            CX, 
+            H * 0.64, 
+            false, // 流局不顯示振聽邏輯
+            false  // showFuriten: false 強制顯示灰色/白色標籤
+        );
         layout.drawStaticHand(r.gameState.players[0], CX, H * 0.80, !playerInfo.isTenpai);
 
         this.isReadyForNext = true;
@@ -162,12 +193,13 @@ export class ResultRenderer {
     // ================================================================
     // 渲染分支：和牌 (Agari) - 核心狀態機邏輯
     // ================================================================
-    drawAgari(result) {
+    drawAgari(result, env) {
         if (!result?.score) return;
 
         const { ctx, r, layout, effect, stateMachine: sm, cache } = this;
+        const { W, H, CX } = env;
+
         const now = performance.now();
-        const [W, H, CX] = [r.canvas.width, r.canvas.height, r.canvas.width / 2];
         const { sortedYakus, limitName, isYakuman, isKazoeYakuman } = cache.data;
         
         this.resultHandLeftX = layout.drawResultHand(result, CX, H * 0.68, { isChombo: false });
@@ -245,7 +277,6 @@ export class ResultRenderer {
         const now = performance.now();
         this.stateMachine.enter(state);
 
-        // 根據進入的狀態，初始化該階段的動畫起點
         switch (state) {
             case RESULT_STATE.YAKU_ANIM:
                 this.yakuAnimations = [];
@@ -253,11 +284,14 @@ export class ResultRenderer {
                 break;
             case RESULT_STATE.SCORE:
                 this._scoreLayoutCache = null;
+                this.scorePhase = 0; // 重置 Phase
+                // 🌟 預先算好所有階段的起點，不要在 Draw 裡面改！
                 this.resultHanfuStartTime = now;
-                this.resultScoreStartTime = now + this.TIMING.PHASE0_TO_PHASE1;
+                this.resultScoreStartTime = now + 500; // 飜符播完後接點數
+                this.resultLevelStartTime = now + 1000; // 點數播完後接稱號
                 break;
             case RESULT_STATE.LEVEL:
-                this.resultLevelStartTime = now;
+                // 這裡不再改 StartTime，維持 SCORE 階段算好的
                 break;
         }
     }
@@ -362,9 +396,10 @@ export class ResultRenderer {
         if (sm.state === RESULT_STATE.YAKU_ANIM) {
             // === 動態階段：處理飛入效果 ===
             this.yakuAnimations.forEach(anim => {
-                if (now < anim.startTime) return;
+                const elapsed = now - anim.startTime;
+                if (elapsed < 0) return; // 還沒開始
 
-                const t = Math.min((now - anim.startTime) / anim.duration, 1);
+                const t = Math.min(elapsed / anim.duration, 1);
                 const ease = 1 - Math.pow(1 - t, 3);
 
                 const row = anim.index % yakuItemsPerCol;
@@ -394,7 +429,9 @@ export class ResultRenderer {
             });
 
             // 檢查是否所有役種都播完了，播完就切換狀態
-            if (now > this.resultYakuEndTime) this._enterState(RESULT_STATE.YAKU_STATIC);
+            if (now > this.resultYakuEndTime + 50) {
+                this._enterState(RESULT_STATE.YAKU_STATIC);
+            }
         } else {
             // === 靜態階段：直接畫出所有文字 ===
             sortedYakus.forEach((yaku, i) => {
@@ -434,122 +471,125 @@ export class ResultRenderer {
     }
 
     /**
-     * 繪製分數與滿貫稱號 (含蓋章與高光動畫)
-     */
-    /**
-     * 繪製分數與滿貫稱號 (含蓋章與高光動畫)
+     * 繪製分數與滿貫稱號
      */
     _renderScoreAndLevel(now, scoreY) {
-        const { ctx, r, layout, effect, cache, TIMING } = this;
-        const { han, fu, scoreTotal, limitName, isYakuman, isKazoeYakuman, yakumanCount, limitColor } = cache.data;
+        const { ctx, r, layout, effect, cache, TIMING, stateMachine: sm } = this;
+        const { han, fu, scoreTotal, limitName, isYakuman, isKazoeYakuman, limitColor } = cache.data;
+        const CX = r.viewport?.baseSize / 2 || r.config.width / 2 || 512;
 
-        // 1. 建立或讀取排版快取
-        if (!this._scoreLayoutCache && this.resultHandLeftX !== null) {
-            // 三格 vs 兩格 邏輯判斷：
-            // 只有「純役滿」且「不是累計役滿」時，才採用兩格排版 (隱藏飜符)
+        const anchorX = (this.resultHandLeftX !== null) ? this.resultHandLeftX : CX;
+        const alignToLeft = (this.resultHandLeftX !== null);
+
+        // 1. 初始化排版 (維持不變)
+        if (!this._scoreLayoutCache) {
             const isPureYakuman = isYakuman && !isKazoeYakuman;
             const rowItems = [];
-
-            // [ x 飜 y 符 ] - 兩格模式下隱藏
             if (!isPureYakuman) {
-                rowItems.push({
-                    key: "hanfu",
-                    text: `${han} 飜 ${fu} 符`,
-                    font: `bold 42px ${this.r.config.fontFamily}`,
-                    color: "#ffffff" // 飜符固定白色
-                });
+                rowItems.push({ key: "hanfu", text: `${han} 飜 ${fu} 符`, font: `bold 42px ${this.r.config.fontFamily}`, color: "#ffffff" });
             }
-
-            // [ z 點 ]
-            rowItems.push({
-                key: "point",
-                text: `${scoreTotal} 點`,
-                // 兩格模式下字體放大一點
-                font: `bold ${isPureYakuman ? 64 : 48}px ${this.r.config.fontFamily}`,
-                // 點數套色邏輯：役滿或累計役滿 (han >= 13) 則套用 limitColor
-                color: (isYakuman || han >= 13) ? limitColor : "#ffffff"
-            });
-
-            // [ LEVEL ]
+            rowItems.push({ key: "point", text: `${scoreTotal} 點`, font: `bold ${isPureYakuman ? 64 : 48}px ${this.r.config.fontFamily}`, color: (isYakuman || han >= 13) ? limitColor : "#ffffff" });
             if (limitName) {
-                rowItems.push({
-                    key: "level",
-                    text: limitName,
-                    font: `bold 52px ${this.r.config.fontFamily}`,
-                    color: limitColor, // 稱號永遠套色
-                    reserved: true 
-                });
+                rowItems.push({ key: "level", text: limitName, font: `bold ${isPureYakuman ? 80 : 52}px ${this.r.config.fontFamily}`, color: limitColor });
             }
-
-            // 呼叫 layout 計算座標 (gap 可以設為 40 讓間距大一點更美觀)
-            this._scoreLayoutCache = layout.layoutScoreRow(this.resultHandLeftX, scoreY, rowItems, 40);
+            this._scoreLayoutCache = layout.layoutScoreRowFixed(anchorX, scoreY, rowItems, 780, alignToLeft);
             
-            // 如果是兩格模式，直接跳過 Phase 0 (飜符淡入)
-            if (isPureYakuman) this.scorePhase = 1;
+            // 役滿直接進入 Phase 1
+            if (isPureYakuman) this.scorePhase = 1; 
         }
 
-        // --- 以下繪製邏輯 (Phase 0, 1, Level) 與之前相同，確保傳入正確的 color 參數 ---
         const row = this._scoreLayoutCache;
-        if (!row) return;
+        ctx.save();
+        ctx.textBaseline = "alphabetic";
 
-        // 2. 飜符 (Phase 0)
+        // --- A. 飜/符 繪製 ---
         const hanfu = row.find(i => i.key === "hanfu");
         if (hanfu) {
-            if (this.scorePhase === 0) {
-                effect.fadeInText({ ...hanfu, startTime: this.resultHanfuStartTime });
-                if (now - this.resultHanfuStartTime > TIMING.PHASE0_TO_PHASE1) this.scorePhase = 1;
+            // 修正：只有在 Phase 0 且時間還沒到時才畫 fadeIn，否則一律畫 static
+            const elapsed = now - this.resultHanfuStartTime;
+            if (this.scorePhase === 0 && elapsed < 500) {
+                effect.fadeInText({ ...hanfu, startTime: this.resultHanfuStartTime, strokeWidth: 4 });
             } else {
-                this._drawStaticText(hanfu.text, hanfu.x, hanfu.y, hanfu.font, hanfu.color);
-            }
-        }
-
-        // 3. 點數 (Phase 1)
-        const point = row.find(i => i.key === "point");
-        if (point && this.scorePhase >= 1) {
-            if (!this.resultPointLocked) {
-                effect.stampText({ ...point, startTime: this.resultScoreStartTime });
-                if (now - this.resultScoreStartTime >= 500) {
-                    this.resultPointLocked = true;
-                    this._enterState(RESULT_STATE.LEVEL);
+                // 確保 Phase 銜接
+                if (this.scorePhase === 0) {
+                    this.scorePhase = 1;
                 }
-            } else {
-                this._drawStaticText(point.text, point.x, point.y, point.font, point.color);
+                this._drawStaticText(hanfu.text, hanfu.x, hanfu.y, hanfu.font, hanfu.color, hanfu.textAlign, 4);
             }
         }
 
-        // 4. 稱號 (Level)
-        const level = row.find(i => i.key === "level");
-        if (level && this.stateMachine.state >= RESULT_STATE.LEVEL) {
-            if (!this.resultLevelLocked) {
-                effect.stampText({ ...level, startTime: this.resultLevelStartTime, duration: TIMING.LEVEL_STAMP_DURATION });
-                if (now - this.resultLevelStartTime >= TIMING.LEVEL_STAMP_DURATION) this.resultLevelLocked = true;
-            } else {
-                this._drawStaticText(level.text, level.x, level.y, level.font, level.color);
+        // --- B. 點數 繪製 ---
+        const point = row.find(i => i.key === "point");
+        if (point) {
+            const elapsed = now - this.resultScoreStartTime;
 
-                // 役滿高光
-                const highlightStart = this.resultLevelStartTime + TIMING.LEVEL_HIGHLIGHT_DELAY;
-                if ((isYakuman || isKazoeYakuman) && now >= highlightStart) {
+            if (elapsed < 0) {
+                // 還沒到點數開始時間：但如果 phase 已經 >=1，仍然先畫 static 保底
+                if (this.scorePhase >= 1) {
+                    this._drawStaticText(point.text, point.x, point.y, point.font, point.color, point.textAlign, 6);
+                }
+            } else if (elapsed < 500) {
+                // 動畫期
+                this.scorePhase = Math.max(this.scorePhase, 1);
+                effect.fadeInText({ ...point, startTime: this.resultScoreStartTime, strokeWidth: 6 });
+            } else {
+                // 結束後永遠畫 static
+                this.scorePhase = Math.max(this.scorePhase, 2);
+                this._drawStaticText(point.text, point.x, point.y, point.font, point.color, point.textAlign, 6);
+            }
+        }
+
+        // --- C. 稱號 (Level) 繪製 ---
+        const level = row.find(i => i.key === "level");
+        if (level) {
+            const elapsed = now - this.resultLevelStartTime;
+            if (this.scorePhase === 2 && elapsed < 450) {
+                effect.stampText({ ...level, startTime: this.resultLevelStartTime, duration: 450 });
+            } else if (this.scorePhase >= 2) {
+                if (this.scorePhase === 2) {
+                    this.scorePhase = 3;
+                    this.resultLevelLocked = true;
+                    if (sm.state < RESULT_STATE.LEVEL) this._enterState(RESULT_STATE.LEVEL);
+                }
+                // 靜態文字 + 高光
+                this._drawStaticText(level.text, level.x, level.y, level.font, level.color, level.textAlign, 8);
+                if (isYakuman || isKazoeYakuman) {
                     effect.diagonalHighlight({
-                        ...level,
-                        startTime: highlightStart,
-                        angle: yakumanCount >= 2 ? 25 : 45,
-                        isSilver: isKazoeYakuman
+                        text: level.text, x: level.x, y: level.y, font: level.font,
+                        textAlign: level.textAlign, startTime: this.resultLevelStartTime,
+                        isSilver: isKazoeYakuman 
                     });
                 }
             }
+        } else if (this.scorePhase >= 2) {
+            // 無稱號時直接跳轉
+            this.resultLevelLocked = true;
+            if (sm.state < RESULT_STATE.LEVEL) this._enterState(RESULT_STATE.LEVEL);
         }
+        
+        ctx.restore();
     }
 
     /**
      * 內部的靜態文字繪製輔助
      */
-    _drawStaticText(text, x, y, font, color = "#fff") {
-        this.ctx.save();
-        this.ctx.font = font;
-        this.ctx.fillStyle = color;
-        this.ctx.textAlign = "left";
-        this.ctx.textBaseline = "alphabetic";
-        this.ctx.fillText(text, x, y);
-        this.ctx.restore();
+    _drawStaticText(text, x, y, font, color = "#fff", textAlign = "center", strokeWidth = 0) {
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.font = font;
+        ctx.textAlign = textAlign; 
+        ctx.textBaseline = "alphabetic";
+
+        // 🌟 如果有設定描邊寬度，就先畫描邊汪！
+        if (strokeWidth > 0) {
+            ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+            ctx.lineWidth = strokeWidth;
+            ctx.lineJoin = "round";
+            ctx.strokeText(text, x, y);
+        }
+
+        ctx.fillStyle = color;
+        ctx.fillText(text, x, y);
+        ctx.restore();
     }
 }

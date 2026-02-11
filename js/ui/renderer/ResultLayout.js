@@ -16,20 +16,28 @@ export class ResultLayout {
         });
     }
 
-    drawWaitList(waitTiles, centerX, startY, isFuriten = false) {
+    /**
+     * 繪製聽牌列表
+     * @param {Array} waitTiles - 聽牌清單
+     * @param {number} centerX - 中心 X
+     * @param {number} startY - 起始 Y
+     * @param {boolean} isFuriten - 是否振聽
+     * @param {boolean} showFuriten - 是否要顯示振聽狀態 (流局時可傳 false)
+     */
+    drawWaitList(waitTiles, centerX, startY, isFuriten = false, showFuriten = true) {
         const ctx = this.ctx;
         const tileW = 36;
         const tileH = 50;
         const gap = 10;
         
         let labelText = "聽牌";
-        let labelColor = "#dddddd"; // 預設白灰色
+        let labelColor = "#2fe5eb"; 
 
         if (!waitTiles || waitTiles.length === 0) {
-            labelText = "未聽牌"; // 當沒有聽牌列表時，顯示未聽牌
+            labelText = "未聽牌";
             labelColor = "#aaaaaa";
-        } else if (isFuriten) {
-            labelText = "振聽";   // 振聽時顯示紅色
+        } else if (isFuriten && showFuriten) { // ★ 只有在需要顯示振聽時才變紅
+            labelText = "振聽";   
             labelColor = "#ff6666";
         }
         
@@ -74,9 +82,15 @@ export class ResultLayout {
         });
     }
 
+    /**
+     * 繪製結算手牌 (支援詐立直邏輯)
+     */
     drawResultHand(result, centerX, startY, options = {}) {
         const { r, ctx } = this;
+        // 判定是否為錯和
         const isChombo = (typeof options === 'boolean') ? options : (options.isChombo || false);
+        // 如果是詐立直，不需要顯示右側的「和了/錯和牌」
+        const isFalseRiichi = result.reason === "詐立直";
         
         const tileCfg = r.config.tile;
         const tileW = tileCfg.w;
@@ -88,26 +102,31 @@ export class ResultLayout {
         const player = r.gameState.players[idx];
         if (!player) return null;
         
-        // --- 核心修正：確保手牌與和了牌都是純數字，不帶任何 marked 屬性 ---
         const getPureId = (t) => (t && typeof t === 'object') ? t.tile : t;
-
         let standingTiles = player.tepai.map(getPureId); 
         let winTile = -1;
         
-        // 判斷和了牌
-        if (standingTiles.length % 3 === 2) {
-            winTile = standingTiles.pop();
-        } else if (r.gameState.lastDiscard) {
-            winTile = getPureId(r.gameState.lastDiscard.tile);
+        // --- 判斷是否需要繪製 winTile ---
+        if (!isFalseRiichi) {
+            if (standingTiles.length % 3 === 2) {
+                winTile = standingTiles.pop(); // 自摸的情況
+            } else if (r.gameState.lastDiscard) {
+                winTile = getPureId(r.gameState.lastDiscard.tile); // 榮和的情況
+            }
         }
         
         const melds = player.fulu || [];
+        
+        // 計算總寬度 (如果是詐立直，不計入右側那一張的寬度)
         let totalWidth = standingTiles.length * (tileW + gap);
         if (melds.length > 0) {
             totalWidth += sectionGap;
             melds.forEach(m => totalWidth += r._calculateMeldWidth(m, tileW) + 10);
         }
-        totalWidth += sectionGap + tileW; 
+        
+        if (!isFalseRiichi && winTile !== -1) {
+            totalWidth += sectionGap + tileW; 
+        }
         
         let currentX = centerX - (totalWidth / 2);
         const handLeftX = currentX;
@@ -127,26 +146,26 @@ export class ResultLayout {
             });
         }
         
-        // 3. 繪製最後一張牌
-        currentX += sectionGap;
-        const finalWinX = currentX; 
-        const highlightColor = isChombo ? "#ff4444" : "#ffcc00";
-        
-        // 這裡再次確保傳入的是純 ID
-        r.drawTile(getPureId(winTile), finalWinX, startY, tileW, tileH);
-        
-        // --- 結算專用的文字標籤 (固定顯示) ---
-        ctx.save();
-        ctx.lineWidth = 4;
-        ctx.strokeStyle = highlightColor;
-        ctx.strokeRect(finalWinX, startY, tileW, tileH);
-        
-        ctx.fillStyle = highlightColor;
-        ctx.font = `bold 20px ${r.config.fontFamily}`; 
-        ctx.textAlign = "center";
-        ctx.textBaseline = "top";
-        ctx.fillText(isChombo ? "錯和" : "和了", finalWinX + tileW / 2, startY + tileH + 10);
-        ctx.restore();
+        // 3. 繪製最後一張牌 (詐立直時跳過此步驟)
+        if (!isFalseRiichi && winTile !== -1) {
+            currentX += sectionGap;
+            const finalWinX = currentX; 
+            const highlightColor = isChombo ? "#ff4444" : "#ffcc00";
+            
+            r.drawTile(getPureId(winTile), finalWinX, startY, tileW, tileH);
+            
+            ctx.save();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = highlightColor;
+            ctx.strokeRect(finalWinX, startY, tileW, tileH);
+            
+            ctx.fillStyle = highlightColor;
+            ctx.font = `bold 20px ${r.config.fontFamily}`; 
+            ctx.textAlign = "center";
+            ctx.textBaseline = "top";
+            ctx.fillText(isChombo ? "錯和" : "和了", finalWinX + tileW / 2, startY + tileH + 10);
+            ctx.restore();
+        }
         
         return handLeftX;
     }
@@ -179,5 +198,42 @@ export class ResultLayout {
                 currentX += w + 10;
             });
         }
+    }
+
+    /**
+     * 固定寬度平均分配 (支援切齊手牌左側)
+     * @param {number} anchorX - 基準 X (可能是中心點或手牌左側)
+     * @param {number} y - Y 座標
+     * @param {Array} items - 排版項目
+     * @param {number} totalWidth - 總分配寬度
+     * @param {boolean} alignToLeft - 是否將起始位置切齊 anchorX
+     */
+    layoutScoreRowFixed(anchorX, y, items, totalWidth = 800, alignToLeft = false) {
+        const count = items.length;
+        if (count === 0) return [];
+
+        // 算出每一格的寬度
+        const cellWidth = totalWidth / Math.max(1, count);
+
+        return items.map((item, index) => {
+            let x, textAlign;
+
+            if (alignToLeft && index === 0) {
+                x = anchorX;
+                textAlign = "left";
+            } else {
+                // 起始點偏移 + (目前索引 * 格子寬) + (半個格子寬度來置中)
+                const startOffset = alignToLeft ? anchorX : (anchorX - totalWidth / 2);
+                x = startOffset + (index * cellWidth) + (cellWidth / 2);
+                textAlign = "center";
+            }
+
+            return {
+                ...item,
+                x,
+                y,
+                textAlign
+            };
+        });
     }
 }

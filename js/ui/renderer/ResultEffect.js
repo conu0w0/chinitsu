@@ -7,112 +7,150 @@ export class ResultEffect {
     /**
      * 漸顯文字
      */
-    fadeInText({ text, x, y, font, startTime, duration = 400 }) {
+    fadeInText({ text, x, y, font, color = "#fff", startTime, textAlign = "center", duration = 400, strokeWidth = 4 }) {
         const ctx = this.ctx;
         const t = Math.min(1, (performance.now() - startTime) / duration);
 
         ctx.save();
         ctx.font = font;
         ctx.globalAlpha = t;
-        ctx.textAlign = "left";
+        ctx.textAlign = textAlign || "center";
         ctx.textBaseline = "alphabetic";
+
+        if (strokeWidth > 0) {
+            ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+            ctx.lineWidth = strokeWidth;
+            ctx.lineJoin = "round";
+            ctx.strokeText(text, x, y);
+        }
+
+        ctx.fillStyle = color;
         ctx.fillText(text, x, y);
         ctx.restore();
     }
 
     /**
-     * 蓋章動畫文字 - 改良為近距離重擊感
+     * 蓋章動畫文字 - 加入描邊效果
      */
-    stampText({ text, x, y, font, color = "#fff", startTime, duration = 450 }) {
+    stampText({ text, x, y, font, color = "#fff", startTime, textAlign = "center", duration = 450 }) {
         const ctx = this.ctx;
         const now = performance.now();
         const rawT = Math.min(1, (now - startTime) / duration);
-        
-        // 強勁的回彈效果
+
+        // backOut
         const p = rawT - 1;
-        const s = 1.7; 
+        const s = 1.7;
         const t = p * p * ((s + 1) * p + s) + 1;
 
         ctx.save();
         ctx.font = font;
-        ctx.textAlign = "left";
+        ctx.textAlign = textAlign;
         ctx.textBaseline = "alphabetic";
-        
+
+        // ✅ 計算文字中心（以目前 align 推回中心）
         const metrics = ctx.measureText(text);
-        const centerX = x + metrics.width / 2;
-        const centerY = y - 20; 
+        const w = metrics.width;
+        const fontSize = parseInt(font.match(/(\d+)px/)?.[1]) || 48;
 
-        // 調整 1：近距離縮放 (從 1.4 倍掉落到 1.0 倍)
-        const scale = 1.4 - 0.4 * t; 
-        
-        // 調整 2：延遲出現 (動畫過 40% 才顯示，增加重擊感)
-        ctx.globalAlpha = Math.max(0, (rawT - 0.4) / 0.6);
+        let leftX = x;
+        if (textAlign === "center") leftX = x - w / 2;
+        else if (textAlign === "right") leftX = x - w;
 
+        const centerX = leftX + w / 2;
+        const centerY = y - fontSize * 0.35; // alphabetic baseline 往上抓一點
+
+        const scale = 1.4 - 0.4 * t;
+        ctx.globalAlpha = Math.max(0, (rawT - 0.25) / 0.75);
+
+        // ✅ 以中心為縮放軸
         ctx.translate(centerX, centerY);
         ctx.scale(scale, scale);
-        
-        // 位移回中心點繪製
-        ctx.fillText(text, -metrics.width / 2, 20); 
+        ctx.translate(-centerX, -centerY);
+
+        // 描邊 + 填色（描邊寬度可依字大小調）
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+        ctx.lineWidth = 8;
+        ctx.lineJoin = "round";
+        ctx.strokeText(text, x, y);
+
+        ctx.fillStyle = color;
+        ctx.fillText(text, x, y);
+
         ctx.restore();
     }
+
 
     /**
      * 斜向高光動畫 - 確保只套用在文字筆劃
      */
-    diagonalHighlight({ text, x, y, font, startTime, angle = 45, isSilver = false }) {
+    diagonalHighlight({ text, x, y, font, startTime, textAlign = "left", angle = 45, isSilver = false }) {
         if (!Number.isFinite(startTime)) return;
 
         const ctx = this.ctx;
         const now = performance.now();
 
         ctx.save();
-        
-        // 1. 設定文字基本屬性
         ctx.font = font;
-        ctx.textAlign = "left";
+        ctx.textAlign = textAlign;
         ctx.textBaseline = "alphabetic";
 
         const metrics = ctx.measureText(text);
         const fontSize = parseInt(font.match(/(\d+)px/)?.[1]) || 48;
         const w = metrics.width;
         
+        // 1. 先畫最底層的強力黑邊 (防止高光溢出並增加立體感)
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.9)";
+        ctx.lineWidth = 10; // 比靜態的再粗一點點
+        ctx.lineJoin = "round";
+        ctx.strokeText(text, x, y);
+
+        // 2. 畫文字底色
+        ctx.fillStyle = isSilver ? "#e0e0e0" : "#ffcc00"; 
+        ctx.fillText(text, x, y);
+
+        // 3. 準備高光漸層計算
         const DURATION = isSilver ? 2200 : 1600;
         const t = ((now - startTime) % DURATION) / DURATION;
-
-        // 計算掃描位置
         const diag = Math.sqrt(w * w + fontSize * fontSize);
         const offset = (t * 2 - 1) * (diag + 100); 
         const rad = angle * Math.PI / 180;
         const dx = Math.cos(rad);
         const dy = Math.sin(rad);
 
-        const gradX = x + w / 2 + dx * offset;
+        let startX = x;
+        if (textAlign === "center") startX = x - w / 2;
+        else if (textAlign === "right") startX = x - w;
+
+        const gradX = startX + w / 2 + dx * offset;
         const gradY = (y - fontSize / 2) + dy * offset;
         
         const grad = ctx.createLinearGradient(
-            gradX - dx * 25, gradY - dy * 25,
-            gradX + dx * 25, gradY + dy * 25
+            gradX - dx * 60, gradY - dy * 60,
+            gradX + dx * 60, gradY + dy * 60
         );
 
         if (isSilver) {
             grad.addColorStop(0, "rgba(255, 255, 255, 0)");
-            grad.addColorStop(0.5, "rgba(255, 255, 255, 0.65)"); 
+            grad.addColorStop(0.5, "rgba(255, 255, 255, 0.9)"); // 銀白色強光
             grad.addColorStop(1, "rgba(255, 255, 255, 0)");
         } else {
             grad.addColorStop(0, "rgba(255, 215, 0, 0)");
-            grad.addColorStop(0.5, "rgba(255, 255, 230, 0.75)"); 
+            grad.addColorStop(0.5, "rgba(255, 255, 230, 1)"); // 金黃色亮點
             grad.addColorStop(1, "rgba(255, 215, 0, 0)");
         }
 
-        // 2. 核心遮罩：使用 source-atop
-        // 必須確保畫布上該位置已經先畫好了底色文字
-        ctx.globalCompositeOperation = "source-atop";
+        // 4. 關鍵：在 source-atop 模式下只渲染文字內部的高光
+        ctx.save();
+        ctx.globalCompositeOperation = "source-atop"; 
         ctx.fillStyle = grad;
-        ctx.shadowBlur = 0; 
-        
-        // 3. 填入漸層矩形 (只會顯示在文字筆劃內)
-        ctx.fillRect(x - 20, y - fontSize - 20, w + 40, fontSize + 40);
+        ctx.fillText(text, x, y); 
+        ctx.restore(); 
 
-        ctx.restore();
+        // 5. 最後再補一層細邊邊，確保邊界銳利汪！
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
+        ctx.lineWidth = 2;
+        ctx.strokeText(text, x, y);
+        
+        ctx.restore(); // 結束後一定要 restore，否則之後畫的東西都會變 source-atop
     }
 }

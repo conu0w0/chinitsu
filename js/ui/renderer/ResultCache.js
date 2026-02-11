@@ -57,6 +57,8 @@ export class ResultCache {
         const yakumanCount =
             result.score?.yakumanCount ??
             result.best?.yakumanCount ??
+            result.score?.yakumanRank ??
+            result.best?.yakumanRank ?? 
             data.sortedYakus.filter(y => YAKUMAN_SET.has(y)).length;
 
         const isYakuman = yakumanCount >= 1;
@@ -88,11 +90,11 @@ export class ResultCache {
 
     _getLimitColor({ han, isYakuman, isKazoeYakuman }) {
         if (isYakuman && !isKazoeYakuman) return "#ffd700";
-        if (isKazoeYakuman) return "#cfd8dc";
-        if (han >= 11) return "#c47a2c";
-        if (han >= 8) return "#ab47bc";
+        if (isKazoeYakuman) return "#e0e0e0";
+        if (han >= 11) return "#ff8f00";
+        if (han >= 8) return "#e040fB";
         if (han >= 6) return "#42a5f5";
-        if (han >= 5) return "#4caf50";
+        if (han >= 5) return "#64dd17";
         return "#ffffff";
     }
 }
