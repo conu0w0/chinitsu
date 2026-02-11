@@ -66,11 +66,6 @@ export class ResultRenderer {
         // 5. 其他
         this.resultYakuEndTime = 0;
         this.yakuAnimations = [];
-        
-        // 確保重置時 Canvas 是乾淨的背景
-        const W = this.r.viewport?.baseSize || this.r.config.width || 1024;
-        const H = this.r.viewport?.baseSize || this.r.config.height || 1024;
-        this.ctx.clearRect(0, 0, W, H);
     }
 
     /**
@@ -93,10 +88,9 @@ export class ResultRenderer {
         const CX = W / 2;
 
         ctx.save();
+        
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = "source-over";
-        
-        // 背景遮罩
         ctx.fillStyle = "rgba(0, 0, 0, 0.92)";
         ctx.fillRect(0, 0, W, H);
 
@@ -104,15 +98,9 @@ export class ResultRenderer {
         const env = { W, H, CX };
 
         switch (result.type) {
-            case "chombo":
-                this.drawChombo(result, env);
-                break;
-            case "ryuukyoku":
-                this.drawRyuukyoku(result, env);
-                break;
-            default:
-                this.drawAgari(result, env);
-                break;
+            case "chombo":    this.drawChombo(result, env) break;
+            case "ryuukyoku": this.drawRyuukyoku(result, env) break;
+            default:          this.drawAgari(result, env) break;
         }
 
         ctx.restore();
