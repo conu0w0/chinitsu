@@ -189,18 +189,18 @@ export class MahjongLogic {
         // Base Case: 牌都消光了 -> 成功
         if (i > 8) return true;
 
-        // Try 1: 順子
-        if (i <= 6 && counts[i+1] > 0 && counts[i+2] > 0) {
-            counts[i]--; counts[i+1]--; counts[i+2]--;
-            if (this._decomposeMentsu(counts)) return true;
-            counts[i]++; counts[i+1]++; counts[i+2]++;
-        }
-
-        // Try 2: 刻子
+        // Try 1: 刻子
         if (counts[i] >= 3) {
             counts[i] -= 3;
             if (this._decomposeMentsu(counts)) return true;
             counts[i] += 3;
+        }
+        
+        // Try 2: 順子
+        if (i <= 6 && counts[i+1] > 0 && counts[i+2] > 0) {
+            counts[i]--; counts[i+1]--; counts[i+2]--;
+            if (this._decomposeMentsu(counts)) return true;
+            counts[i]++; counts[i+1]++; counts[i+2]++;
         }
 
         return false;

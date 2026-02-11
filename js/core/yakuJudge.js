@@ -462,7 +462,7 @@ function checkIipeikou(pattern) {
 }
 
 function checkHaitei(_, ctx) {
-    return ctx.haitei ? { name: "海底撈月", han: 1 } : null;
+    return ctx.haitei ? { name: "海底摸月", han: 1 } : null;
 }
 
 function checkHoutei(_, ctx) {

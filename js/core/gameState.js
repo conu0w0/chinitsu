@@ -347,21 +347,26 @@ export class GameState {
     }
 
     finishDealing() {
-       this.phase = "DEALING_WAIT";
-       
-       setTimeout(() => {
-           this.phase = "DEAL_FLIP"; 
-           this.players.forEach(p => p.handFaceDown = true);
-           console.log("配牌完畢，自動理牌中...");
-           setTimeout(() => this.startFirstTurn(), 800);
-       }, 800); 
+        this.phase = "DEALING_WAIT";
+        
+        setTimeout(() => {
+            this.phase = "DEAL_FLIP"; 
+            
+            this.players.forEach(p => {
+                p.handFaceDown = true;        
+                p.tepai.sort((a, b) => a - b); 
+            });
+
+            console.log("配牌完畢，自動理牌並翻開...");
+            
+            setTimeout(() => this.startFirstTurn(), 1500);
+        }, 800); 
     }
       
     startFirstTurn() {
        console.log("開牌！親家摸牌");
        this.players.forEach(p => {
           p.handFaceDown = false;
-          p.tepai.sort((a, b) => a - b); // 整理手牌
        });
        
        // 輪到莊家
@@ -820,7 +825,15 @@ export class GameState {
 
         if (action.type === 'DISCARD') {
             // 一般切牌
-            this.playerDiscard(1, action.tileIndex);
+            this.lastAction = {
+                type: "com_tease", // 讓 Renderer 看到這個就去播彈起
+                index: action.tileIndex,
+                player: 1
+            };
+
+            setTimeout(() => {
+                this.playerDiscard(1, action.tileIndex);
+            }, 500);
         } else {
             // 2. 執行特殊動作 (RIICHI, ANKAN 等)
             this.applyAction(1, action);
@@ -865,10 +878,14 @@ export class GameState {
         const tenpaiInfo = [];
        
         this.players.forEach((p, idx) => {
-           const waitsSet = this.logic.getWaitTiles(this._normalizeForWait(p.tepai));
+           // 取得暗槓數，並傳入 getWaitTiles
+           const kanCount = this._getAnkanCount(p);
+           const waitsSet = this.logic.getWaitTiles(this._normalizeForWait(p.tepai), kanCount);
+           
            const waitsArr = Array.from(waitsSet);
            const isTenpai = waitsArr.length > 0;
            
+           // 如果立直了卻沒聽牌，就是詐立直
            if (p.isReach && !isTenpai) fakeRiichiIndex = idx;
            p.isTenpai = isTenpai;
            
@@ -893,6 +910,16 @@ export class GameState {
         this.phase = "ROUND_END";
         this._resetActionContext();
         this._resetRoundContext();
+    }
+
+    // Chombo 結算也能正確計算聽牌
+    _getTenpaiForChombo(player) {
+        const kanCount = this._getAnkanCount(player);
+        const waitsSet = this.logic.getWaitTiles(this._normalizeForWait(player.tepai), kanCount);
+        return {
+            isTenpai: waitsSet.size > 0,
+            waits: Array.from(waitsSet)
+        };
     }
 
     _isDiscardFuriten(player) {
@@ -1087,6 +1114,7 @@ export class GameState {
 
     _normalizeForWait(tepai) {
         const t = [...tepai];
+        // 如果手牌是摸牌後的狀態 (14, 11, 8, 5, 2 張)，則拿掉最後一張
         if (t.length % 3 === 2) t.pop();
         return t;
     }
