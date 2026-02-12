@@ -128,7 +128,6 @@ export class Renderer {
     /* =================================================================
        Core Loop (核心繪製循環)
        ================================================================= */
-
     draw() {
         const ctx = this.ctx;
         const baseSize = this.viewport.baseSize || this.config.width;
@@ -140,19 +139,22 @@ export class Renderer {
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = "source-over";
 
-        // 1. 最底層：背景
+        // 1. 底層與遊戲物件
         this._drawBackground();
-        
-        // 2. 中層：靜態遊戲物件 (牌河與手牌)
         this._drawRivers();   
         this._drawHands();
-        
-        // 3. 飛行中的動畫 (牌)
         this._drawAnimations();
 
-        // 4. UI 與標記層
-        this._renderOverlay(); 
+        // 2. UI 基礎層 (InfoBox 永遠出現)
+        this._drawInfoBox(); 
+        
+        // 3. 汪汪標記層 (判斷：只有「非結算第一階段」才顯示)
+        this._drawGameMarkers(); 
+
+        // 4. 頂層：UI按鈕 與 結算內容
+        this._renderTopOverlay();
     }
+
 
     /* =================================================================
        State Updates (邏輯更新)
@@ -787,30 +789,25 @@ export class Renderer {
     /* =================================================================
        Render Overlay (UI 與結算層)
        ================================================================= */
-
-    _renderOverlay() {
-        const phase = this.gameState.phase;
-
-        // --- 處理肉球標記 (Paw Marker) ---
-        // 只有在「非結算階段」才顯示肉球
-        if (phase !== "ROUND_END" && this._lastMarkedPaws) {
+    _drawGameMarkers() {
+        if (this._lastMarkedPaws) {
             const { x, y, w, h, rotate } = this._lastMarkedPaws;
             this._drawPawMarker(x, y, w, h, rotate);
         }
+    }
 
-        // --- 處理 UI 與 結算畫面 ---
-        if (phase === "ROUND_END") {
-            // 結算畫面邏輯
-            if (this.gameState.resultClickStage === 0) {
-                // ResultRenderer 的 draw 會覆蓋在上面
-                this.resultRenderer?.draw(this.gameState.lastResult);
-            } else {
-                this._drawInfoBox();
-            }
-        } else {
-            // 一般遊戲中
+    _renderTopOverlay() {
+        const phase = this.gameState.phase;
+
+        // A. 處理 UI 按鈕 (玩家操作時)
+        if (phase !== "ROUND_END") {
             this._drawUIButtons();
-            this._drawInfoBox();
+        }
+
+        // B. 處理結算畫面 (這會蓋在 InfoBox 與 爪爪之上)
+        if (phase === "ROUND_END" && this.gameState.resultClickStage === 0) {
+            // 這裡 ResultRenderer 畫出來的東西會是最高優先級
+            this.resultRenderer?.draw(this.gameState.lastResult);
         }
     }
 
@@ -843,6 +840,24 @@ export class Renderer {
         const parentIdx = this.gameState.parentIndex;
         const role = (idx) => (parentIdx === idx ? "[親]" : "[子]");
         const scoreValue = (idx) => Math.floor(this.scoreState.display[idx]);
+
+        // 流局：InfoBox 只顯示一行「荒牌流局」
+        const isRyuukyokuInfo =
+        (this.gameState.phase === "ROUND_END") &&
+        (this.gameState.lastResult?.type === "ryuukyoku");
+
+        if (isRyuukyokuInfo) {
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.font = `bold 34px ${this.config.fontFamily}`;
+            this._drawCrispText("荒牌流局", cx, cy, {
+                fill: "#aaddff",
+                stroke: "rgba(0,0,0,0.65)",
+                lineWidth: 3
+            });
+            ctx.restore();
+            return;
+        }
 
         // 顏色：分數跳動時提示
         const getScoreColor = (playerIdx) => {
