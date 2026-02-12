@@ -912,16 +912,6 @@ export class GameState {
         this._resetRoundContext();
     }
 
-    // Chombo 結算也能正確計算聽牌
-    _getTenpaiForChombo(player) {
-        const kanCount = this._getAnkanCount(player);
-        const waitsSet = this.logic.getWaitTiles(this._normalizeForWait(player.tepai), kanCount);
-        return {
-            isTenpai: waitsSet.size > 0,
-            waits: Array.from(waitsSet)
-        };
-    }
-
     _isDiscardFuriten(player) {
         // 直接用正規化後的牌去查聽什麼
         const pureHand = this._normalizeForWait(player.tepai);
