@@ -91,12 +91,13 @@ export class ResultLayout {
         const isChombo = (typeof options === 'boolean') ? options : (options.isChombo || false);
         // 如果是詐立直，不需要顯示右側的「和了/錯和牌」
         const isFalseRiichi = result.reason === "詐立直";
-        
+        const alignToInGameHand = (typeof options === "object") ? (options.alignToInGameHand ?? true) : true;
+
         const tileCfg = r.config.tile;
         const tileW = tileCfg.w;
         const tileH = tileCfg.h;
         const gap = tileCfg.gap || 2;
-        const sectionGap = 30; 
+        const sectionGap = tileCfg.drawGap; 
         
         const idx = isChombo ? result.offenderIndex : result.winnerIndex;
         const player = r.gameState.players[idx];
@@ -116,6 +117,122 @@ export class ResultLayout {
         }
         
         const melds = player.fulu || [];
+
+        if (alignToInGameHand) {
+            const isComWinner = (idx === 1);
+            const physics = isComWinner ? r.handPhysics.com : r.handPhysics.player;
+
+            // 對局原本的手牌長度（含摸牌槽位）
+            const inGameTotal = player.tepai.length;
+
+            // 只允許暗槓：先算槓子數（一定要在使用前宣告）
+            const kanCount = (melds || []).filter(f => f.type === "ankan").length;
+
+            // ✅ 規則：
+            // - COM 和牌且沒有暗槓：對齊「玩家手牌左側」
+            // - 有暗槓：改採用置中（下面 offsetX 會處理）
+            const forceAlignToPlayerLeft = isComWinner && kanCount === 0;
+
+            // ✅ 強制對齊玩家左側時，用 playerHand 的 zone 來算格線
+            const zoneKey = forceAlignToPlayerLeft
+                ? "playerHand"
+                : (isComWinner ? "comHand" : "playerHand");
+
+            const zone = r.ZONES[zoneKey];
+
+            // 對齊玩家左側 => 左→右；否則用各自方向
+            const dirX = forceAlignToPlayerLeft
+                ? 1
+                : (zone.direction?.x ?? (isComWinner ? -1 : 1));
+
+            // 取得每一格 X：強制對齊玩家左側時，不使用 physics（避免拿到 comHand 的 lerp 座標）
+            const inGameXs = Array.from({ length: inGameTotal }, (_, i) => {
+                if (!forceAlignToPlayerLeft) {
+                const v = physics?.currentXs?.[i];
+                if (v !== undefined && !isNaN(v)) return v;
+                }
+                return r._calculateTileX(i, inGameTotal, zone, tileCfg, dirX);
+            });
+
+            const standCount = standingTiles.length;
+            let standXs = inGameXs.slice(0, standCount);
+
+            // 強制對齊玩家左側時不要 reverse，不然又會反著排
+            if (isComWinner && !forceAlignToPlayerLeft) {
+                standXs = standXs.slice().reverse();
+            }
+
+            const sectionGapLocal = sectionGap;
+            const meldGap = 10;
+
+            // === 有暗槓：整串置中（手牌+副露+和了牌）===
+            let groupLeft = Math.min(...standXs);
+            let groupRight = Math.max(...standXs) + tileW;
+
+            // 用最後一張當右端基準（比 Math.max 更穩）
+            let probeX = standXs[standXs.length - 1] + tileW;
+
+            if (melds.length > 0) {
+                probeX += sectionGapLocal;
+                melds.forEach(m => {
+                const mw = r._calculateMeldWidth(m, tileW);
+                probeX += mw + meldGap;
+                });
+            }
+
+            if (!isFalseRiichi && winTile !== -1) {
+                probeX += sectionGapLocal + tileW;
+            }
+
+            groupRight = Math.max(groupRight, probeX);
+
+            const groupCenter = (groupLeft + groupRight) / 2;
+
+            // 有暗槓才置中
+            const offsetX = (kanCount > 0) ? r._snap(centerX - groupCenter) : 0;
+
+            // --- 手牌 ---
+            standingTiles.forEach((t, i) => {
+                r.drawTile(t, standXs[i] + offsetX, startY, tileW, tileH);
+            });
+
+            // 回傳立牌最左 X（score anchor 用）
+            const handLeftX = groupLeft + offsetX;
+
+            // --- 副露 ---
+            let currentX = (standXs[standXs.length - 1] + tileW) + offsetX;
+
+            if (melds.length > 0) {
+                currentX += sectionGapLocal;
+                melds.forEach(m => {
+                const w = r._drawSingleMeld(m, currentX, startY, tileW, tileH);
+                currentX += w + meldGap;
+                });
+            }
+
+            // --- 和了牌 ---
+            if (!isFalseRiichi && winTile !== -1) {
+                currentX += sectionGapLocal;
+                const finalWinX = currentX;
+                const highlightColor = isChombo ? "#ff4444" : "#ffcc00";
+
+                r.drawTile(getPureId(winTile), finalWinX, startY, tileW, tileH);
+
+                ctx.save();
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = highlightColor;
+                ctx.strokeRect(finalWinX, startY, tileW, tileH);
+
+                ctx.fillStyle = highlightColor;
+                ctx.font = `bold 20px ${r.config.fontFamily}`;
+                ctx.textAlign = "center";
+                ctx.textBaseline = "top";
+                ctx.fillText(isChombo ? "錯和" : "和了", finalWinX + tileW / 2, startY + tileH + 10);
+                ctx.restore();
+            }
+
+            return handLeftX;
+        }
         
         // 計算總寬度 (如果是詐立直，不計入右側那一張的寬度)
         let totalWidth = standingTiles.length * (tileW + gap);

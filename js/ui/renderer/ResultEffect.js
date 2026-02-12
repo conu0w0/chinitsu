@@ -5,49 +5,104 @@ export class ResultEffect {
     }
 
     /**
-     * 漸顯文字
+     * 統一黑色描邊文字 - 已移除爆閃白光
      */
-    fadeInText({ text, x, y, font, color = "#fff", startTime, textAlign = "center", duration = 400, strokeWidth = 4 }) {
+    drawOutlinedText({
+        text, x, y, font,
+        fill = "#fff",
+        align = "center",
+        alpha = 1,
+        strokeWidth = 6,
+        style = "black", 
+        glow = 0
+    }) {
         const ctx = this.ctx;
-        const t = Math.min(1, (performance.now() - startTime) / duration);
 
         ctx.save();
         ctx.font = font;
-        ctx.globalAlpha = t;
-        ctx.textAlign = textAlign || "center";
+        ctx.textAlign = align;
         ctx.textBaseline = "alphabetic";
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.globalAlpha = alpha;
 
         if (strokeWidth > 0) {
-            ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
+            // 🌟 處理蓋章衝擊感 (glow)：改為加強黑色陰影，而不是畫白線
+            if (glow > 0) {
+                ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+                ctx.shadowBlur = strokeWidth * glow * 1.5; // 落地時產生黑色震動陰影
+                ctx.shadowOffsetX = 2 * glow;
+                ctx.shadowOffsetY = 4 * glow;
+            }
+
+            // 1. 最外層紮實黑框
+            ctx.strokeStyle = "rgba(0, 0, 0, 0.95)";
             ctx.lineWidth = strokeWidth;
-            ctx.lineJoin = "round";
+            ctx.strokeText(text, x, y);
+
+            // 2. 內層半透明疊加（增加厚度感）
+            ctx.shadowBlur = 0; // 畫內層時關閉陰影，避免糊掉
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+            const inner = Math.max(1, Math.round(strokeWidth * 0.45));
+            ctx.strokeStyle = "rgba(0, 0, 0, 0.6)";
+            ctx.lineWidth = inner;
             ctx.strokeText(text, x, y);
         }
 
-        ctx.fillStyle = color;
+        // 最後填充文字本體
+        ctx.fillStyle = fill;
         ctx.fillText(text, x, y);
         ctx.restore();
     }
 
     /**
-     * 蓋章動畫文字 - 加入描邊效果
+     * 漸顯文字 (維持不變)
      */
-    stampText({ text, x, y, font, color = "#fff", startTime, textAlign = "center", duration = 450 }) {
+    fadeInText({ text, x, y, font, color = "#fff", startTime, textAlign = "center", duration = 400, strokeWidth = 4, strokeStyle = "black" }) {
+        const raw = (performance.now() - startTime) / duration;
+        const t = Math.max(0, Math.min(1, raw));
+        if (t <= 0) return;
+
+        this.drawOutlinedText({
+            text, x, y, font,
+            fill: color,
+            align: textAlign || "center",
+            alpha: t,
+            strokeWidth,
+            style: strokeStyle,
+            glow: 0.0
+        });
+    }
+
+    /**
+     * 蓋章動畫文字 (修正過時的預設值)
+     */
+    stampText({
+        text, x, y, font, color = "#fff",
+        startTime, textAlign = "center", duration = 420,
+        drop = 28,        
+        popScale = 1.55,  
+        strokeWidth = 8,
+        strokeStyle = "black"
+    }) {
         const ctx = this.ctx;
         const now = performance.now();
-        const rawT = Math.min(1, (now - startTime) / duration);
 
-        // backOut
-        const p = rawT - 1;
-        const s = 1.7;
-        const t = p * p * ((s + 1) * p + s) + 1;
+        const raw = (now - startTime) / duration;
+        const u = Math.max(0, Math.min(1, raw));
+        if (u <= 0) return;
+
+        const fall = 1 - Math.pow(1 - u, 3); 
+        const p = u - 1;
+        const s = 1.9;
+        const bounce = p * p * ((s + 1) * p + s) + 1; 
 
         ctx.save();
         ctx.font = font;
         ctx.textAlign = textAlign;
         ctx.textBaseline = "alphabetic";
 
-        // ✅ 計算文字中心（以目前 align 推回中心）
         const metrics = ctx.measureText(text);
         const w = metrics.width;
         const fontSize = parseInt(font.match(/(\d+)px/)?.[1]) || 48;
@@ -57,28 +112,30 @@ export class ResultEffect {
         else if (textAlign === "right") leftX = x - w;
 
         const centerX = leftX + w / 2;
-        const centerY = y - fontSize * 0.35; // alphabetic baseline 往上抓一點
+        const centerY = y - fontSize * 0.35;
 
-        const scale = 1.4 - 0.4 * t;
-        ctx.globalAlpha = Math.max(0, (rawT - 0.25) / 0.75);
+        const scale = 1 + (popScale - 1) * (1 - fall);
+        const impactScale = 1 + 0.08 * (bounce - 1); 
+        const finalScale = scale * impactScale;
+        const yOffset = -drop * (1 - fall); 
+        const alpha = Math.min(1, u * 3); 
 
-        // ✅ 以中心為縮放軸
+        // 落地瞬間的衝擊值 (0.78s 左右最強)
+        const impact = Math.max(0, 1 - Math.abs(u - 0.78) / 0.08);
+
         ctx.translate(centerX, centerY);
-        ctx.scale(scale, scale);
+        ctx.scale(finalScale, finalScale);
         ctx.translate(-centerX, -centerY);
 
-        // 描邊 + 填色（描邊寬度可依字大小調）
-        ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
-        ctx.lineWidth = 8;
-        ctx.lineJoin = "round";
-        ctx.strokeText(text, x, y);
-
-        ctx.fillStyle = color;
-        ctx.fillText(text, x, y);
+        this.drawOutlinedText({
+            text, x, y: y + yOffset, font,
+            fill: color, align: textAlign,
+            alpha, strokeWidth, style: strokeStyle,
+            glow: impact
+        });
 
         ctx.restore();
     }
-
 
     /**
      * 斜向高光動畫 - 確保只套用在文字筆劃
@@ -154,3 +211,4 @@ export class ResultEffect {
         ctx.restore(); // 結束後一定要 restore，否則之後畫的東西都會變 source-atop
     }
 }
+    
